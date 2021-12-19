@@ -47,10 +47,10 @@ func (s *TestStore) SaveToken(token *AuthToken) error {
 
 ////////////////
 
-func TestAuthHandlerSuccess(t *testing.T) {
+func TestServerAuthHandlerSuccess(t *testing.T) {
 	testAuth := TestAuth{TestToken: AuthTokenString("seekrit")}
 	testStore := TestStore{}
-	testServer := Server{
+	s := Server{
 		&testAuth,
 		&testStore,
 	}
@@ -64,7 +64,7 @@ func TestAuthHandlerSuccess(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, PathGetAuthToken, bytes.NewBuffer(requestBody))
 	w := httptest.NewRecorder()
 
-	testServer.getAuthToken(w, req)
+	s.getAuthToken(w, req)
 	body, _ := ioutil.ReadAll(w.Body)
 
 	var result AuthToken
@@ -84,7 +84,7 @@ func TestAuthHandlerSuccess(t *testing.T) {
 	}
 }
 
-func TestAuthHandlerErrors(t *testing.T) {
+func TestServerAuthHandlerErrors(t *testing.T) {
 	tt := []struct {
 		name                string
 		method              string
@@ -194,13 +194,13 @@ func TestAuthHandlerErrors(t *testing.T) {
 	}
 }
 
-func TestValidateAuthRequest(t *testing.T) {
+func TestServerValidateAuthRequest(t *testing.T) {
 	// also add a basic test case for this in TestAuthHandlerErrors to make sure it's called at all
 	// Maybe 401 specifically for missing signature?
 	t.Fatalf("Implement and test validateAuthRequest")
 }
 
-func TestValidateTokenRequest(t *testing.T) {
+func TestServerValidateTokenRequest(t *testing.T) {
 	// also add a basic test case for this in TestAuthHandlerErrors to make sure it's called at all
 	t.Fatalf("Implement and test validateTokenRequest")
 }

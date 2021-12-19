@@ -1,5 +1,7 @@
 package main // TODO - make it its own `auth` package later
 
+import "time"
+
 // TODO - Learn how to use https://github.com/golang/oauth2 instead
 // TODO - Look into jwt, etc.
 // For now I just want a process that's shaped like what I'm looking for (pubkey signatures, downloadKey, etc)
@@ -24,7 +26,10 @@ func (a *Auth) IsValidSignature(pubKey PublicKey, payload string, signature stri
 }
 
 type AuthToken struct {
-	Token AuthTokenString `json:"token"`
+	Token      AuthTokenString `json:"token"`
+	DeviceID   string          `json:"deviceId"`
+	PubKey     PublicKey       `json:"publicKey"`
+	Expiration *time.Time      `json:"expiration"`
 }
 
 type TokenRequest struct {
