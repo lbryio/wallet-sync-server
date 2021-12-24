@@ -26,7 +26,7 @@ type TestAuth struct {
 	FailGenToken bool
 }
 
-func (a *TestAuth) NewToken(pubKey PublicKey, tokenRequest *TokenRequest) (*AuthToken, error) {
+func (a *TestAuth) NewFullToken(pubKey PublicKey, tokenRequest *TokenRequest) (*AuthToken, error) {
 	if a.FailGenToken {
 		return nil, fmt.Errorf("Test error: fail to generate token")
 	}
@@ -203,4 +203,20 @@ func TestServerValidateAuthRequest(t *testing.T) {
 func TestServerValidateTokenRequest(t *testing.T) {
 	// also add a basic test case for this in TestAuthHandlerErrors to make sure it's called at all
 	t.Fatalf("Implement and test validateTokenRequest")
+}
+
+func TestServerGetWalletSuccess(t *testing.T) {
+	t.Fatalf("GetWallet succeeds")
+}
+
+func TestServerGetWalletErrors(t *testing.T) {
+	t.Fatalf("GetWallet fails for various reasons (malformed, auth, db fail)")
+}
+
+func TestServerPutWalletSuccess(t *testing.T) {
+	t.Fatalf("GetWallet succeeds")
+}
+
+func TestServerPutWalletErrors(t *testing.T) {
+	t.Fatalf("GetWallet fails for various reasons (malformed, auth, db fail)")
 }

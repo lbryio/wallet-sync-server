@@ -43,6 +43,7 @@ func TestStoreInsertToken(t *testing.T) {
 	authToken1 := AuthToken{
 		Token:    "seekrit-1",
 		DeviceID: "dID",
+		Scope:    "*",
 		PubKey:   "pubKey",
 	}
 
@@ -99,6 +100,7 @@ func TestStoreUpdateToken(t *testing.T) {
 	authToken1 := AuthToken{
 		Token:    "seekrit-1",
 		DeviceID: "dID",
+		Scope:    "*",
 		PubKey:   "pubKey",
 	}
 	authToken2 := authToken1
@@ -160,6 +162,7 @@ func TestStoreSaveToken(t *testing.T) {
 	authToken_d1_1 := AuthToken{
 		Token:    "seekrit-d1-1",
 		DeviceID: "dID-1",
+		Scope:    "*",
 		PubKey:   "pubKey",
 	}
 
@@ -268,6 +271,7 @@ func TestStoreGetToken(t *testing.T) {
 	authToken := AuthToken{
 		Token:    "seekrit-d1",
 		DeviceID: "dID",
+		Scope:    "*",
 		PubKey:   "pubKey",
 	}
 

@@ -147,7 +147,7 @@ func (s *Server) getAuthToken(w http.ResponseWriter, req *http.Request) {
 		// TODO
 	}
 
-	authToken, err := s.auth.NewToken(authRequest.PubKey, &tokenRequest)
+	authToken, err := s.auth.NewFullToken(authRequest.PubKey, &tokenRequest)
 
 	if err != nil {
 		errorJSON(w, http.StatusInternalServerError, "Error generating auth token")
