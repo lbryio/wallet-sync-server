@@ -70,7 +70,7 @@ func (s *Store) Migrate() error {
 			public_key TEXT NOT NULL,
 			wallet_state_blob TEXT NOT NULL,
 			sequence INTEGER NOT NULL,
-			signature INTEGER NOT NULL,
+			signature TEXT NOT NULL,
 			download_key TEXT NOT NULL,
 			PRIMARY KEY (public_key)
 		);
