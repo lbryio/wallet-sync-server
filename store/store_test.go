@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+// Utilitiy function that copies a time and then returns a pointer to it
+func timePtr(t time.Time) *time.Time {
+	return &t
+}
+
 // Test insertToken, using GetToken as a helper
 // Try insertToken twice with the same public key, error the second time
 func TestStoreInsertToken(t *testing.T) {
@@ -226,10 +231,6 @@ func TestStoreSaveToken(t *testing.T) {
 	if gotToken == nil || !reflect.DeepEqual(*gotToken, authToken_d2_2) {
 		t.Fatalf("token: expected %+v, got: %+v", authToken_d2_2, gotToken)
 	}
-}
-
-func timePtr(t time.Time) *time.Time {
-	return &t
 }
 
 // test GetToken using insertToken and updateToken as helpers (so we can set expiration timestamps)
