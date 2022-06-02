@@ -11,8 +11,8 @@ import (
 // Try insertToken twice with the same public key, error the second time
 func TestStoreInsertToken(t *testing.T) {
 
-	s, tmpFile := StoreTestInit(t)
-	defer StoreTestCleanup(tmpFile)
+	s, sqliteTmpFile := StoreTestInit(t)
+	defer StoreTestCleanup(sqliteTmpFile)
 
 	authToken1 := auth.AuthToken{
 		Token:    "seekrit-1",
@@ -68,8 +68,8 @@ func TestStoreInsertToken(t *testing.T) {
 // Try updateToken with a preexisting token, succeed
 // Try updateToken again with a new token, succeed
 func TestStoreUpdateToken(t *testing.T) {
-	s, tmpFile := StoreTestInit(t)
-	defer StoreTestCleanup(tmpFile)
+	s, sqliteTmpFile := StoreTestInit(t)
+	defer StoreTestCleanup(sqliteTmpFile)
 
 	authToken1 := auth.AuthToken{
 		Token:    "seekrit-1",
@@ -129,8 +129,8 @@ func TestStoreUpdateToken(t *testing.T) {
 // Put token2-d1 token2-d2
 // Get token2-d1 token2-d2
 func TestStoreSaveToken(t *testing.T) {
-	s, tmpFile := StoreTestInit(t)
-	defer StoreTestCleanup(tmpFile)
+	s, sqliteTmpFile := StoreTestInit(t)
+	defer StoreTestCleanup(sqliteTmpFile)
 
 	// Version 1 of the token for both devices
 	authToken_d1_1 := auth.AuthToken{
@@ -238,8 +238,8 @@ func timePtr(t time.Time) *time.Time {
 // not found for device (one for another device does exist)
 // expired token not returned
 func TestStoreGetToken(t *testing.T) {
-	s, tmpFile := StoreTestInit(t)
-	defer StoreTestCleanup(tmpFile)
+	s, sqliteTmpFile := StoreTestInit(t)
+	defer StoreTestCleanup(sqliteTmpFile)
 
 	// created for addition to the DB (no expiration attached)
 	authToken := auth.AuthToken{
