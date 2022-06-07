@@ -10,12 +10,15 @@ import (
 
 // TODO - Learn how to use https://github.com/golang/oauth2 instead
 // TODO - Look into jwt, etc.
-// For now I just want a process that's shaped like what I'm looking for (pubkey signatures, downloadKey, etc)
+// For now I just want a process that's shaped like what I'm looking for.
+//   (email/password, encrypted wallets, hmac, lastSynced, etc)
 
+type UserId int32
+type Email string
+type DeviceId string
+type Password string
 type AuthTokenString string
-type PublicKey string
 type DownloadKey string
-type Signature string
 
 type AuthScope string
 
@@ -24,70 +27,37 @@ const ScopeGetWalletState = AuthScope("get-wallet-state")
 
 // For test stubs
 type AuthInterface interface {
-	NewToken(pubKey PublicKey, DeviceID string, Scope AuthScope) (*AuthToken, error)
-	IsValidSignature(pubKey PublicKey, payload string, signature Signature) bool
-	ValidateTokenRequest(tokenRequest *TokenRequest) bool
+	// TODO maybe have a "refresh token" thing if the client won't have email available all the time?
+	NewToken(UserId, DeviceId, AuthScope) (*AuthToken, error)
 }
 
 type Auth struct{}
-
-func (a *Auth) IsValidSignature(pubKey PublicKey, payload string, signature Signature) bool {
-	// TODO - a real check
-	return signature == "Good Signature"
-}
 
 // Note that everything here is given to anybody who presents a valid
 // downloadKey and associated email. Currently these fields are safe to give
 // at that low security level, but keep this in mind as we change this struct.
 type AuthToken struct {
 	Token      AuthTokenString `json:"token"`
-	DeviceID   string          `json:"deviceId"`
+	DeviceId   DeviceId        `json:"deviceId"`
 	Scope      AuthScope       `json:"scope"`
-	PubKey     PublicKey       `json:"publicKey"`
+	UserId     UserId          `json:"userId"`
 	Expiration *time.Time      `json:"expiration"`
-}
-
-type TokenRequest struct {
-	DeviceID    string `json:"deviceId"`
-	RequestTime int64  `json:"requestTime"`
-	// TODO - add target domain as well. anything to limit the scope of the
-	// request to mitigate replays.
-}
-
-func (a *Auth) ValidateTokenRequest(tokenRequest *TokenRequest) bool {
-	if tokenRequest.DeviceID == "" {
-		return false
-	}
-
-	// Since we're going by signatures with a key that we don't want to change,
-	// let's avoid replays.
-	timeDiff := time.Now().Unix() - tokenRequest.RequestTime
-	if timeDiff < -2 {
-		// Maybe time drift will cause the request time to be in the future. This
-		// would also include request time. Only allow a few seconds of this.
-		return false
-	}
-	if timeDiff > 60 {
-		// Maybe the request is slow. Allow for a minute of lag time.
-		return false
-	}
-
-	return true
 }
 
 const AuthTokenLength = 32
 
-func (a *Auth) NewToken(pubKey PublicKey, DeviceID string, Scope AuthScope) (*AuthToken, error) {
+func (a *Auth) NewToken(userId UserId, deviceId DeviceId, scope AuthScope) (*AuthToken, error) {
 	b := make([]byte, AuthTokenLength)
+	// TODO - Is this is a secure random function? (Maybe audit)
 	if _, err := rand.Read(b); err != nil {
 		return nil, fmt.Errorf("Error generating token: %+v", err)
 	}
 
 	return &AuthToken{
 		Token:    AuthTokenString(hex.EncodeToString(b)),
-		DeviceID: DeviceID,
-		Scope:    Scope,
-		PubKey:   pubKey,
+		DeviceId: deviceId,
+		Scope:    scope,
+		UserId:   userId,
 		// TODO add Expiration here instead of putting it in store.go. and thus redo store.go. d'oh.
 	}, nil
 }
@@ -107,5 +77,11 @@ func (at *AuthToken) ScopeValid(required AuthScope) bool {
 func (d DownloadKey) Obfuscate() string {
 	// TODO KDF instead
 	hash := sha256.Sum256([]byte(d))
+	return hex.EncodeToString(hash[:])
+}
+
+func (p Password) Obfuscate() string {
+	// TODO KDF instead
+	hash := sha256.Sum256([]byte(p))
 	return hex.EncodeToString(hash[:])
 }

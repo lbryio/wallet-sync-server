@@ -7,11 +7,11 @@ import (
 // Test stubs for now
 
 func TestWalletSequence(t *testing.T) {
-	t.Fatalf("Test me: test that walletState.Sequence() == walletState.lastSynced[wallet.DeviceID]")
+	t.Fatalf("Test me: test that walletState.Sequence() == walletState.lastSynced[wallet.DeviceId]")
 }
 
 func TestWalletValidateWalletState(t *testing.T) {
-	// walletState.DeviceID in walletState.lastSynced
+	// walletState.DeviceId in walletState.lastSynced
 	// Sequence for lastSynced all > 1
 	t.Fatalf("Test me: Implement and test validateWalletState.")
 }

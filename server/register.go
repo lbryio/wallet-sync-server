@@ -9,18 +9,15 @@ import (
 	"orblivion/lbry-id/store"
 )
 
+// TODO email verification cycle
+
 type RegisterRequest struct {
-	Token    auth.AuthTokenString `json:"token"`
-	PubKey   auth.PublicKey       `json:"publicKey"`
-	DeviceID string               `json:"deviceId"`
-	Email    string               `json:"email"`
+	Email    auth.Email    `json:"email"`
+	Password auth.Password `json:"password"`
 }
 
 func (r *RegisterRequest) validate() bool {
-	return (r.Token != auth.AuthTokenString("") &&
-		r.PubKey != auth.PublicKey("") &&
-		r.DeviceID != "" &&
-		r.Email != "")
+	return r.Email != "" && r.Password != ""
 }
 
 func (s *Server) register(w http.ResponseWriter, req *http.Request) {
@@ -29,23 +26,13 @@ func (s *Server) register(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if !s.checkAuth(
-		w,
-		registerRequest.PubKey,
-		registerRequest.DeviceID,
-		registerRequest.Token,
-		auth.ScopeFull,
-	) {
-		return
-	}
-
-	err := s.store.InsertEmail(registerRequest.PubKey, registerRequest.Email)
+	err := s.store.CreateAccount(registerRequest.Email, registerRequest.Password)
 
 	if err != nil {
 		if err == store.ErrDuplicateEmail || err == store.ErrDuplicateAccount {
-			errorJSON(w, http.StatusConflict, "Error registering")
+			errorJson(w, http.StatusConflict, "Error registering")
 		} else {
-			internalServiceErrorJSON(w, err, "Error registering")
+			internalServiceErrorJson(w, err, "Error registering")
 		}
 		log.Print(err)
 		return
@@ -56,7 +43,7 @@ func (s *Server) register(w http.ResponseWriter, req *http.Request) {
 	response, err = json.Marshal(registerResponse)
 
 	if err != nil {
-		internalServiceErrorJSON(w, err, "Error generating register response")
+		internalServiceErrorJson(w, err, "Error generating register response")
 		return
 	}
 

@@ -4,144 +4,211 @@ A couple example flows so it's clear how it works.
 
 ## Initial setup and account recovery
 
-```
->>> import test_client
->>> c1 = test_client.Client()
-```
-
-Create a new wallet locally and authenticate based on the newly created public key (the email and password are not used just yet)
+Set up two clients with the same account (which won't exist on the server yet).
 
 ```
->>> c1.new_wallet('email@example.com', '123')
->>> c1.get_full_auth_token()
-Got auth token:  787cefea147f3a7b38e1b9fda49490371b52a3b7077507364854b72c3538f94e
+>>> from test_client import Client
+>>> c1 = Client()
+>>> c2 = Client()
+>>> c1.set_account("joe2@example.com", "123abc2")
+>>> c2.set_account("joe2@example.com", "123abc2")
 ```
 
-Post the wallet along with the downloadKey. The downloadKey is based on the password. It's the same password that will be used (in the full implementation) to encrypt the wallet. This is why we are sending it with the wallet state. We want to keep everything related to the user's password consistent.
+Each device will have a device_id which will be used in the wallet state metadata to mark which device created a given version. This is used in the `lastSynced` field (see below).
 
 ```
->>> c1.post_wallet_state()
-Successfully updated wallet state
-Got new walletState:  {'deviceId': 'e0349bc4-7e7a-48a2-a562-6c530b28a350', 'lastSynced': {'e0349bc4-7e7a-48a2-a562-6c530b28a350': 1}, 'encryptedWallet': ''}
+>>> c1.device_id
+'974690df-85a6-481d-9015-6293226db8c9'
+>>> c2.device_id
+'545643c9-ee47-443d-b260-cb9178b8646c'
 ```
 
-Note that every time a client posts, the server sends back the latest wallet state, whether or not the posted wallet state was rejected for being out of sequence. More on this below.
-
-Send the email address
+Register the account on the server with one of the clients.
 
 ```
 >>> c1.register()
 Registered
 ```
 
-Now let's set up a second device
+Now that the account exists, grab an auth token with both clients.
 
 ```
->>> c2 = test_client.Client()
-```
-
-Gets limited-scope auth token (which includes pubkey) based on email address and downloadKey (which comes from password). This token only allows downloading a wallet state (thus the "downloadKey").
-
-```
->>> c2.get_download_auth_token('email@example.com', '123')
-Got auth token:  fd3f4074e6f1b2401b33e21ce5f69d93255680b37c334b6a4e8ea6385b454b0b
-Got public key:  eeA0FfE5E57E3647524759CA9D7c7Cb1
->>>
-```
-
-Full auth token requires signature, which requires the wallet, which we don't have yet. (For demo we have a fake signature check, so this restriction is faked by the client)
-
-```
+>>> c1.get_full_auth_token()
+Got auth token:  941e5159a2caff15f0bdc1c0e6da92691d3073543dbfae810cfe57d51c35f0e0
 >>> c2.get_full_auth_token()
-No wallet state, thus no access to private key (or so we pretend for this demo), thus we cannot create a signature
+Got auth token:  b323a18e51263ac052777ca68de716c1f3b4983bf4c918477e355f637c8ea2d4
 ```
 
-Get the wallet state.
+## Syncing
+
+Create a new wallet state (wallet + metadata) and post it to the server. Note that after posting, it says it "got" a new wallet state. This is because the post endpoint also returns the latest version. The purpose of this will be explained in "Conflicts" below.
+
+The fields in the walletstate are:
+
+* `encryptedWallet` - the actual encrypted wallet data
+* `lastSynced` - a mapping between deviceId and the latest sequence number that it _created_. This is bookkeeping to prevent certain syncing errors.
+* `deviceId` - the device that made _this_ wallet state version (NOTE this admittedly seems redundant with `lastSynced` and may be removed)
+
+```
+>>> c1.new_wallet_state()
+>>> c1.post_wallet_state()
+Successfully updated wallet state on server
+Got new walletState:
+{'deviceId': '974690df-85a6-481d-9015-6293226db8c9',
+ 'encryptedWallet': '',
+ 'lastSynced': {'974690df-85a6-481d-9015-6293226db8c9': 1}}
+```
+
+With the other client, get it from the server. Note that both clients have the same data now.
 
 ```
 >>> c2.get_wallet_state()
-Got latest walletState:  {'deviceId': 'e0349bc4-7e7a-48a2-a562-6c530b28a350', 'lastSynced': {'e0349bc4-7e7a-48a2-a562-6c530b28a350': 1}, 'encryptedWallet': ''}
+Got latest walletState:
+{'deviceId': '974690df-85a6-481d-9015-6293226db8c9',
+ 'encryptedWallet': '',
+ 'lastSynced': {'974690df-85a6-481d-9015-6293226db8c9': 1}}
 ```
 
-The download-only auth token doesn't allow posting a wallet.
+## Updating
+
+Push a new version, get it with the other client. Even though we haven't edited the encrypted wallet yet, each version of a wallet _state_ has an incremented sequence number, and the deviceId that created it.
 
 ```
 >>> c2.post_wallet_state()
-Error 403
-b'{"error":"Forbidden: Scope"}\n'
+Successfully updated wallet state on server
+Got new walletState:
+{'deviceId': '545643c9-ee47-443d-b260-cb9178b8646c',
+ 'encryptedWallet': '',
+ 'lastSynced': {'545643c9-ee47-443d-b260-cb9178b8646c': 2,
+                '974690df-85a6-481d-9015-6293226db8c9': 1}}
+>>> c1.get_wallet_state()
+Got latest walletState:
+{'deviceId': '545643c9-ee47-443d-b260-cb9178b8646c',
+ 'encryptedWallet': '',
+ 'lastSynced': {'545643c9-ee47-443d-b260-cb9178b8646c': 2,
+                '974690df-85a6-481d-9015-6293226db8c9': 1}}
 ```
 
-But, we can get the full auth token now that we downloaded the wallet. In the full implementation, the wallet would be encrypted with the password. This means that somebody who merely intercepts the public key and download key wouldn't be able to do this step.
+## Wallet Changes
+
+For demo purposes, this test client represents each change to the wallet by appending segments separated by `:` so that we can more easily follow the history. (The real app will not actually edit the wallet in the form of an append log.)
 
 ```
->>> c2.get_full_auth_token()
-Got auth token:  4b19739a66f55aff5b7e0f1375c42f41d944b5175f5c5d32b35698a360bb0e5b
->>> c2.post_wallet_state()
-Successfully updated wallet state
-Got new walletState:  {'deviceId': '2ede3f32-4e65-4312-8b89-3b6bde0c5d8e', 'lastSynced': {'e0349bc4-7e7a-48a2-a562-6c530b28a350': 1, '2ede3f32-4e65-4312-8b89-3b6bde0c5d8e': 2}, 'encryptedWallet': ''}
-```
-
-# Handling conflicts
-
-Changes here are represented by 4 random characters separated by colons. The sequence of the changes is relevant to the final state of the wallet. Our goal is to make sure that all clients have all of the changes in the same order. This will thus demonstrate how clients can implement a "rebase" behavior when there is a conflict. In a full implementation, there would also be a system to resolve merge conflicts, but that is out of scope here.
-
-First, create a local change and post it
-
-```
+>>> c1.cur_encrypted_wallet()
+''
 >>> c1.change_encrypted_wallet()
 >>> c1.cur_encrypted_wallet()
-':f801'
+':2fbE'
+```
+
+The wallet is synced between the clients.
+
+```
 >>> c1.post_wallet_state()
-Successfully updated wallet state
-Got new walletState:  {'deviceId': 'f9acb3bb-ec3b-43f9-9c93-b279b9fdc938', 'lastSynced': {'f9acb3bb-ec3b-43f9-9c93-b279b9fdc938': 2}, 'encryptedWallet': ':f801'}
->>> c1.cur_encrypted_wallet()
-':f801'
-```
-
-The other client gets the update and sees the same thing locally:
-
-```
+Successfully updated wallet state on server
+Got new walletState:
+{'deviceId': '974690df-85a6-481d-9015-6293226db8c9',
+ 'encryptedWallet': ':2fbE',
+ 'lastSynced': {'545643c9-ee47-443d-b260-cb9178b8646c': 2,
+                '974690df-85a6-481d-9015-6293226db8c9': 3}}
 >>> c2.get_wallet_state()
-Got latest walletState:  {'deviceId': 'f9acb3bb-ec3b-43f9-9c93-b279b9fdc938', 'lastSynced': {'f9acb3bb-ec3b-43f9-9c93-b279b9fdc938': 2}, 'encryptedWallet': ':f801'}
+Got latest walletState:
+{'deviceId': '974690df-85a6-481d-9015-6293226db8c9',
+ 'encryptedWallet': ':2fbE',
+ 'lastSynced': {'545643c9-ee47-443d-b260-cb9178b8646c': 2,
+                '974690df-85a6-481d-9015-6293226db8c9': 3}}
 >>> c2.cur_encrypted_wallet()
-':f801'
+':2fbE'
 ```
 
-Now, both clients make different local changes and both try to post them
+## Merging Changes
+
+Both clients create changes. They now have diverging wallets.
 
 ```
 >>> c1.change_encrypted_wallet()
 >>> c2.change_encrypted_wallet()
 >>> c1.cur_encrypted_wallet()
-':f801:576b'
+':2fbE:BD62'
 >>> c2.cur_encrypted_wallet()
-':f801:dDE7'
+':2fbE:e7ac'
+```
+
+One client posts its change first. The other client pulls that change, and _merges_ those changes on top of the changes it had saved locally.
+
+The _merge base_ that a given client uses is the last version that it successfully got from or posted to the server. You can see the merge base here: the first part of the wallet which does not change from this merge.
+
+```
 >>> c1.post_wallet_state()
-Successfully updated wallet state
-Got new walletState:  {'deviceId': 'f9acb3bb-ec3b-43f9-9c93-b279b9fdc938', 'lastSynced': {'f9acb3bb-ec3b-43f9-9c93-b279b9fdc938': 3}, 'encryptedWallet': ':f801:576b'}
-
->>> c2.post_wallet_state()
-Wallet state out of date. Getting updated wallet state. Try again.
-Got new walletState:  {'deviceId': 'f9acb3bb-ec3b-43f9-9c93-b279b9fdc938', 'lastSynced': {'f9acb3bb-ec3b-43f9-9c93-b279b9fdc938': 3}, 'encryptedWallet': ':f801:576b'}
-```
-
-Client 2 gets a conflict, and the server sends it the updated wallet state that was just created by Client 1 (to save an extra request to `getWalletState`).
-
-Its local change still exists, but now it's on top of client 1's latest change. (In a full implementation, this is where conflict resolution might take place.)
-
-```
+Successfully updated wallet state on server
+Got new walletState:
+{'deviceId': '974690df-85a6-481d-9015-6293226db8c9',
+ 'encryptedWallet': ':2fbE:BD62',
+ 'lastSynced': {'545643c9-ee47-443d-b260-cb9178b8646c': 2,
+                '974690df-85a6-481d-9015-6293226db8c9': 4}}
+>>> c2.get_wallet_state()
+Got latest walletState:
+{'deviceId': '974690df-85a6-481d-9015-6293226db8c9',
+ 'encryptedWallet': ':2fbE:BD62',
+ 'lastSynced': {'545643c9-ee47-443d-b260-cb9178b8646c': 2,
+                '974690df-85a6-481d-9015-6293226db8c9': 4}}
 >>> c2.cur_encrypted_wallet()
-':f801:576b:dDE7'
+':2fbE:BD62:e7ac'
 ```
 
-Client 2 tries again to post, and it succeeds. Client 1 receives it.
+Finally, the client with the merged wallet pushes it to the server, and the other client gets the update.
 
 ```
 >>> c2.post_wallet_state()
-Successfully updated wallet state
-Got new walletState:  {'deviceId': '127e0045-425c-4dd8-a742-90cd52b9377b', 'lastSynced': {'f9acb3bb-ec3b-43f9-9c93-b279b9fdc938': 3, '127e0045-425c-4dd8-a742-90cd52b9377b': 4}, 'encryptedWallet': ':f801:576b:dDE7'}
+Successfully updated wallet state on server
+Got new walletState:
+{'deviceId': '545643c9-ee47-443d-b260-cb9178b8646c',
+ 'encryptedWallet': ':2fbE:BD62:e7ac',
+ 'lastSynced': {'545643c9-ee47-443d-b260-cb9178b8646c': 5,
+                '974690df-85a6-481d-9015-6293226db8c9': 4}}
 >>> c1.get_wallet_state()
-Got latest walletState:  {'deviceId': '127e0045-425c-4dd8-a742-90cd52b9377b', 'lastSynced': {'f9acb3bb-ec3b-43f9-9c93-b279b9fdc938': 3, '127e0045-425c-4dd8-a742-90cd52b9377b': 4}, 'encryptedWallet': ':f801:576b:dDE7'}
+Got latest walletState:
+{'deviceId': '545643c9-ee47-443d-b260-cb9178b8646c',
+ 'encryptedWallet': ':2fbE:BD62:e7ac',
+ 'lastSynced': {'545643c9-ee47-443d-b260-cb9178b8646c': 5,
+                '974690df-85a6-481d-9015-6293226db8c9': 4}}
 >>> c1.cur_encrypted_wallet()
-':f801:576b:dDE7'
+':2fbE:BD62:e7ac'
+```
+
+## Conflicts
+
+A client cannot post if it is not up to date. It needs to merge in any new changes on the server before posting its own changes. For convenience, if a conflicting post request is made, the server responds with the latest version of the wallet state (just like a GET request). This way the client doesn't need to make a second request to perform the merge.
+
+(If a non-conflicting post request is made, it responds with the same wallet state that the client just posted, as it is now the server's current wallet state)
+
+```
+>>> c2.change_encrypted_wallet()
+>>> c2.post_wallet_state()
+Successfully updated wallet state on server
+Got new walletState:
+{'deviceId': '545643c9-ee47-443d-b260-cb9178b8646c',
+ 'encryptedWallet': ':2fbE:BD62:e7ac:4EEf',
+ 'lastSynced': {'545643c9-ee47-443d-b260-cb9178b8646c': 6,
+                '974690df-85a6-481d-9015-6293226db8c9': 4}}
+>>> c1.change_encrypted_wallet()
+>>> c1.post_wallet_state()
+Wallet state out of date. Getting updated wallet state. Try again.
+Got new walletState:
+{'deviceId': '545643c9-ee47-443d-b260-cb9178b8646c',
+ 'encryptedWallet': ':2fbE:BD62:e7ac:4EEf',
+ 'lastSynced': {'545643c9-ee47-443d-b260-cb9178b8646c': 6,
+                '974690df-85a6-481d-9015-6293226db8c9': 4}}
+```
+
+Now the merge is complete, and the client can make a second post request containing the merged wallet.
+
+```
+>>> c1.post_wallet_state()
+Successfully updated wallet state on server
+Got new walletState:
+{'deviceId': '974690df-85a6-481d-9015-6293226db8c9',
+ 'encryptedWallet': ':2fbE:BD62:e7ac:4EEf:DC86',
+ 'lastSynced': {'545643c9-ee47-443d-b260-cb9178b8646c': 6,
+                '974690df-85a6-481d-9015-6293226db8c9': 7}}
 ```

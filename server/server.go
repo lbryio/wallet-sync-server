@@ -13,7 +13,6 @@ import (
 // TODO proper doc comments!
 
 const PathAuthTokenFull = "/auth/full"
-const PathAuthTokenGetWalletState = "/auth/get-wallet-state"
 const PathRegister = "/signup"
 const PathWalletState = "/wallet-state"
 
@@ -39,30 +38,32 @@ type ErrorResponse struct {
 	Error string `json:"error"`
 }
 
-func errorJSON(w http.ResponseWriter, code int, extra string) {
+func errorJson(w http.ResponseWriter, code int, extra string) {
 	errorStr := http.StatusText(code)
 	if extra != "" {
 		errorStr = errorStr + ": " + extra
 	}
-	authErrorJSON, err := json.Marshal(ErrorResponse{Error: errorStr})
+	authErrorJson, err := json.Marshal(ErrorResponse{Error: errorStr})
 	if err != nil {
 		// In case something really stupid happens
 		http.Error(w, `{"error": "error when JSON-encoding error message"}`, code)
 	}
-	http.Error(w, string(authErrorJSON), code)
+	http.Error(w, string(authErrorJson), code)
 	return
 }
 
 // Don't report any details to the user. Log it instead.
-func internalServiceErrorJSON(w http.ResponseWriter, err error, errContext string) {
+func internalServiceErrorJson(w http.ResponseWriter, serverErr error, errContext string) {
 	errorStr := http.StatusText(http.StatusInternalServerError)
-	authErrorJSON, err := json.Marshal(ErrorResponse{Error: errorStr})
+	authErrorJson, err := json.Marshal(ErrorResponse{Error: errorStr})
 	if err != nil {
 		// In case something really stupid happens
 		http.Error(w, `{"error": "error when JSON-encoding error message"}`, http.StatusInternalServerError)
+		log.Printf("error when JSON-encoding error message")
+		return
 	}
-	http.Error(w, string(authErrorJSON), http.StatusInternalServerError)
-	log.Printf("%s: %+v\n", errContext, err)
+	http.Error(w, string(authErrorJson), http.StatusInternalServerError)
+	log.Printf("%s: %+v\n", errContext, serverErr)
 
 	return
 }
@@ -77,7 +78,7 @@ func internalServiceErrorJSON(w http.ResponseWriter, err error, errContext strin
 
 func requestOverhead(w http.ResponseWriter, req *http.Request, method string) bool {
 	if req.Method != method {
-		errorJSON(w, http.StatusMethodNotAllowed, "")
+		errorJson(w, http.StatusMethodNotAllowed, "")
 		return false
 	}
 
@@ -106,13 +107,13 @@ func getPostData(w http.ResponseWriter, req *http.Request, reqStruct PostRequest
 	}
 
 	if err := json.NewDecoder(req.Body).Decode(&reqStruct); err != nil {
-		errorJSON(w, http.StatusBadRequest, "Malformed request body JSON")
+		errorJson(w, http.StatusBadRequest, "Malformed request body JSON")
 		return false
 	}
 
 	if !reqStruct.validate() {
 		// TODO validate() should return useful error messages instead of a bool.
-		errorJSON(w, http.StatusBadRequest, "Request failed validation")
+		errorJson(w, http.StatusBadRequest, "Request failed validation")
 		return false
 	}
 
@@ -124,41 +125,35 @@ func getGetData(w http.ResponseWriter, req *http.Request) bool {
 	return requestOverhead(w, req, http.MethodGet)
 }
 
+// TODO - probably don't return all of authToken since we only need userId and
+// deviceId. Also this is apparently not idiomatic go error handling.
 func (s *Server) checkAuth(
 	w http.ResponseWriter,
-	pubKey auth.PublicKey,
-	deviceId string,
 	token auth.AuthTokenString,
 	scope auth.AuthScope,
-) bool {
-	authToken, err := s.store.GetToken(pubKey, deviceId)
+) *auth.AuthToken {
+	authToken, err := s.store.GetToken(token)
 	if err == store.ErrNoToken {
-		errorJSON(w, http.StatusUnauthorized, "Token Not Found")
-		return false
+		errorJson(w, http.StatusUnauthorized, "Token Not Found")
+		return nil
 	}
 	if err != nil {
-		internalServiceErrorJSON(w, err, "Error getting Token")
-		return false
-	}
-
-	if authToken.Token != token {
-		errorJSON(w, http.StatusUnauthorized, "Token Invalid")
-		return false
+		internalServiceErrorJson(w, err, "Error getting Token")
+		return nil
 	}
 
 	if !authToken.ScopeValid(scope) {
-		errorJSON(w, http.StatusForbidden, "Scope")
-		return false
+		errorJson(w, http.StatusForbidden, "Scope")
+		return nil
 	}
 
-	return true
+	return authToken
 }
 
 // TODO - both wallet and token requests should be PUT, not POST.
 // PUT = "...creates a new resource or replaces a representation of the target resource with the request payload."
 
 func (s *Server) Serve() {
-	http.HandleFunc(PathAuthTokenGetWalletState, s.getAuthTokenForGetWalletState)
 	http.HandleFunc(PathAuthTokenFull, s.getAuthTokenFull)
 	http.HandleFunc(PathWalletState, s.handleWalletState)
 	http.HandleFunc(PathRegister, s.register)

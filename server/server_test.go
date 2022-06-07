@@ -3,6 +3,8 @@ package server
 import (
 	"fmt"
 	"orblivion/lbry-id/auth"
+	"orblivion/lbry-id/store"
+	"orblivion/lbry-id/wallet"
 	"testing"
 )
 
@@ -10,28 +12,19 @@ import (
 
 type TestAuth struct {
 	TestToken    auth.AuthTokenString
-	FailSigCheck bool
 	FailGenToken bool
 }
 
-func (a *TestAuth) NewToken(pubKey auth.PublicKey, DeviceID string, Scope auth.AuthScope) (*auth.AuthToken, error) {
+func (a *TestAuth) NewToken(userId auth.UserId, deviceId auth.DeviceId, scope auth.AuthScope) (*auth.AuthToken, error) {
 	if a.FailGenToken {
 		return nil, fmt.Errorf("Test error: fail to generate token")
 	}
-	return &auth.AuthToken{Token: a.TestToken, Scope: Scope}, nil
-}
-
-func (a *TestAuth) IsValidSignature(pubKey auth.PublicKey, payload string, signature auth.Signature) bool {
-	return !a.FailSigCheck
-}
-
-func (a *TestAuth) ValidateTokenRequest(tokenRequest *auth.TokenRequest) bool {
-	// TODO
-	return true
+	return &auth.AuthToken{Token: a.TestToken, UserId: userId, DeviceId: deviceId, Scope: scope}, nil
 }
 
 type TestStore struct {
-	FailSave bool
+	FailSave  bool
+	FailLogin bool
 
 	SaveTokenCalled bool
 }
@@ -44,29 +37,31 @@ func (s *TestStore) SaveToken(token *auth.AuthToken) error {
 	return nil
 }
 
-func (s *TestStore) GetToken(auth.PublicKey, string) (*auth.AuthToken, error) {
+func (s *TestStore) GetToken(auth.AuthTokenString) (*auth.AuthToken, error) {
 	return nil, nil
 }
 
-func (s *TestStore) GetPublicKey(string, auth.DownloadKey) (auth.PublicKey, error) {
-	return "", nil
+func (s *TestStore) GetUserId(auth.Email, auth.Password) (auth.UserId, error) {
+	if s.FailLogin {
+		return 0, store.ErrNoUId
+	}
+	return 0, nil
 }
 
-func (s *TestStore) InsertEmail(auth.PublicKey, string) error {
+func (s *TestStore) CreateAccount(auth.Email, auth.Password) error {
 	return nil
 }
 
 func (s *TestStore) SetWalletState(
-	pubKey auth.PublicKey,
+	UserId auth.UserId,
 	walletStateJson string,
 	sequence int,
-	signature auth.Signature,
-	downloadKey auth.DownloadKey,
-) (latestWalletStateJson string, latestSignature auth.Signature, updated bool, err error) {
+	hmac wallet.WalletStateHmac,
+) (latestWalletStateJson string, latestHmac wallet.WalletStateHmac, updated bool, err error) {
 	return
 }
 
-func (s *TestStore) GetWalletState(pubKey auth.PublicKey) (walletStateJSON string, signature auth.Signature, err error) {
+func (s *TestStore) GetWalletState(UserId auth.UserId) (walletStateJson string, hmac wallet.WalletStateHmac, err error) {
 	return
 }
 

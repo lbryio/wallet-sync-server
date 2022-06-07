@@ -18,7 +18,7 @@ func TestServerAuthHandlerSuccess(t *testing.T) {
 	testStore := TestStore{}
 	s := Server{&testAuth, &testStore, &wallet.WalletUtil{}}
 
-	requestBody := []byte(`{"tokenRequestJSON": "{}", "publicKey": "abc", "signature": "123"}`)
+	requestBody := []byte(`{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`)
 
 	req := httptest.NewRequest(http.MethodPost, PathAuthTokenFull, bytes.NewBuffer(requestBody))
 	w := httptest.NewRecorder()
@@ -51,7 +51,7 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 		expectedStatusCode  int
 		expectedErrorString string
 
-		authFailSigCheck bool
+		authFailLogin    bool
 		authFailGenToken bool
 		storeFailSave    bool
 	}{
@@ -65,7 +65,7 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 		{
 			name:                "request body too large",
 			method:              http.MethodPost,
-			requestBody:         fmt.Sprintf(`{"tokenRequestJSON": "%s"}`, strings.Repeat("a", 10000)),
+			requestBody:         fmt.Sprintf(`{"password": "%s"}`, strings.Repeat("a", 10000)),
 			expectedStatusCode:  http.StatusRequestEntityTooLarge,
 			expectedErrorString: http.StatusText(http.StatusRequestEntityTooLarge),
 		},
@@ -84,26 +84,19 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation",
 		},
 		{
-			name:   "signature check fail",
+			name:   "login fail",
 			method: http.MethodPost,
-			// so long as the JSON is well-formed, the content doesn't matter here since the signature check will be stubbed out
-			requestBody:         `{"tokenRequestJSON": "{}", "publicKey": "abc", "signature": "123"}`,
-			expectedStatusCode:  http.StatusForbidden,
-			expectedErrorString: http.StatusText(http.StatusForbidden) + ": Bad signature",
+			// so long as the JSON is well-formed, the content doesn't matter here since the password check will be stubbed out
+			requestBody:         `{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`,
+			expectedStatusCode:  http.StatusUnauthorized,
+			expectedErrorString: http.StatusText(http.StatusUnauthorized) + ": No match for email and password",
 
-			authFailSigCheck: true,
-		},
-		{
-			name:                "malformed tokenRequest JSON",
-			method:              http.MethodPost,
-			requestBody:         `{"tokenRequestJSON": "{", "publicKey": "abc", "signature": "123"}`,
-			expectedStatusCode:  http.StatusBadRequest,
-			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Malformed tokenRequest JSON",
+			authFailLogin: true,
 		},
 		{
 			name:                "generate token fail",
 			method:              http.MethodPost,
-			requestBody:         `{"tokenRequestJSON": "{}", "publicKey": "abc", "signature": "123"}`,
+			requestBody:         `{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`,
 			expectedStatusCode:  http.StatusInternalServerError,
 			expectedErrorString: http.StatusText(http.StatusInternalServerError),
 
@@ -112,7 +105,7 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 		{
 			name:                "save token fail",
 			method:              http.MethodPost,
-			requestBody:         `{"tokenRequestJSON": "{}", "publicKey": "abc", "signature": "123"}`,
+			requestBody:         `{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`,
 			expectedStatusCode:  http.StatusInternalServerError,
 			expectedErrorString: http.StatusText(http.StatusInternalServerError),
 
@@ -125,8 +118,8 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 			// Set this up to fail according to specification
 			testAuth := TestAuth{TestToken: auth.AuthTokenString("seekrit")}
 			testStore := TestStore{}
-			if tc.authFailSigCheck {
-				testAuth.FailSigCheck = true
+			if tc.authFailLogin {
+				testStore.FailLogin = true
 			} else if tc.authFailGenToken {
 				testAuth.FailGenToken = true
 			} else if tc.storeFailSave {

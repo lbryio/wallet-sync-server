@@ -10,27 +10,21 @@ import (
 )
 
 type WalletStateRequest struct {
-	Token     auth.AuthTokenString `json:"token"`
-	BodyJSON  string               `json:"bodyJSON"`
-	PubKey    auth.PublicKey       `json:"publicKey"`
-	Signature auth.Signature       `json:"signature"`
-
-	// downloadKey is derived from the same password used to encrypt the wallet.
-	// We want to keep it all in sync so we update it at the same time.
-	DownloadKey auth.DownloadKey `json:"downloadKey"`
+	Token           auth.AuthTokenString   `json:"token"`
+	WalletStateJson string                 `json:"walletStateJson"`
+	Hmac            wallet.WalletStateHmac `json:"hmac"`
 }
 
 func (r *WalletStateRequest) validate() bool {
 	return (r.Token != auth.AuthTokenString("") &&
-		r.BodyJSON != "" &&
-		r.PubKey != auth.PublicKey("") &&
-		r.Signature != auth.Signature(""))
+		r.WalletStateJson != "" &&
+		r.Hmac != wallet.WalletStateHmac(""))
 }
 
 type WalletStateResponse struct {
-	BodyJSON  string         `json:"bodyJSON"`
-	Signature auth.Signature `json:"signature"`
-	Error     string         `json:"error"` // in case of 409 Conflict responses. TODO - make field not show up if it's empty, to avoid confusion
+	WalletStateJson string                 `json:"walletStateJson"`
+	Hmac            wallet.WalletStateHmac `json:"hmac"`
+	Error           string                 `json:"error"` // in case of 409 Conflict responses. TODO - make field not show up if it's empty, to avoid confusion
 }
 
 func (s *Server) handleWalletState(w http.ResponseWriter, req *http.Request) {
@@ -39,31 +33,21 @@ func (s *Server) handleWalletState(w http.ResponseWriter, req *http.Request) {
 	} else if req.Method == http.MethodPost {
 		s.postWalletState(w, req)
 	} else {
-		errorJSON(w, http.StatusMethodNotAllowed, "")
+		errorJson(w, http.StatusMethodNotAllowed, "")
 	}
 }
 
 // TODO - There's probably a struct-based solution here like with POST/PUT.
 // We could put that struct up top as well.
-func getWalletStateParams(req *http.Request) (pubKey auth.PublicKey, deviceId string, token auth.AuthTokenString, err error) {
+func getWalletStateParams(req *http.Request) (token auth.AuthTokenString, err error) {
 	tokenSlice, hasTokenSlice := req.URL.Query()["token"]
-	deviceIDSlice, hasDeviceId := req.URL.Query()["deviceId"]
-	pubKeySlice, hasPubKey := req.URL.Query()["publicKey"]
 
-	if !hasDeviceId {
-		err = fmt.Errorf("Missing deviceId parameter")
-	}
 	if !hasTokenSlice {
 		err = fmt.Errorf("Missing token parameter")
 	}
-	if !hasPubKey {
-		err = fmt.Errorf("Missing publicKey parameter")
-	}
 
 	if err == nil {
-		deviceId = deviceIDSlice[0]
 		token = auth.AuthTokenString(tokenSlice[0])
-		pubKey = auth.PublicKey(pubKeySlice[0])
 	}
 
 	return
@@ -74,39 +58,41 @@ func (s *Server) getWalletState(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	pubKey, deviceId, token, err := getWalletStateParams(req)
+	token, paramsErr := getWalletStateParams(req)
 
-	if err != nil {
-	  // In this specific case, err is limited to values that are safe to give to
-	  // the user
-		errorJSON(w, http.StatusBadRequest, err.Error())
+	if paramsErr != nil {
+		// In this specific case, the error is limited to values that are safe to
+		// give to the user.
+		errorJson(w, http.StatusBadRequest, paramsErr.Error())
 		return
 	}
 
-	if !s.checkAuth(w, pubKey, deviceId, token, auth.ScopeGetWalletState) {
+	authToken := s.checkAuth(w, token, auth.ScopeGetWalletState)
+
+	if authToken == nil {
 		return
 	}
 
-	latestWalletStateJSON, latestSignature, err := s.store.GetWalletState(pubKey)
+	latestWalletStateJson, latestHmac, err := s.store.GetWalletState(authToken.UserId)
 
 	var response []byte
 
 	if err == store.ErrNoWalletState {
-		errorJSON(w, http.StatusNotFound, "No wallet state")
+		errorJson(w, http.StatusNotFound, "No wallet state")
 		return
 	} else if err != nil {
-		internalServiceErrorJSON(w, err, "Error retrieving walletState")
+		internalServiceErrorJson(w, err, "Error retrieving walletState")
 		return
 	}
 
 	walletStateResponse := WalletStateResponse{
-		BodyJSON:  latestWalletStateJSON,
-		Signature: latestSignature,
+		WalletStateJson: latestWalletStateJson,
+		Hmac:            latestHmac,
 	}
 	response, err = json.Marshal(walletStateResponse)
 
 	if err != nil {
-		internalServiceErrorJSON(w, err, "Error generating latestWalletState response")
+		internalServiceErrorJson(w, err, "Error generating latestWalletState response")
 		return
 	}
 
@@ -119,44 +105,33 @@ func (s *Server) postWalletState(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if !s.auth.IsValidSignature(walletStateRequest.PubKey, walletStateRequest.BodyJSON, walletStateRequest.Signature) {
-		errorJSON(w, http.StatusBadRequest, "Bad signature")
+	var walletStateMetadata wallet.WalletStateMetadata
+	if err := json.Unmarshal([]byte(walletStateRequest.WalletStateJson), &walletStateMetadata); err != nil {
+		errorJson(w, http.StatusBadRequest, "Malformed walletStateJson")
 		return
 	}
 
-	var walletState wallet.WalletState
-	if err := json.Unmarshal([]byte(walletStateRequest.BodyJSON), &walletState); err != nil {
-		errorJSON(w, http.StatusBadRequest, "Malformed walletState JSON")
-		return
-	}
-
-	if s.walletUtil.ValidateWalletState(&walletState) {
+	if s.walletUtil.ValidateWalletStateMetadata(&walletStateMetadata) {
 		// TODO
 	}
 
-	if !s.checkAuth(
-		w,
-		walletStateRequest.PubKey,
-		walletState.DeviceID,
-		walletStateRequest.Token,
-		auth.ScopeFull,
-	) {
+	authToken := s.checkAuth(w, walletStateRequest.Token, auth.ScopeFull)
+	if authToken == nil {
 		return
 	}
 
 	// TODO - We could do an extra check - pull from db, make sure the new
-	// walletState doesn't regress lastSynced for any given device.
+	// walletStateMetadata doesn't regress lastSynced for any given device.
 	// This is primarily the responsibility of the clients, but we may want to
 	// trade a db call here for a double-check against bugs in the client.
 	// We do already do some validation checks here, but those doesn't require
 	// new database calls.
 
-	latestWalletStateJSON, latestSignature, updated, err := s.store.SetWalletState(
-		walletStateRequest.PubKey,
-		walletStateRequest.BodyJSON,
-		walletState.Sequence(),
-		walletStateRequest.Signature,
-		walletStateRequest.DownloadKey,
+	latestWalletStateJson, latestHmac, updated, err := s.store.SetWalletState(
+		authToken.UserId,
+		walletStateRequest.WalletStateJson,
+		walletStateMetadata.Sequence(),
+		walletStateRequest.Hmac,
 	)
 
 	var response []byte
@@ -166,17 +141,17 @@ func (s *Server) postWalletState(w http.ResponseWriter, req *http.Request) {
 		// there was nothing there. This should only happen if the client sets
 		// sequence != 1 for the first walletState, which would be a bug.
 		// TODO - figure out better error messages and/or document this
-		errorJSON(w, http.StatusConflict, "Bad sequence number (No existing wallet state)")
+		errorJson(w, http.StatusConflict, "Bad sequence number (No existing wallet state)")
 		return
 	} else if err != nil {
 		// Something other than sequence error
-		internalServiceErrorJSON(w, err, "Error saving walletState")
+		internalServiceErrorJson(w, err, "Error saving walletState")
 		return
 	}
 
 	walletStateResponse := WalletStateResponse{
-		BodyJSON:  latestWalletStateJSON,
-		Signature: latestSignature,
+		WalletStateJson: latestWalletStateJson,
+		Hmac:            latestHmac,
 	}
 	if !updated {
 		// TODO - should we even call this an error?
@@ -185,7 +160,7 @@ func (s *Server) postWalletState(w http.ResponseWriter, req *http.Request) {
 	response, err = json.Marshal(walletStateResponse)
 
 	if err != nil {
-		internalServiceErrorJSON(w, err, "Error generating walletState response")
+		internalServiceErrorJson(w, err, "Error generating walletStateResponse")
 		return
 	}
 

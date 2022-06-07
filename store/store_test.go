@@ -19,52 +19,54 @@ func TestStoreInsertToken(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
+	// created for addition to the DB (no expiration attached)
 	authToken1 := auth.AuthToken{
 		Token:    "seekrit-1",
-		DeviceID: "dID",
+		DeviceId: "dId",
 		Scope:    "*",
-		PubKey:   "pubKey",
+		UserId:   123,
 	}
-
-	// The value expected when we pull it from the database.
-	authToken1DB := authToken1
-	authToken1DB.Expiration = timePtr(time.Now().Add(time.Hour * 24 * 14).UTC())
-
-	authToken2 := authToken1
-	authToken2.Token = "seekrit-2"
+	expiration := time.Now().Add(time.Hour * 24 * 14).UTC()
 
 	// Get a token, come back empty
-	gotToken, err := s.GetToken(authToken1.PubKey, authToken1.DeviceID)
+	gotToken, err := s.GetToken(authToken1.Token)
 	if gotToken != nil || err != ErrNoToken {
 		t.Fatalf("Expected ErrNoToken. token: %+v err: %+v", gotToken, err)
 	}
 
 	// Put in a token
-	if err := s.insertToken(&authToken1, *authToken1DB.Expiration); err != nil {
+	if err := s.insertToken(&authToken1, expiration); err != nil {
 		t.Fatalf("Unexpected error in insertToken: %+v", err)
 	}
 
+	// The value expected when we pull it from the database.
+	authToken1Expected := authToken1
+	authToken1Expected.Expiration = timePtr(expiration)
+
 	// Get and confirm the token we just put in
-	gotToken, err = s.GetToken(authToken1.PubKey, authToken1.DeviceID)
+	gotToken, err = s.GetToken(authToken1.Token)
 	if err != nil {
 		t.Fatalf("Unexpected error in GetToken: %+v", err)
 	}
-	if gotToken == nil || !reflect.DeepEqual(*gotToken, authToken1DB) {
-		t.Fatalf("token: \n  expected %+v\n  got:     %+v", authToken1DB, *gotToken)
+	if gotToken == nil || !reflect.DeepEqual(*gotToken, authToken1Expected) {
+		t.Fatalf("token: \n  expected %+v\n  got:     %+v", authToken1Expected, *gotToken)
 	}
 
-	// Try to put a different token, fail becaues we already have one
-	if err := s.insertToken(&authToken2, *authToken1DB.Expiration); err != ErrDuplicateToken {
+	// Try to put a different token, fail because we already have one
+	authToken2 := authToken1
+	authToken2.Token = "seekrit-2"
+
+	if err := s.insertToken(&authToken2, expiration); err != ErrDuplicateToken {
 		t.Fatalf(`insertToken err: wanted "%+v", got "%+v"`, ErrDuplicateToken, err)
 	}
 
 	// Get the same *first* token we successfully put in
-	gotToken, err = s.GetToken(authToken1.PubKey, authToken1.DeviceID)
+	gotToken, err = s.GetToken(authToken1.Token)
 	if err != nil {
 		t.Fatalf("Unexpected error in GetToken: %+v", err)
 	}
-	if gotToken == nil || !reflect.DeepEqual(*gotToken, authToken1DB) {
-		t.Fatalf("token: expected %+v, got: %+v", authToken1DB, gotToken)
+	if gotToken == nil || !reflect.DeepEqual(*gotToken, authToken1Expected) {
+		t.Fatalf("token: expected %+v, got: %+v", authToken1Expected, gotToken)
 	}
 }
 
@@ -76,57 +78,67 @@ func TestStoreUpdateToken(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	authToken1 := auth.AuthToken{
-		Token:    "seekrit-1",
-		DeviceID: "dID",
+	// created for addition to the DB (no expiration attached)
+	authTokenUpdate := auth.AuthToken{
+		Token:    "seekrit-update",
+		DeviceId: "dId",
 		Scope:    "*",
-		PubKey:   "pubKey",
+		UserId:   123,
 	}
-	authToken2 := authToken1
-	authToken2.Token = "seekrit-2"
-
-	// The value expected when we pull it from the database.
-	authToken2DB := authToken2
-	authToken2DB.Expiration = timePtr(time.Now().Add(time.Hour * 24 * 14).UTC())
+	expiration := time.Now().Add(time.Hour * 24 * 14).UTC()
 
 	// Try to get a token, come back empty because we're just starting out
-	gotToken, err := s.GetToken(authToken1.PubKey, authToken1.DeviceID)
+	gotToken, err := s.GetToken(authTokenUpdate.Token)
 	if gotToken != nil || err != ErrNoToken {
 		t.Fatalf("Expected ErrNoToken. token: %+v err: %+v", gotToken, err)
 	}
 
 	// Try to update the token - fail because we don't have an entry there in the first place
-	if err := s.updateToken(&authToken1, *authToken2DB.Expiration); err != ErrNoToken {
+	if err := s.updateToken(&authTokenUpdate, expiration); err != ErrNoToken {
 		t.Fatalf(`updateToken err: wanted "%+v", got "%+v"`, ErrNoToken, err)
 	}
 
 	// Try to get a token, come back empty because the update attempt failed to do anything
-	gotToken, err = s.GetToken(authToken1.PubKey, authToken1.DeviceID)
+	gotToken, err = s.GetToken(authTokenUpdate.Token)
 	if gotToken != nil || err != ErrNoToken {
 		t.Fatalf("Expected ErrNoToken. token: %+v err: %+v", gotToken, err)
 	}
 
-	// Put in a token - just so we have something to test updateToken with
-	if err := s.insertToken(&authToken1, *authToken2DB.Expiration); err != nil {
+	// Put in a different token, just so we have something to test that
+	// updateToken overwrites it
+	authTokenInsert := authTokenUpdate
+	authTokenInsert.Token = "seekrit-insert"
+
+	if err := s.insertToken(&authTokenInsert, expiration); err != nil {
 		t.Fatalf("Unexpected error in insertToken: %+v", err)
 	}
 
 	// Now successfully update token
-	if err := s.updateToken(&authToken2, *authToken2DB.Expiration); err != nil {
+	if err := s.updateToken(&authTokenUpdate, expiration); err != nil {
 		t.Fatalf("Unexpected error in updateToken: %+v", err)
 	}
 
+	// The value expected when we pull it from the database.
+	authTokenUpdateExpected := authTokenUpdate
+	authTokenUpdateExpected.Expiration = timePtr(expiration)
+
 	// Get and confirm the token we just put in
-	gotToken, err = s.GetToken(authToken2.PubKey, authToken2.DeviceID)
+	gotToken, err = s.GetToken(authTokenUpdate.Token)
 	if err != nil {
 		t.Fatalf("Unexpected error in GetToken: %+v", err)
 	}
-	if gotToken == nil || !reflect.DeepEqual(*gotToken, authToken2DB) {
-		t.Fatalf("token: \n  expected %+v\n  got:     %+v", authToken2DB, *gotToken)
+	if gotToken == nil || !reflect.DeepEqual(*gotToken, authTokenUpdateExpected) {
+		t.Fatalf("token: \n  expected %+v\n  got:     %+v", authTokenUpdateExpected, *gotToken)
+	}
+
+	// Fail to get the token we previously inserted, because it's now been overwritten
+	gotToken, err = s.GetToken(authTokenInsert.Token)
+	if gotToken != nil || err != ErrNoToken {
+		t.Fatalf("Expected ErrNoToken. token: %+v err: %+v", gotToken, err)
 	}
 }
 
-// Two different devices.
+// Test that a user can have two different devices.
 // Test first and second Save (one for insert, one for update)
 // Get fails initially
 // Put token1-d1 token1-d2
@@ -138,30 +150,24 @@ func TestStoreSaveToken(t *testing.T) {
 	defer StoreTestCleanup(sqliteTmpFile)
 
 	// Version 1 of the token for both devices
+	// created for addition to the DB (no expiration attached)
 	authToken_d1_1 := auth.AuthToken{
 		Token:    "seekrit-d1-1",
-		DeviceID: "dID-1",
+		DeviceId: "dId-1",
 		Scope:    "*",
-		PubKey:   "pubKey",
+		UserId:   123,
 	}
 
 	authToken_d2_1 := authToken_d1_1
-	authToken_d2_1.DeviceID = "dID-2"
+	authToken_d2_1.DeviceId = "dId-2"
 	authToken_d2_1.Token = "seekrit-d2-1"
 
-	// Version 2 of the token for both devices
-	authToken_d1_2 := authToken_d1_1
-	authToken_d1_2.Token = "seekrit-d1-2"
-
-	authToken_d2_2 := authToken_d2_1
-	authToken_d2_2.Token = "seekrit-d2-2"
-
 	// Try to get the tokens, come back empty because we're just starting out
-	gotToken, err := s.GetToken(authToken_d1_1.PubKey, authToken_d1_1.DeviceID)
+	gotToken, err := s.GetToken(authToken_d1_1.Token)
 	if gotToken != nil || err != ErrNoToken {
 		t.Fatalf("Expected ErrNoToken. token: %+v err: %+v", gotToken, err)
 	}
-	gotToken, err = s.GetToken(authToken_d2_1.PubKey, authToken_d2_1.DeviceID)
+	gotToken, err = s.GetToken(authToken_d2_1.Token)
 	if gotToken != nil || err != ErrNoToken {
 		t.Fatalf("Expected ErrNoToken. token: %+v err: %+v", gotToken, err)
 	}
@@ -184,20 +190,27 @@ func TestStoreSaveToken(t *testing.T) {
 	}
 
 	// Get and confirm the tokens we just put in
-	gotToken, err = s.GetToken(authToken_d1_1.PubKey, authToken_d1_1.DeviceID)
+	gotToken, err = s.GetToken(authToken_d1_1.Token)
 	if err != nil {
 		t.Fatalf("Unexpected error in GetToken: %+v", err)
 	}
 	if gotToken == nil || !reflect.DeepEqual(*gotToken, authToken_d1_1) {
 		t.Fatalf("token: \n  expected %+v\n  got:    %+v", authToken_d1_1, gotToken)
 	}
-	gotToken, err = s.GetToken(authToken_d2_1.PubKey, authToken_d2_1.DeviceID)
+	gotToken, err = s.GetToken(authToken_d2_1.Token)
 	if err != nil {
 		t.Fatalf("Unexpected error in GetToken: %+v", err)
 	}
 	if gotToken == nil || !reflect.DeepEqual(*gotToken, authToken_d2_1) {
 		t.Fatalf("token: expected %+v, got: %+v", authToken_d2_1, gotToken)
 	}
+
+	// Version 2 of the token for both devices
+	authToken_d1_2 := authToken_d1_1
+	authToken_d1_2.Token = "seekrit-d1-2"
+
+	authToken_d2_2 := authToken_d2_1
+	authToken_d2_2.Token = "seekrit-d2-2"
 
 	// Save Version 2 tokens for both devices
 	if err = s.SaveToken(&authToken_d1_2); err != nil {
@@ -217,14 +230,14 @@ func TestStoreSaveToken(t *testing.T) {
 	}
 
 	// Get and confirm the tokens we just put in
-	gotToken, err = s.GetToken(authToken_d1_2.PubKey, authToken_d1_2.DeviceID)
+	gotToken, err = s.GetToken(authToken_d1_2.Token)
 	if err != nil {
 		t.Fatalf("Unexpected error in GetToken: %+v", err)
 	}
 	if gotToken == nil || !reflect.DeepEqual(*gotToken, authToken_d1_2) {
 		t.Fatalf("token: \n  expected %+v\n  got:    %+v", authToken_d1_2, gotToken)
 	}
-	gotToken, err = s.GetToken(authToken_d2_2.PubKey, authToken_d2_2.DeviceID)
+	gotToken, err = s.GetToken(authToken_d2_2.Token)
 	if err != nil {
 		t.Fatalf("Unexpected error in GetToken: %+v", err)
 	}
@@ -235,9 +248,8 @@ func TestStoreSaveToken(t *testing.T) {
 
 // test GetToken using insertToken and updateToken as helpers (so we can set expiration timestamps)
 // normal
-// not found for pubkey
-// not found for device (one for another device does exist)
-// expired token not returned
+// token not found
+// expired not returned
 func TestStoreGetToken(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
@@ -245,39 +257,34 @@ func TestStoreGetToken(t *testing.T) {
 	// created for addition to the DB (no expiration attached)
 	authToken := auth.AuthToken{
 		Token:    "seekrit-d1",
-		DeviceID: "dID",
+		DeviceId: "dId",
 		Scope:    "*",
-		PubKey:   "pubKey",
+		UserId:   123,
 	}
-
-	// The value expected when we pull it from the database.
-	authTokenDB := authToken
-	authTokenDB.Expiration = timePtr(time.Time(time.Now().UTC().Add(time.Hour * 24 * 14)))
+	expiration := time.Time(time.Now().UTC().Add(time.Hour * 24 * 14))
 
 	// Not found (nothing saved for this pubkey)
-	gotToken, err := s.GetToken(authToken.PubKey, authToken.DeviceID)
+	gotToken, err := s.GetToken(authToken.Token)
 	if gotToken != nil || err != ErrNoToken {
 		t.Fatalf("Expected ErrNoToken. token: %+v err: %+v", gotToken, err)
 	}
 
 	// Put in a token
-	if err := s.insertToken(&authToken, *authTokenDB.Expiration); err != nil {
+	if err := s.insertToken(&authToken, expiration); err != nil {
 		t.Fatalf("Unexpected error in insertToken: %+v", err)
 	}
 
+	// The value expected when we pull it from the database.
+	authTokenExpected := authToken
+	authTokenExpected.Expiration = timePtr(expiration)
+
 	// Confirm it saved
-	gotToken, err = s.GetToken(authToken.PubKey, authToken.DeviceID)
+	gotToken, err = s.GetToken(authToken.Token)
 	if err != nil {
 		t.Fatalf("Unexpected error in GetToken: %+v", err)
 	}
-	if gotToken == nil || !reflect.DeepEqual(*gotToken, authTokenDB) {
-		t.Fatalf("token: \n  expected %+v\n  got:     %+v", authTokenDB, gotToken)
-	}
-
-	// Fail to get for another device
-	gotToken, err = s.GetToken(authToken.PubKey, "other-device")
-	if gotToken != nil || err != ErrNoToken {
-		t.Fatalf("Expected ErrNoToken for nonexistent device. token: %+v err: %+v", gotToken, err)
+	if gotToken == nil || !reflect.DeepEqual(*gotToken, authTokenExpected) {
+		t.Fatalf("token: \n  expected %+v\n  got:     %+v", authTokenExpected, gotToken)
 	}
 
 	// Update the token to be expired
@@ -287,7 +294,7 @@ func TestStoreGetToken(t *testing.T) {
 	}
 
 	// Fail to get the expired token
-	gotToken, err = s.GetToken(authToken.PubKey, authToken.DeviceID)
+	gotToken, err = s.GetToken(authToken.Token)
 	if gotToken != nil || err != ErrNoToken {
 		t.Fatalf("Expected ErrNoToken, for expired token. token: %+v err: %+v", gotToken, err)
 	}

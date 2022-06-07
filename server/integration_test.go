@@ -11,7 +11,6 @@ import (
 	"orblivion/lbry-id/store"
 	"orblivion/lbry-id/wallet"
 	"testing"
-	"time"
 )
 
 // Whereas sever_test.go stubs out auth store and wallet, these will use the real thing, but test fewer paths.
@@ -69,23 +68,31 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	)
 
 	////////////////////
+	// Register email address - any device
+	////////////////////
+
+	var registerResponse struct{}
+	responseBody, statusCode := request(
+		t,
+		http.MethodPost,
+		s.register,
+		PathRegister,
+		&registerResponse,
+		`{"email": "abc@example.com", "password": "123"}`,
+	)
+
+	////////////////////
 	// Get auth token - device 1
 	////////////////////
 
 	var authToken1 auth.AuthToken
-	responseBody, statusCode := request(
+	responseBody, statusCode = request(
 		t,
 		http.MethodPost,
 		s.getAuthTokenFull,
 		PathAuthTokenFull,
 		&authToken1,
-		fmt.Sprintf(`{
-      "tokenRequestJSON": "{\"deviceID\": \"dev-1\", \"requestTime\": %d}",
-      "publickey": "testPubKey",
-      "signature": "Good Signature"
-    }`,
-			time.Now().Unix(),
-		),
+		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`,
 	)
 
 	checkStatusCode(t, statusCode, responseBody)
@@ -95,8 +102,8 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	if len(authToken1.Token) != expectedTokenLength {
 		t.Fatalf("Expected auth response to contain token length 32: result: %+v", string(responseBody))
 	}
-	if authToken1.DeviceID != "dev-1" {
-		t.Fatalf("Unexpected response DeviceID. want: %+v got: %+v", "dev-1", authToken1.DeviceID)
+	if authToken1.DeviceId != "dev-1" {
+		t.Fatalf("Unexpected response DeviceId. want: %+v got: %+v", "dev-1", authToken1.DeviceId)
 	}
 	if authToken1.Scope != auth.ScopeFull {
 		t.Fatalf("Unexpected response Scope. want: %+v got: %+v", auth.ScopeFull, authToken1.Scope)
@@ -113,19 +120,13 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 		s.getAuthTokenFull,
 		PathAuthTokenFull,
 		&authToken2,
-		fmt.Sprintf(`{
-      "tokenRequestJSON": "{\"deviceID\": \"dev-2\", \"requestTime\": %d}",
-      "publickey": "testPubKey",
-      "signature": "Good Signature"
-    }`,
-			time.Now().Unix(),
-		),
+		`{"deviceId": "dev-2", "email": "abc@example.com", "password": "123"}`,
 	)
 
 	checkStatusCode(t, statusCode, responseBody)
 
-	if authToken2.DeviceID != "dev-2" {
-		t.Fatalf("Unexpected response DeviceID. want: %+v got: %+v", "dev-2", authToken2.DeviceID)
+	if authToken2.DeviceId != "dev-2" {
+		t.Fatalf("Unexpected response DeviceId. want: %+v got: %+v", "dev-2", authToken2.DeviceId)
 	}
 
 	////////////////////
@@ -141,17 +142,15 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 		&walletStateResponse,
 		fmt.Sprintf(`{
       "token": "%s",
-      "bodyJSON": "{\"encryptedWallet\": \"blah\", \"lastSynced\":{\"dev-1\": 1}, \"deviceId\": \"dev-1\" }",
-      "publickey": "testPubKey",
-      "downloadKey": "myDownloadKey",
-      "signature": "Good Signature"
+      "walletStateJson": "{\"encryptedWallet\": \"blah\", \"lastSynced\":{\"dev-1\": 1}, \"deviceId\": \"dev-1\" }",
+      "hmac": "my-hmac-1"
     }`, authToken1.Token),
 	)
 
 	checkStatusCode(t, statusCode, responseBody)
 
 	var walletState wallet.WalletState
-	err := json.Unmarshal([]byte(walletStateResponse.BodyJSON), &walletState)
+	err := json.Unmarshal([]byte(walletStateResponse.WalletStateJson), &walletState)
 
 	if err != nil {
 		t.Fatalf("Unexpected error: %+v", err)
@@ -170,16 +169,14 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 		t,
 		http.MethodGet,
 		s.getWalletState,
-		fmt.Sprintf(
-			"%s?token=%s&publicKey=%s&deviceId=%s",
-			PathWalletState, authToken2.Token, authToken2.PubKey, "dev-2"),
+		fmt.Sprintf("%s?token=%s", PathWalletState, authToken2.Token),
 		&walletStateResponse,
 		"",
 	)
 
 	checkStatusCode(t, statusCode, responseBody)
 
-	err = json.Unmarshal([]byte(walletStateResponse.BodyJSON), &walletState)
+	err = json.Unmarshal([]byte(walletStateResponse.WalletStateJson), &walletState)
 
 	if err != nil {
 		t.Fatalf("Unexpected error: %+v", err)
@@ -202,16 +199,14 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 		&walletStateResponse,
 		fmt.Sprintf(`{
       "token": "%s",
-      "bodyJSON": "{\"encryptedWallet\": \"blah2\", \"lastSynced\":{\"dev-1\": 1, \"dev-2\": 2}, \"deviceId\": \"dev-2\" }",
-      "publickey": "testPubKey",
-      "downloadKey": "myDownloadKey",
-      "signature": "Good Signature"
+      "walletStateJson": "{\"encryptedWallet\": \"blah2\", \"lastSynced\":{\"dev-1\": 1, \"dev-2\": 2}, \"deviceId\": \"dev-2\" }",
+      "hmac": "my-hmac-2"
     }`, authToken2.Token),
 	)
 
 	checkStatusCode(t, statusCode, responseBody)
 
-	err = json.Unmarshal([]byte(walletStateResponse.BodyJSON), &walletState)
+	err = json.Unmarshal([]byte(walletStateResponse.WalletStateJson), &walletState)
 
 	if err != nil {
 		t.Fatalf("Unexpected error: %+v", err)
@@ -230,16 +225,14 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 		t,
 		http.MethodGet,
 		s.getWalletState,
-		fmt.Sprintf(
-			"%s?token=%s&publicKey=%s&deviceId=%s",
-			PathWalletState, authToken1.Token, authToken1.PubKey, "dev-1"),
+		fmt.Sprintf("%s?token=%s", PathWalletState, authToken1.Token),
 		&walletStateResponse,
 		"",
 	)
 
 	checkStatusCode(t, statusCode, responseBody)
 
-	err = json.Unmarshal([]byte(walletStateResponse.BodyJSON), &walletState)
+	err = json.Unmarshal([]byte(walletStateResponse.WalletStateJson), &walletState)
 
 	if err != nil {
 		t.Fatalf("Unexpected error: %+v", err)
@@ -248,161 +241,5 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	sequence = walletState.Sequence()
 	if sequence != 2 {
 		t.Fatalf("Unexpected response Sequence(). want: %+v got: %+v", 2, sequence)
-	}
-}
-
-// Test a flow with a new device that needs to use the download key
-func TestIntegrationNewDevice(t *testing.T) {
-	st, tmpFile := store.StoreTestInit(t)
-	defer store.StoreTestCleanup(tmpFile)
-
-	s := Server{
-		&auth.Auth{},
-		&st,
-		&wallet.WalletUtil{},
-	}
-
-	////////////////////
-	// Get full auth token - device 1
-	////////////////////
-
-	var authToken1 auth.AuthToken
-	responseBody, statusCode := request(
-		t,
-		http.MethodPost,
-		s.getAuthTokenFull,
-		PathAuthTokenFull,
-		&authToken1,
-		fmt.Sprintf(`{
-      "tokenRequestJSON": "{\"deviceID\": \"dev-1\", \"requestTime\": %d}",
-      "publickey": "testPubKey",
-      "signature": "Good Signature"
-    }`,
-			time.Now().Unix(),
-		),
-	)
-
-	checkStatusCode(t, statusCode, responseBody)
-
-	if authToken1.DeviceID != "dev-1" {
-		t.Fatalf("Unexpected response DeviceID. want: %+v got: %+v", "dev-1", authToken1.DeviceID)
-	}
-	if authToken1.Scope != auth.ScopeFull {
-		t.Fatalf("Unexpected response Scope. want: %+v got: %+v", auth.ScopeFull, authToken1.Scope)
-	}
-
-	////////////////////
-	// Register email address - device 1
-	////////////////////
-
-	var registerResponse struct{}
-	responseBody, statusCode = request(
-		t,
-		http.MethodPost,
-		s.register,
-		PathRegister,
-		&registerResponse,
-		fmt.Sprintf(`{
-      "token": "%s",
-      "publicKey": "testPubKey",
-      "deviceId": "dev-1",
-      "email": "address@example.com"
-    }`, authToken1.Token),
-	)
-
-	checkStatusCode(t, statusCode, responseBody, http.StatusCreated)
-
-	////////////////////
-	// Put wallet state - device 1
-	////////////////////
-
-	var walletStateResponse WalletStateResponse
-	responseBody, statusCode = request(
-		t,
-		http.MethodPost,
-		s.postWalletState,
-		PathWalletState,
-		&walletStateResponse,
-		fmt.Sprintf(`{
-      "token": "%s",
-      "bodyJSON": "{\"encryptedWallet\": \"blah\", \"lastSynced\":{\"dev-1\": 1}, \"deviceId\": \"dev-1\" }",
-      "publickey": "testPubKey",
-      "downloadKey": "myDownloadKey",
-      "signature": "Good Signature"
-    }`, authToken1.Token),
-	)
-
-	checkStatusCode(t, statusCode, responseBody)
-
-	var walletState wallet.WalletState
-	err := json.Unmarshal([]byte(walletStateResponse.BodyJSON), &walletState)
-
-	if err != nil {
-		t.Fatalf("Unexpected error: %+v", err)
-	}
-
-	sequence := walletState.Sequence()
-	if sequence != 1 {
-		t.Fatalf("Unexpected response Sequence(). want: %+v got: %+v", 1, sequence)
-	}
-
-	////////////////////
-	// Get get-wallet-state auth token - device 2
-	////////////////////
-
-	var authToken2 auth.AuthToken
-	responseBody, statusCode = request(
-		t,
-		http.MethodPost,
-		s.getAuthTokenForGetWalletState,
-		PathAuthTokenGetWalletState,
-		&authToken2,
-		`{
-      "email": "address@example.com",
-      "downloadKey": "myDownloadKey",
-      "deviceID": "dev-2"
-    }`,
-	)
-
-	checkStatusCode(t, statusCode, responseBody)
-
-	// result.Token is in hex, auth.AuthTokenLength is bytes in the original
-	expectedTokenLength := auth.AuthTokenLength * 2
-	if len(authToken2.Token) != expectedTokenLength {
-		t.Fatalf("Expected auth response to contain token length 32: result: %+v", string(responseBody))
-	}
-	if authToken2.DeviceID != "dev-2" {
-		t.Fatalf("Unexpected response DeviceID. want: %+v got: %+v", "dev-2", authToken2.DeviceID)
-	}
-	if authToken2.Scope != auth.ScopeGetWalletState {
-		t.Fatalf("Unexpected response Scope. want: %+v got: %+v", auth.ScopeGetWalletState, authToken1.Scope)
-	}
-
-	////////////////////
-	// Get wallet state - device 2
-	////////////////////
-
-	responseBody, statusCode = request(
-		t,
-		http.MethodGet,
-		s.getWalletState,
-		fmt.Sprintf(
-			"%s?token=%s&publicKey=%s&deviceId=%s",
-			PathWalletState, authToken2.Token, authToken2.PubKey, "dev-2"),
-		&walletStateResponse,
-		"",
-	)
-
-	checkStatusCode(t, statusCode, responseBody)
-
-	err = json.Unmarshal([]byte(walletStateResponse.BodyJSON), &walletState)
-
-	if err != nil {
-		t.Fatalf("Unexpected error: %+v", err)
-	}
-
-	sequence = walletState.Sequence()
-	if sequence != 1 {
-		t.Fatalf("Unexpected response Sequence(). want: %+v got: %+v", 1, sequence)
 	}
 }

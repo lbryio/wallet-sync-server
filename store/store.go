@@ -1,6 +1,6 @@
 package store
 
-// TODO - DeviceID - What about clients that lie about deviceID? Maybe require a certain format to make sure it gives a real value? Something it wouldn't come up with by accident.
+// TODO - DeviceId - What about clients that lie about deviceId? Maybe require a certain format to make sure it gives a real value? Something it wouldn't come up with by accident.
 
 import (
 	"database/sql"
@@ -10,6 +10,7 @@ import (
 	"github.com/mattn/go-sqlite3"
 	"log"
 	"orblivion/lbry-id/auth"
+	"orblivion/lbry-id/wallet"
 	"time"
 )
 
@@ -23,17 +24,17 @@ var (
 	ErrDuplicateEmail   = fmt.Errorf("Email already exists for this user")
 	ErrDuplicateAccount = fmt.Errorf("User already has an account")
 
-	ErrNoPubKey = fmt.Errorf("Public Key not found with these credentials")
+	ErrNoUId = fmt.Errorf("User Id not found with these credentials")
 )
 
 // For test stubs
 type StoreInterface interface {
 	SaveToken(*auth.AuthToken) error
-	GetToken(auth.PublicKey, string) (*auth.AuthToken, error)
-	SetWalletState(auth.PublicKey, string, int, auth.Signature, auth.DownloadKey) (string, auth.Signature, bool, error)
-	GetWalletState(auth.PublicKey) (string, auth.Signature, error)
-	GetPublicKey(string, auth.DownloadKey) (auth.PublicKey, error)
-	InsertEmail(auth.PublicKey, string) (err error)
+	GetToken(auth.AuthTokenString) (*auth.AuthToken, error)
+	SetWalletState(auth.UserId, string, int, wallet.WalletStateHmac) (string, wallet.WalletStateHmac, bool, error)
+	GetWalletState(auth.UserId) (string, wallet.WalletStateHmac, error)
+	GetUserId(auth.Email, auth.Password) (auth.UserId, error)
+	CreateAccount(auth.Email, auth.Password) (err error)
 }
 
 type Store struct {
@@ -56,29 +57,41 @@ func (s *Store) Migrate() error {
 	// specify "WHERE sequence=5". Only one of these commands will succeed, and
 	// the other will get back an error.
 
+	// We use AUTOINCREMENT against the protestations of people on the Internet
+	// who claim that INTEGER PRIMARY KEY automatically has autoincrment, and
+	// that using it when it's not "strictly needed" uses extra resources. But
+	// without AUTOINCREMENT, it might reuse primary keys if a row is deleted and
+	// re-added. Who wants that risk? Besides, we'll switch to Postgres when it's
+	// time to scale anyway.
+
+	// We use UNIQUE on auth_tokens.token so that we can retrieve it easily and
+	// identify the user (and I suppose the uniqueness provides a little extra
+	// security in case we screw up the random generator). However the primary
+	// key should still be (user_id, device_id) so that a device's row can be
+	// updated with a new token.
+
 	// TODO does it actually fail with empty "NOT NULL" fields?
 	query := `
 		CREATE TABLE IF NOT EXISTS auth_tokens(
-			token TEXT NOT NULL,
-			public_key TEXT NOT NULL,
+			token TEXT NOT NULL UNIQUE,
+			user_id INTEGER NOT NULL,
 			device_id TEXT NOT NULL,
 			scope TEXT NOT NULL,
 			expiration DATETIME NOT NULL,
-			PRIMARY KEY (device_id)
+			PRIMARY KEY (user_id, device_id)
 		);
 		CREATE TABLE IF NOT EXISTS wallet_states(
-			public_key TEXT NOT NULL,
+			user_id INTEGER NOT NULL,
 			wallet_state_blob TEXT NOT NULL,
 			sequence INTEGER NOT NULL,
-			signature TEXT NOT NULL,
-			download_key TEXT NOT NULL,
-			PRIMARY KEY (public_key)
+			hmac TEXT NOT NULL,
+			PRIMARY KEY (user_id)
+			FOREIGN KEY (user_id) REFERENCES accounts(user_id)
 		);
 		CREATE TABLE IF NOT EXISTS accounts(
 			email TEXT NOT NULL UNIQUE,
-			public_key TEXT NOT NULL,
-			PRIMARY KEY (public_key),
-			FOREIGN KEY (public_key) REFERENCES wallet_states(public_key)
+			user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+			password TEXT NOT NULL
 		);
 	`
 
@@ -90,12 +103,16 @@ func (s *Store) Migrate() error {
 // Auth Token //
 ////////////////
 
-func (s *Store) GetToken(pubKey auth.PublicKey, deviceID string) (*auth.AuthToken, error) {
+// TODO - Is it safe to assume that the owner of the token is legit, and is
+// coming from the legit device id? No need to query by userId and deviceId
+// (which I did previously)?
+//
+// TODO Put the timestamp in the token to avoid duplicates over time. And/or just use a library! Someone solved this already.
+func (s *Store) GetToken(token auth.AuthTokenString) (*auth.AuthToken, error) {
 	expirationCutoff := time.Now().UTC()
 
 	rows, err := s.db.Query(
-		"SELECT * FROM auth_tokens WHERE public_key=? AND device_id=? AND expiration>?",
-		pubKey, deviceID, expirationCutoff,
+		"SELECT * FROM auth_tokens WHERE token=? AND expiration>?", token, expirationCutoff,
 	)
 	if err != nil {
 		return nil, err
@@ -107,8 +124,8 @@ func (s *Store) GetToken(pubKey auth.PublicKey, deviceID string) (*auth.AuthToke
 
 		err := rows.Scan(
 			&authToken.Token,
-			&authToken.PubKey,
-			&authToken.DeviceID,
+			&authToken.UserId,
+			&authToken.DeviceId,
 			&authToken.Scope,
 			&authToken.Expiration,
 		)
@@ -123,8 +140,8 @@ func (s *Store) GetToken(pubKey auth.PublicKey, deviceID string) (*auth.AuthToke
 
 func (s *Store) insertToken(authToken *auth.AuthToken, expiration time.Time) (err error) {
 	_, err = s.db.Exec(
-		"INSERT INTO auth_tokens (token, public_key, device_id, scope, expiration) values(?,?,?,?,?)",
-		authToken.Token, authToken.PubKey, authToken.DeviceID, authToken.Scope, expiration,
+		"INSERT INTO auth_tokens (token, user_id, device_id, scope, expiration) values(?,?,?,?,?)",
+		authToken.Token, authToken.UserId, authToken.DeviceId, authToken.Scope, expiration,
 	)
 
 	var sqliteErr sqlite3.Error
@@ -141,8 +158,8 @@ func (s *Store) insertToken(authToken *auth.AuthToken, expiration time.Time) (er
 
 func (s *Store) updateToken(authToken *auth.AuthToken, experation time.Time) (err error) {
 	res, err := s.db.Exec(
-		"UPDATE auth_tokens SET token=?, expiration=?, scope=? WHERE public_key=? AND device_id=?",
-		authToken.Token, experation, authToken.Scope, authToken.PubKey, authToken.DeviceID,
+		"UPDATE auth_tokens SET token=?, expiration=?, scope=? WHERE user_id=? AND device_id=?",
+		authToken.Token, experation, authToken.Scope, authToken.UserId, authToken.DeviceId,
 	)
 	if err != nil {
 		return
@@ -191,10 +208,10 @@ func (s *Store) SaveToken(token *auth.AuthToken) (err error) {
 // Wallet State / Download Key //
 /////////////////////////////////
 
-func (s *Store) GetWalletState(pubKey auth.PublicKey) (walletStateJSON string, signature auth.Signature, err error) {
+func (s *Store) GetWalletState(userId auth.UserId) (walletStateJson string, hmac wallet.WalletStateHmac, err error) {
 	rows, err := s.db.Query(
-		"SELECT wallet_state_blob, signature FROM wallet_states WHERE public_key=?",
-		pubKey,
+		"SELECT wallet_state_blob, hmac FROM wallet_states WHERE user_id=?",
+		userId,
 	)
 	if err != nil {
 		return
@@ -203,8 +220,8 @@ func (s *Store) GetWalletState(pubKey auth.PublicKey) (walletStateJSON string, s
 
 	for rows.Next() {
 		err = rows.Scan(
-			&walletStateJSON,
-			&signature,
+			&walletStateJson,
+			&hmac,
 		)
 		return
 	}
@@ -213,17 +230,16 @@ func (s *Store) GetWalletState(pubKey auth.PublicKey) (walletStateJSON string, s
 }
 
 func (s *Store) insertFirstWalletState(
-	pubKey auth.PublicKey,
-	walletStateJSON string,
-	signature auth.Signature,
-	downloadKey auth.DownloadKey,
+	userId auth.UserId,
+	walletStateJson string,
+	hmac wallet.WalletStateHmac,
 ) (err error) {
 	// This will only be used to attempt to insert the first wallet state
 	//   (sequence=1). The database will enforce that this will not be set
 	//   if this user already has a walletState.
 	_, err = s.db.Exec(
-		"INSERT INTO wallet_states (public_key, wallet_state_blob, sequence, signature, download_key) values(?,?,?,?,?)",
-		pubKey, walletStateJSON, 1, signature, downloadKey.Obfuscate(),
+		"INSERT INTO wallet_states (user_id, wallet_state_blob, sequence, hmac) values(?,?,?,?)",
+		userId, walletStateJson, 1, hmac,
 	)
 
 	var sqliteErr sqlite3.Error
@@ -239,19 +255,18 @@ func (s *Store) insertFirstWalletState(
 }
 
 func (s *Store) updateWalletStateToSequence(
-	pubKey auth.PublicKey,
-	walletStateJSON string,
+	userId auth.UserId,
+	walletStateJson string,
 	sequence int,
-	signature auth.Signature,
-	downloadKey auth.DownloadKey,
+	hmac wallet.WalletStateHmac,
 ) (err error) {
 	// This will be used for wallet states with sequence > 1.
 	// Use the database to enforce that we only update if we are incrementing the sequence.
 	// This way, if two clients attempt to update at the same time, it will return
 	// ErrNoWalletState for the second one.
 	res, err := s.db.Exec(
-		"UPDATE wallet_states SET wallet_state_blob=?, sequence=?, signature=?, download_key=? WHERE public_key=? AND sequence=?",
-		walletStateJSON, sequence, signature, downloadKey.Obfuscate(), pubKey, sequence-1,
+		"UPDATE wallet_states SET wallet_state_blob=?, sequence=?, hmac=? WHERE user_id=? AND sequence=?",
+		walletStateJson, sequence, hmac, userId, sequence-1,
 	)
 	if err != nil {
 		return
@@ -269,25 +284,24 @@ func (s *Store) updateWalletStateToSequence(
 
 // Assumption: walletState has been validated (sequence >=1, etc)
 // Assumption: Sequence matches walletState.Sequence()
-// Sequence is only passed in here to avoid deserializing walletStateJSON again
-// WalletState *struct* is not passed in because we need the exact signed string
+// Sequence is only passed in here to avoid deserializing walletStateJson again
+// WalletState *struct* is not passed in because the clients need the exact string to match the hmac
 func (s *Store) SetWalletState(
-	pubKey auth.PublicKey,
-	walletStateJSON string,
+	userId auth.UserId,
+	walletStateJson string,
 	sequence int,
-	signature auth.Signature,
-	downloadKey auth.DownloadKey,
-) (latestWalletStateJSON string, latestSignature auth.Signature, updated bool, err error) {
+	hmac wallet.WalletStateHmac,
+) (latestWalletStateJson string, latestHmac wallet.WalletStateHmac, updated bool, err error) {
 	if sequence == 1 {
 		// If sequence == 1, the client assumed that this is our first
 		// walletState. Try to insert. If we get a conflict, the client
 		// assumed incorrectly and we proceed below to return the latest
 		// walletState from the db.
-		err = s.insertFirstWalletState(pubKey, walletStateJSON, signature, downloadKey)
+		err = s.insertFirstWalletState(userId, walletStateJson, hmac)
 		if err == nil {
 			// Successful update
-			latestWalletStateJSON = walletStateJSON
-			latestSignature = signature
+			latestWalletStateJson = walletStateJson
+			latestHmac = hmac
 			updated = true
 			return
 		} else if err != ErrDuplicateWalletState {
@@ -299,10 +313,10 @@ func (s *Store) SetWalletState(
 		// with sequence - 1. Explicitly try to update the walletState with
 		// sequence - 1. If we updated no rows, the client assumed incorrectly
 		// and we proceed below to return the latest walletState from the db.
-		err = s.updateWalletStateToSequence(pubKey, walletStateJSON, sequence, signature, downloadKey)
+		err = s.updateWalletStateToSequence(userId, walletStateJson, sequence, hmac)
 		if err == nil {
-			latestWalletStateJSON = walletStateJSON
-			latestSignature = signature
+			latestWalletStateJson = walletStateJson
+			latestHmac = hmac
 			updated = true
 			return
 		} else if err != ErrNoWalletState {
@@ -313,20 +327,18 @@ func (s *Store) SetWalletState(
 	// We failed to update above due to a sequence conflict. Perhaps the client
 	// was unaware of an update done by another client. Let's send back the latest
 	// version right away so the requesting client can take care of it.
-  //
+	//
 	// Note that this means that `err` will not be `nil` at this point, but we
 	// already accounted for it with `updated=false`. Instead, we'll pass on any
 	// errors from calling `GetWalletState`.
-	latestWalletStateJSON, latestSignature, err = s.GetWalletState(pubKey)
+	latestWalletStateJson, latestHmac, err = s.GetWalletState(userId)
 	return
 }
 
-func (s *Store) GetPublicKey(email string, downloadKey auth.DownloadKey) (pubKey auth.PublicKey, err error) {
+func (s *Store) GetUserId(email auth.Email, password auth.Password) (userId auth.UserId, err error) {
 	rows, err := s.db.Query(
-		`SELECT ws.public_key from wallet_states ws INNER JOIN accounts a
-     ON a.public_key=ws.public_key
-     WHERE email=? AND download_key=?`,
-		email, downloadKey.Obfuscate(),
+		`SELECT user_id from accounts WHERE email=? AND password=?`,
+		email, password.Obfuscate(),
 	)
 	if err != nil {
 		return
@@ -334,27 +346,30 @@ func (s *Store) GetPublicKey(email string, downloadKey auth.DownloadKey) (pubKey
 	defer rows.Close()
 
 	for rows.Next() {
-		err = rows.Scan(&pubKey)
+		err = rows.Scan(&userId)
 		return
 	}
-	err = ErrNoPubKey
+	err = ErrNoUId
 	return
 }
 
-///////////
-// Email //
-///////////
+/////////////
+// Account //
+/////////////
 
-func (s *Store) InsertEmail(pubKey auth.PublicKey, email string) (err error) {
+func (s *Store) CreateAccount(email auth.Email, password auth.Password) (err error) {
+	// userId auto-increments
 	_, err = s.db.Exec(
-		"INSERT INTO accounts (public_key, email) values(?,?)",
-		pubKey, email,
+		"INSERT INTO accounts (email, password) values(?,?)",
+		email, password.Obfuscate(),
 	)
 
 	var sqliteErr sqlite3.Error
 	if errors.As(err, &sqliteErr) {
 		// I initially expected to need to check for ErrConstraintUnique.
 		// Maybe for psql it will be?
+		// TODO - is this right? Does the above comment explain that it's backwards
+		// from what I would have expected? Or did I do this backwards?
 		if errors.Is(sqliteErr.ExtendedCode, sqlite3.ErrConstraintPrimaryKey) {
 			err = ErrDuplicateEmail
 		}

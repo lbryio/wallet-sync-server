@@ -6,11 +6,6 @@ import (
 
 // Test stubs for now
 
-func TestAuthValidateTokenRequest(t *testing.T) {
-	// also add a basic test case for this in TestServerAuthHandlerErrors to make sure it's called at all
-	t.Fatalf("Test me: Implement and test ValidateTokenRequest")
-}
-
 func TestAuthSignaturePass(t *testing.T) {
 	t.Fatalf("Test me: Valid siganture passes")
 }

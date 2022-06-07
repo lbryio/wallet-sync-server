@@ -1,5 +1,6 @@
 #!/bin/python3
-import random, string, json, uuid, requests, hashlib, time
+import random, string, json, uuid, requests, hashlib
+from pprint import pprint
 
 BASE_URL = 'http://localhost:8090'
 AUTH_FULL_URL = BASE_URL + '/auth/full'
@@ -12,8 +13,21 @@ def wallet_state_sequence(wallet_state):
     return 0
   return wallet_state['lastSynced'][wallet_state['deviceId']]
 
-def download_key(password):
-    return hashlib.sha256(password.encode('utf-8')).hexdigest()
+# TODO - do this correctly
+def create_login_password(root_password):
+    return hashlib.sha256(root_password.encode('utf-8')).hexdigest()[:32]
+
+# TODO - do this correctly
+def create_encryption_key(root_password):
+    return hashlib.sha256(root_password.encode('utf-8')).hexdigest()[32:]
+
+# TODO - do this correctly
+def check_hmac(wallet_state, encryption_key, hmac):
+    return hmac == 'Good HMAC'
+
+# TODO - do this correctly
+def create_hmac(wallet_state, encryption_key):
+    return 'Good HMAC'
 
 class Client():
   def _validate_new_wallet_state(self, new_wallet_state):
@@ -48,25 +62,34 @@ class Client():
 
     self.wallet_state = None
 
-  def new_wallet(self, email, password):
-    # Obviously not real behavior
-    self.public_key = ''.join(random.choice(string.hexdigits) for x in range(32))
+    # TODO - save change to disk in between, associated with account and/or
+    # wallet
+    self._encrypted_wallet_local_changes = ''
 
+  # TODO - make this act more sdk-like. in fact maybe even install the sdk?
+
+  # TODO - This does not deal with the question of tying accounts to wallets.
+  # Does a new wallet state mean a we're creating a new account? What happens
+  # if we create a new wallet state tied to an existing account? Do we merge it
+  # with what's on the server anyway? Do we refuse to merge, or warn the user?
+  # Etc. This sort of depends on how the LBRY Desktop/SDK usually behave. For
+  # now, it'll end up just merging any un-saved local changes with whatever is
+  # on the server.
+  def new_wallet_state(self):
     # camel-cased to ease json interop
     self.wallet_state = {'lastSynced': {}, 'encryptedWallet': ''}
 
-    # TODO - actual encryption with password
+    # TODO - actual encryption with encryption_key
     self._encrypted_wallet_local_changes = ''
 
+  def set_account(self, email, root_password):
     self.email = email
-    self.password = password
+    self.root_password = root_password
 
   def register(self):
     body = json.dumps({
-      'token': self.auth_token,
-      'publicKey': self.public_key,
-      'deviceId': self.device_id,
       'email': self.email,
+      'password': create_login_password(self.root_password),
     })
     response = requests.post(REGISTER_URL, body)
     if response.status_code != 201:
@@ -78,7 +101,7 @@ class Client():
   def get_download_auth_token(self, email, password):
     body = json.dumps({
       'email': email,
-      'downloadKey': download_key(password),
+      'password': create_login_password(password),
       'deviceId': self.device_id,
     })
     response = requests.post(AUTH_GET_WALLET_STATE_URL, body)
@@ -87,22 +110,18 @@ class Client():
       print (response.content)
       return
     self.auth_token = json.loads(response.content)['token']
-    self.public_key = json.loads(response.content)['publicKey']
     print ("Got auth token: ", self.auth_token)
-    print ("Got public key: ", self.public_key)
 
     self.email = email
-    self.password = password
+    self.root_password = root_password
 
+  # TODO - Rename to get_auth_token. same in go. Remember to grep, gotta change
+  # it in README as well.
   def get_full_auth_token(self):
-    if not self.wallet_state:
-      print ("No wallet state, thus no access to private key (or so we pretend for this demo), thus we cannot create a signature")
-      return
-
     body = json.dumps({
-      'tokenRequestJSON': json.dumps({'deviceId': self.device_id, 'requestTime': int(time.time())}),
-      'publicKey': self.public_key,
-      'signature': 'Good Signature',
+      'email': self.email,
+      'password': create_login_password(self.root_password),
+      'deviceId': self.device_id,
     })
     response = requests.post(AUTH_FULL_URL, body)
     if response.status_code != 200:
@@ -112,11 +131,14 @@ class Client():
     self.auth_token = json.loads(response.content)['token']
     print ("Got auth token: ", self.auth_token)
 
+  # TODO - What about cases where we are managing multiple different wallets?
+  # Some will have lower sequences. If you accidentally mix it up client-side,
+  # you might end up overwriting one with a lower sequence entirely. Maybe we
+  # want to annotate them with which account we're talking about. Again, we
+  # should see how LBRY Desktop/SDK deal with it.
   def get_wallet_state(self):
     params = {
       'token': self.auth_token,
-      'publicKey': self.public_key,
-      'deviceId': self.device_id,
     }
     response = requests.get(WALLET_STATE_URL, params=params)
     if response.status_code != 200:
@@ -124,17 +146,16 @@ class Client():
       print (response.content)
       return
 
-    if json.loads(response.content)['signature'] != "Good Signature":
-      print ('Error - bad signature on new wallet')
-      print (response.content)
-      return
-    if response.status_code != 200:
-      print ('Error', response.status_code)
+    new_wallet_state_str = json.loads(response.content)['walletStateJson']
+    new_wallet_state = json.loads(new_wallet_state_str)
+    encryption_key = create_encryption_key(self.root_password)
+    hmac = json.loads(response.content)['hmac']
+    if not check_hmac(new_wallet_state_str, encryption_key, hmac):
+      print ('Error - bad hmac on new wallet')
       print (response.content)
       return
 
     # In reality, we'd examine, merge, verify, validate etc this new wallet state.
-    new_wallet_state = json.loads(json.loads(response.content)['bodyJSON'])
     if self.wallet_state != new_wallet_state and not self._validate_new_wallet_state(new_wallet_state):
       print ('Error - new wallet does not validate')
       print (response.content)
@@ -144,58 +165,63 @@ class Client():
       # This is if we're getting a wallet_state for the first time. Initialize
       # the local changes.
       self._encrypted_wallet_local_changes = ''
+
     self.wallet_state = new_wallet_state
 
-    print ("Got latest walletState: ", self.wallet_state)
+    print ("Got latest walletState:")
+    pprint(self.wallet_state)
 
   def post_wallet_state(self):
     # Create a *new* wallet state, indicating that it was last updated by this
     # device, with the updated sequence, and include our local encrypted wallet changes.
     # Don't set self.wallet_state to this until we know that it's accepted by
     # the server.
-    if self.wallet_state:
-      submitted_wallet_state = {
-        "deviceId": self.device_id,
-        "lastSynced": dict(self.wallet_state['lastSynced']),
-        "encryptedWallet": self.cur_encrypted_wallet(),
-      }
-      submitted_wallet_state['lastSynced'][self.device_id] = wallet_state_sequence(self.wallet_state) + 1
-    else:
-      # If we have no self.wallet_state, we shouldn't be able to have a full
-      # auth token, so this code path is just to demonstrate an auth failure
-      submitted_wallet_state = {
-        "deviceId": self.device_id,
-        "lastSynced": {self.device_id: 1},
-        "encryptedWallet": self.cur_encrypted_wallet(),
-      }
+    if not self.wallet_state:
+      print ("No wallet state to post.")
+      return
 
+    submitted_wallet_state = {
+      "deviceId": self.device_id,
+      "lastSynced": dict(self.wallet_state['lastSynced']),
+      "encryptedWallet": self.cur_encrypted_wallet(),
+    }
+    submitted_wallet_state['lastSynced'][self.device_id] = wallet_state_sequence(self.wallet_state) + 1
+
+    encryption_key = create_encryption_key(self.root_password)
+
+    submitted_wallet_state_str = json.dumps(submitted_wallet_state)
+    submitted_wallet_state_hmac = create_hmac(submitted_wallet_state_str, encryption_key)
     body = json.dumps({
       'token': self.auth_token,
-      'bodyJSON': json.dumps(submitted_wallet_state),
-      'publicKey': self.public_key,
-      'downloadKey': download_key(self.password),
-      'signature': 'Good Signature',
+      'walletStateJson': submitted_wallet_state_str,
+      'hmac': submitted_wallet_state_hmac
     })
     response = requests.post(WALLET_STATE_URL, body)
 
     if response.status_code == 200:
       # Our local changes are no longer local, so we reset them
       self._encrypted_wallet_local_changes = ''
-      print ('Successfully updated wallet state')
+      print ('Successfully updated wallet state on server')
     elif response.status_code == 409:
       print ('Wallet state out of date. Getting updated wallet state. Try again.')
+      # Don't return yet! We got the updated state here, so we still process it below.
     else:
       print ('Error', response.status_code)
       print (response.content)
       return
 
-    if json.loads(response.content)['signature'] != "Good Signature":
-      print ('Error - bad signature on new wallet')
+    # Now we get a new wallet state back as a response
+    # TODO - factor this into the same thing as the get_wallet_state function
+
+    new_wallet_state_str = json.loads(response.content)['walletStateJson']
+    new_wallet_state_hmac = json.loads(response.content)['hmac']
+    new_wallet_state = json.loads(new_wallet_state_str)
+    if not check_hmac(new_wallet_state_str, encryption_key, new_wallet_state_hmac):
+      print ('Error - bad hmac on new wallet')
       print (response.content)
       return
 
     # In reality, we'd examine, merge, verify, validate etc this new wallet state.
-    new_wallet_state = json.loads(json.loads(response.content)['bodyJSON'])
     if submitted_wallet_state != new_wallet_state and not self._validate_new_wallet_state(new_wallet_state):
       print ('Error - new wallet does not validate')
       print (response.content)
@@ -203,7 +229,8 @@ class Client():
 
     self.wallet_state = new_wallet_state
 
-    print ("Got new walletState: ", self.wallet_state)
+    print ("Got new walletState:")
+    pprint(self.wallet_state)
 
   def change_encrypted_wallet(self):
     if not self.wallet_state:
