@@ -7,11 +7,24 @@ import (
 // Test stubs for now
 
 func TestAuthNewTokenSuccess(t *testing.T) {
-	t.Fatalf("Test me: New token passes. Different scopes etc.")
-}
+	auth := Auth{}
+	authToken, err := auth.NewToken(234, "dId", "my-scope")
 
-func TestAuthNewTokenFail(t *testing.T) {
-	t.Fatalf("Test me: New token fails (error generating random string? others?)")
+	if err != nil {
+		t.Fatalf("Error creating new token")
+	}
+
+	if authToken.UserId != 234 ||
+		authToken.DeviceId != "dId" ||
+		authToken.Scope != "my-scope" {
+		t.Fatalf("authToken fields don't match expected values")
+	}
+
+	// result.Token is in hex, AuthTokenLength is bytes in the original
+	expectedTokenLength := AuthTokenLength * 2
+	if len(authToken.Token) != expectedTokenLength {
+		t.Fatalf("authToken token string length isn't the expected length")
+	}
 }
 
 func TestAuthScopeValid(t *testing.T) {
