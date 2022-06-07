@@ -149,7 +149,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 
 	checkStatusCode(t, statusCode, responseBody)
 
-	var walletState wallet.WalletState
+	var walletState wallet.WalletStateMetadata
 	err := json.Unmarshal([]byte(walletStateResponse.WalletStateJson), &walletState)
 
 	if err != nil {
