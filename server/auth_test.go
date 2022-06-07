@@ -156,4 +156,3 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 func TestServerValidateAuthRequest(t *testing.T) {
 	t.Fatalf("Test me: Implement and test AuthRequest.validate()")
 }
-

@@ -61,10 +61,10 @@ func (a *Auth) NewToken(userId UserId, deviceId DeviceId, scope AuthScope) (*Aut
 
 // NOTE - not stubbing methods of structs like this. more convoluted than it's worth right now
 func (at *AuthToken) ScopeValid(required AuthScope) bool {
-	// So far the only scope issued. Used to have more, didn't want to delete
-	// this feature yet in case we add more again. We'll delete it if it's of
-	// no use and ends up complicating anything.
-	return at.Scope == ScopeFull
+	// So far * is the only scope issued. Used to have more, didn't want to
+	// delete this feature yet in case we add more again. We'll delete it if it's
+	// of no use and ends up complicating anything.
+	return at.Scope == ScopeFull || at.Scope == required
 }
 
 func (p Password) Obfuscate() string {
