@@ -157,14 +157,3 @@ func TestServerValidateAuthFullRequest(t *testing.T) {
 	t.Fatalf("Test me: Implement and test AuthFullRequest.validate()")
 }
 
-func TestServerValidateAuthForGetWalletStateRequest(t *testing.T) {
-	t.Fatalf("Test me: Implement and test AuthForGetWalletStateRequest.validate()")
-}
-
-func TestServerAuthHandlerForGetWalletStateSuccess(t *testing.T) {
-	t.Fatalf("Test me: getAuthTokenForGetWalletState success")
-}
-
-func TestServerAuthHandlerForGetWalletStateErrors(t *testing.T) {
-	t.Fatalf("Test me: getAuthTokenForGetWalletState failure")
-}

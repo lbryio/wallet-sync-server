@@ -67,7 +67,7 @@ func (s *Server) getWalletState(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	authToken := s.checkAuth(w, token, auth.ScopeGetWalletState)
+	authToken := s.checkAuth(w, token, auth.ScopeFull)
 
 	if authToken == nil {
 		return

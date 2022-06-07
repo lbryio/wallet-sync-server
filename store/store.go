@@ -204,9 +204,9 @@ func (s *Store) SaveToken(token *auth.AuthToken) (err error) {
 	return
 }
 
-/////////////////////////////////
-// Wallet State / Download Key //
-/////////////////////////////////
+//////////////////
+// Wallet State //
+//////////////////
 
 func (s *Store) GetWalletState(userId auth.UserId) (walletStateJson string, hmac wallet.WalletStateHmac, err error) {
 	rows, err := s.db.Query(

@@ -18,12 +18,9 @@ type Email string
 type DeviceId string
 type Password string
 type AuthTokenString string
-type DownloadKey string
-
 type AuthScope string
 
 const ScopeFull = AuthScope("*")
-const ScopeGetWalletState = AuthScope("get-wallet-state")
 
 // For test stubs
 type AuthInterface interface {
@@ -64,20 +61,10 @@ func (a *Auth) NewToken(userId UserId, deviceId DeviceId, scope AuthScope) (*Aut
 
 // NOTE - not stubbing methods of structs like this. more convoluted than it's worth right now
 func (at *AuthToken) ScopeValid(required AuthScope) bool {
-	// So far the only two scopes issued
-	if at.Scope == ScopeFull {
-		return true
-	}
-	if at.Scope == ScopeGetWalletState && required == ScopeGetWalletState {
-		return true
-	}
-	return false
-}
-
-func (d DownloadKey) Obfuscate() string {
-	// TODO KDF instead
-	hash := sha256.Sum256([]byte(d))
-	return hex.EncodeToString(hash[:])
+	// So far the only scope issued. Used to have more, didn't want to delete
+	// this feature yet in case we add more again. We'll delete it if it's of
+	// no use and ends up complicating anything.
+	return at.Scope == ScopeFull
 }
 
 func (p Password) Obfuscate() string {

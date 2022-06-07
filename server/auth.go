@@ -22,18 +22,6 @@ func (r *AuthFullRequest) validate() bool {
 		r.Password != auth.Password(""))
 }
 
-type AuthForGetWalletStateRequest struct {
-	Email       auth.Email       `json:"email"`
-	DownloadKey auth.DownloadKey `json:"downloadKey"`
-	DeviceId    auth.DeviceId    `json:"deviceId"`
-}
-
-func (r *AuthForGetWalletStateRequest) validate() bool {
-	return (r.Email != "" &&
-		r.DownloadKey != auth.DownloadKey("") &&
-		r.DeviceId != "")
-}
-
 func (s *Server) getAuthTokenFull(w http.ResponseWriter, req *http.Request) {
 	var authRequest AuthFullRequest
 	if !getPostData(w, req, &authRequest) {

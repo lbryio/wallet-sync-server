@@ -4,7 +4,6 @@ from pprint import pprint
 
 BASE_URL = 'http://localhost:8090'
 AUTH_FULL_URL = BASE_URL + '/auth/full'
-AUTH_GET_WALLET_STATE_URL = BASE_URL + '/auth/get-wallet-state'
 REGISTER_URL = BASE_URL + '/signup'
 WALLET_STATE_URL = BASE_URL + '/wallet-state'
 
@@ -97,23 +96,6 @@ class Client():
       print (response.content)
       return
     print ("Registered")
-
-  def get_download_auth_token(self, email, password):
-    body = json.dumps({
-      'email': email,
-      'password': create_login_password(password),
-      'deviceId': self.device_id,
-    })
-    response = requests.post(AUTH_GET_WALLET_STATE_URL, body)
-    if response.status_code != 200:
-      print ('Error', response.status_code)
-      print (response.content)
-      return
-    self.auth_token = json.loads(response.content)['token']
-    print ("Got auth token: ", self.auth_token)
-
-    self.email = email
-    self.root_password = root_password
 
   # TODO - Rename to get_auth_token. same in go. Remember to grep, gotta change
   # it in README as well.
