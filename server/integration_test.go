@@ -89,8 +89,8 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	responseBody, statusCode = request(
 		t,
 		http.MethodPost,
-		s.getAuthTokenFull,
-		PathAuthTokenFull,
+		s.getAuthToken,
+		PathAuthToken,
 		&authToken1,
 		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`,
 	)
@@ -117,8 +117,8 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	responseBody, statusCode = request(
 		t,
 		http.MethodPost,
-		s.getAuthTokenFull,
-		PathAuthTokenFull,
+		s.getAuthToken,
+		PathAuthToken,
 		&authToken2,
 		`{"deviceId": "dev-2", "email": "abc@example.com", "password": "123"}`,
 	)

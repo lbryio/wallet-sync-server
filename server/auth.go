@@ -10,20 +10,20 @@ import (
 
 // DeviceId is decided by the device. UserId is decided by the server, and is
 // gatekept by Email/Password
-type AuthFullRequest struct {
+type AuthRequest struct {
 	DeviceId auth.DeviceId `json:"deviceId"`
 	Email    auth.Email    `json:"email"`
 	Password auth.Password `json:"password"`
 }
 
-func (r *AuthFullRequest) validate() bool {
+func (r *AuthRequest) validate() bool {
 	return (r.DeviceId != "" &&
 		r.Email != auth.Email("") && // TODO email validation. Here or store. Stdlib does it: https://stackoverflow.com/a/66624104
 		r.Password != auth.Password(""))
 }
 
-func (s *Server) getAuthTokenFull(w http.ResponseWriter, req *http.Request) {
-	var authRequest AuthFullRequest
+func (s *Server) getAuthToken(w http.ResponseWriter, req *http.Request) {
+	var authRequest AuthRequest
 	if !getPostData(w, req, &authRequest) {
 		return
 	}

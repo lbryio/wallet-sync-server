@@ -20,10 +20,10 @@ func TestServerAuthHandlerSuccess(t *testing.T) {
 
 	requestBody := []byte(`{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`)
 
-	req := httptest.NewRequest(http.MethodPost, PathAuthTokenFull, bytes.NewBuffer(requestBody))
+	req := httptest.NewRequest(http.MethodPost, PathAuthToken, bytes.NewBuffer(requestBody))
 	w := httptest.NewRecorder()
 
-	s.getAuthTokenFull(w, req)
+	s.getAuthToken(w, req)
 	body, _ := ioutil.ReadAll(w.Body)
 
 	var result auth.AuthToken
@@ -130,10 +130,10 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 			server := Server{&testAuth, &testStore, &wallet.WalletUtil{}}
 
 			// Make request
-			req := httptest.NewRequest(tc.method, PathAuthTokenFull, bytes.NewBuffer([]byte(tc.requestBody)))
+			req := httptest.NewRequest(tc.method, PathAuthToken, bytes.NewBuffer([]byte(tc.requestBody)))
 			w := httptest.NewRecorder()
 
-			server.getAuthTokenFull(w, req)
+			server.getAuthToken(w, req)
 
 			if want, got := tc.expectedStatusCode, w.Result().StatusCode; want != got {
 				t.Errorf("StatusCode: expected %d, got %d", want, got)
@@ -153,7 +153,7 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 	}
 }
 
-func TestServerValidateAuthFullRequest(t *testing.T) {
-	t.Fatalf("Test me: Implement and test AuthFullRequest.validate()")
+func TestServerValidateAuthRequest(t *testing.T) {
+	t.Fatalf("Test me: Implement and test AuthRequest.validate()")
 }
 

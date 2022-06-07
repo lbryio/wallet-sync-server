@@ -33,9 +33,9 @@ Registered
 Now that the account exists, grab an auth token with both clients.
 
 ```
->>> c1.get_full_auth_token()
+>>> c1.get_auth_token()
 Got auth token:  941e5159a2caff15f0bdc1c0e6da92691d3073543dbfae810cfe57d51c35f0e0
->>> c2.get_full_auth_token()
+>>> c2.get_auth_token()
 Got auth token:  b323a18e51263ac052777ca68de716c1f3b4983bf4c918477e355f637c8ea2d4
 ```
 

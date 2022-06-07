@@ -12,7 +12,7 @@ import (
 
 // TODO proper doc comments!
 
-const PathAuthTokenFull = "/auth/full"
+const PathAuthToken = "/auth/full"
 const PathRegister = "/signup"
 const PathWalletState = "/wallet-state"
 
@@ -154,7 +154,7 @@ func (s *Server) checkAuth(
 // PUT = "...creates a new resource or replaces a representation of the target resource with the request payload."
 
 func (s *Server) Serve() {
-	http.HandleFunc(PathAuthTokenFull, s.getAuthTokenFull)
+	http.HandleFunc(PathAuthToken, s.getAuthToken)
 	http.HandleFunc(PathWalletState, s.handleWalletState)
 	http.HandleFunc(PathRegister, s.register)
 

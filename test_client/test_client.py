@@ -3,7 +3,7 @@ import random, string, json, uuid, requests, hashlib
 from pprint import pprint
 
 BASE_URL = 'http://localhost:8090'
-AUTH_FULL_URL = BASE_URL + '/auth/full'
+AUTH_URL = BASE_URL + '/auth/full'
 REGISTER_URL = BASE_URL + '/signup'
 WALLET_STATE_URL = BASE_URL + '/wallet-state'
 
@@ -97,15 +97,13 @@ class Client():
       return
     print ("Registered")
 
-  # TODO - Rename to get_auth_token. same in go. Remember to grep, gotta change
-  # it in README as well.
-  def get_full_auth_token(self):
+  def get_auth_token(self):
     body = json.dumps({
       'email': self.email,
       'password': create_login_password(self.root_password),
       'deviceId': self.device_id,
     })
-    response = requests.post(AUTH_FULL_URL, body)
+    response = requests.post(AUTH_URL, body)
     if response.status_code != 200:
       print ('Error', response.status_code)
       print (response.content)

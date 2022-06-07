@@ -54,8 +54,8 @@ Now that the account exists, grab an auth token with both clients.
 """)
 
 code_block("""
-c1.get_full_auth_token()
-c2.get_full_auth_token()
+c1.get_auth_token()
+c2.get_auth_token()
 """)
 
 # TODO - wait isn't it redundant to have the `deviceId` field, for the same reason it's redundant to have the `sequence` field?
