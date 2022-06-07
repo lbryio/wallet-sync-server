@@ -7,11 +7,6 @@ import (
 	"time"
 )
 
-// Utilitiy function that copies a time and then returns a pointer to it
-func timePtr(t time.Time) *time.Time {
-	return &t
-}
-
 // Test insertToken, using GetToken as a helper
 // Try insertToken twice with the same public key, error the second time
 func TestStoreInsertToken(t *testing.T) {
@@ -41,7 +36,7 @@ func TestStoreInsertToken(t *testing.T) {
 
 	// The value expected when we pull it from the database.
 	authToken1Expected := authToken1
-	authToken1Expected.Expiration = timePtr(expiration)
+	authToken1Expected.Expiration = &expiration
 
 	// Get and confirm the token we just put in
 	gotToken, err = s.GetToken(authToken1.Token)
@@ -120,7 +115,7 @@ func TestStoreUpdateToken(t *testing.T) {
 
 	// The value expected when we pull it from the database.
 	authTokenUpdateExpected := authTokenUpdate
-	authTokenUpdateExpected.Expiration = timePtr(expiration)
+	authTokenUpdateExpected.Expiration = &expiration
 
 	// Get and confirm the token we just put in
 	gotToken, err = s.GetToken(authTokenUpdate.Token)
@@ -276,7 +271,7 @@ func TestStoreGetToken(t *testing.T) {
 
 	// The value expected when we pull it from the database.
 	authTokenExpected := authToken
-	authTokenExpected.Expiration = timePtr(expiration)
+	authTokenExpected.Expiration = &expiration
 
 	// Confirm it saved
 	gotToken, err = s.GetToken(authToken.Token)
