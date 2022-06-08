@@ -16,7 +16,7 @@ def wallet_state_sequence(wallet_state):
 def create_login_password(root_password):
     return hashlib.sha256(root_password.encode('utf-8')).hexdigest()[:32]
 
-# TODO - do this correctly
+# TODO - actually the SDK will do this for now
 def create_encryption_key(root_password):
     return hashlib.sha256(root_password.encode('utf-8')).hexdigest()[32:]
 
