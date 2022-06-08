@@ -6,7 +6,7 @@ import (
 
 // Test stubs for now
 
-func TestAuthNewTokenSuccess(t *testing.T) {
+func TestAuthNewToken(t *testing.T) {
 	auth := Auth{}
 	authToken, err := auth.NewToken(234, "dId", "my-scope")
 

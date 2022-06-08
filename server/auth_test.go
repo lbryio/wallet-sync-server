@@ -154,5 +154,31 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 }
 
 func TestServerValidateAuthRequest(t *testing.T) {
-	t.Fatalf("Test me: Implement and test AuthRequest.validate()")
+	authRequest := AuthRequest{DeviceId: "dId", Email: "joe@example.com", Password: "aoeu"}
+	if !authRequest.validate() {
+		t.Fatalf("Expected valid AuthRequest to successfully validate")
+	}
+
+	authRequest = AuthRequest{Email: "joe@example.com", Password: "aoeu"}
+	if authRequest.validate() {
+		t.Fatalf("Expected AuthRequest with missing device to not successfully validate")
+	}
+
+	authRequest = AuthRequest{DeviceId: "dId", Email: "joe-example.com", Password: "aoeu"}
+	if authRequest.validate() {
+		t.Fatalf("Expected AuthRequest with invalid email to not successfully validate")
+	}
+
+	// Note that Golang's email address parser, which I use, will accept
+	// "Joe <joe@example.com>" so we need to make sure to avoid accepting it. See
+	// the implementation.
+	authRequest = AuthRequest{DeviceId: "dId", Email: "Joe <joe@example.com>", Password: "aoeu"}
+	if authRequest.validate() {
+		t.Fatalf("Expected AuthRequest with email with unexpected formatting to not successfully validate")
+	}
+
+	authRequest = AuthRequest{DeviceId: "dId", Email: "joe@example.com"}
+	if authRequest.validate() {
+		t.Fatalf("Expected AuthRequest with missing password to not successfully validate")
+	}
 }
