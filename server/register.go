@@ -47,7 +47,7 @@ func (s *Server) register(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// TODO StatusCreated also for first walletState and/or for get auth token?
+	// TODO StatusCreated also for first wallet and/or for get auth token?
 	w.WriteHeader(http.StatusCreated)
 	fmt.Fprintf(w, string(response))
 }

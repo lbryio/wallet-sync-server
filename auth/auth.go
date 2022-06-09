@@ -11,13 +11,13 @@ import (
 // TODO - Learn how to use https://github.com/golang/oauth2 instead
 // TODO - Look into jwt, etc.
 // For now I just want a process that's shaped like what I'm looking for.
-//   (email/password, encrypted wallets, hmac, lastSynced, etc)
+//   (email/password, encrypted wallets, hmac, sequence (eventually lastSynced), etc)
 
 type UserId int32
 type Email string
 type DeviceId string
 type Password string
-type AuthTokenString string
+type TokenString string
 type AuthScope string
 
 const ScopeFull = AuthScope("*")
@@ -34,11 +34,11 @@ type Auth struct{}
 // downloadKey and associated email. Currently these fields are safe to give
 // at that low security level, but keep this in mind as we change this struct.
 type AuthToken struct {
-	Token      AuthTokenString `json:"token"`
-	DeviceId   DeviceId        `json:"deviceId"`
-	Scope      AuthScope       `json:"scope"`
-	UserId     UserId          `json:"userId"`
-	Expiration *time.Time      `json:"expiration"`
+	Token      TokenString `json:"token"`
+	DeviceId   DeviceId    `json:"deviceId"`
+	Scope      AuthScope   `json:"scope"`
+	UserId     UserId      `json:"userId"`
+	Expiration *time.Time  `json:"expiration"`
 }
 
 const AuthTokenLength = 32
@@ -51,7 +51,7 @@ func (a *Auth) NewToken(userId UserId, deviceId DeviceId, scope AuthScope) (*Aut
 	}
 
 	return &AuthToken{
-		Token:    AuthTokenString(hex.EncodeToString(b)),
+		Token:    TokenString(hex.EncodeToString(b)),
 		DeviceId: deviceId,
 		Scope:    scope,
 		UserId:   userId,

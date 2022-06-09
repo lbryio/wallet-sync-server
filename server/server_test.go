@@ -11,7 +11,7 @@ import (
 // Implementing interfaces for stubbed out packages
 
 type TestAuth struct {
-	TestToken    auth.AuthTokenString
+	TestToken    auth.TokenString
 	FailGenToken bool
 }
 
@@ -37,7 +37,7 @@ func (s *TestStore) SaveToken(token *auth.AuthToken) error {
 	return nil
 }
 
-func (s *TestStore) GetToken(auth.AuthTokenString) (*auth.AuthToken, error) {
+func (s *TestStore) GetToken(auth.TokenString) (*auth.AuthToken, error) {
 	return nil, nil
 }
 
@@ -52,16 +52,16 @@ func (s *TestStore) CreateAccount(auth.Email, auth.Password) error {
 	return nil
 }
 
-func (s *TestStore) SetWalletState(
+func (s *TestStore) SetWallet(
 	UserId auth.UserId,
-	walletStateJson string,
-	sequence int,
-	hmac wallet.WalletStateHmac,
-) (latestWalletStateJson string, latestHmac wallet.WalletStateHmac, updated bool, err error) {
+	encryptedWallet wallet.EncryptedWallet,
+	sequence wallet.Sequence,
+	hmac wallet.WalletHmac,
+) (latestEncryptedWallet wallet.EncryptedWallet, latestSequence wallet.Sequence, latestHmac wallet.WalletHmac, sequenceCorrect bool, err error) {
 	return
 }
 
-func (s *TestStore) GetWalletState(UserId auth.UserId) (walletStateJson string, hmac wallet.WalletStateHmac, err error) {
+func (s *TestStore) GetWallet(userId auth.UserId) (encryptedWallet wallet.EncryptedWallet, sequence wallet.Sequence, hmac wallet.WalletHmac, err error) {
 	return
 }
 

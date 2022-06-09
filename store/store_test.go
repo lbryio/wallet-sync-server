@@ -305,16 +305,16 @@ func TestStoreTimeZones(t *testing.T) {
 	t.Fatalf("Test me")
 }
 
-func TestStoreSetWalletStateSuccess(t *testing.T) {
+func TestStoreSetWalletSuccess(t *testing.T) {
 	/*
 	  Sequence 1 - works via insert
 	  Sequence 2 - works via update
 	  Sequence 3 - works via update
 	*/
-	t.Fatalf("Test me: WalletState Set successes")
+	t.Fatalf("Test me: Wallet Set successes")
 }
 
-func TestStoreSetWalletStateFail(t *testing.T) {
+func TestStoreSetWalletFail(t *testing.T) {
 	/*
 	  Sequence 1 - fails via insert - fail by having something there already
 	  Sequence 2 - fails via update - fail by not having something there already
@@ -323,31 +323,31 @@ func TestStoreSetWalletStateFail(t *testing.T) {
 
 	  Maybe some of the above gets put off to wallet util
 	*/
-	t.Fatalf("Test me: WalletState Set failures")
+	t.Fatalf("Test me: Wallet Set failures")
 }
 
-func TestStoreInsertWalletStateSuccess(t *testing.T) {
-	t.Fatalf("Test me: WalletState insert successes")
+func TestStoreInsertWalletSuccess(t *testing.T) {
+	t.Fatalf("Test me: Wallet insert successes")
 }
 
-func TestStoreInsertWalletStateFail(t *testing.T) {
-	t.Fatalf("Test me: WalletState insert failures")
+func TestStoreInsertWalletFail(t *testing.T) {
+	t.Fatalf("Test me: Wallet insert failures")
 }
 
-func TestStoreUpdateWalletStateSuccess(t *testing.T) {
-	t.Fatalf("Test me: WalletState update successes")
+func TestStoreUpdateWalletSuccess(t *testing.T) {
+	t.Fatalf("Test me: Wallet update successes")
 }
 
-func TestStoreUpdateWalletStateFail(t *testing.T) {
-	t.Fatalf("Test me: WalletState update failures")
+func TestStoreUpdateWalletFail(t *testing.T) {
+	t.Fatalf("Test me: Wallet update failures")
 }
 
-func TestStoreGetWalletStateSuccess(t *testing.T) {
-	t.Fatalf("Test me: WalletState get success")
+func TestStoreGetWalletSuccess(t *testing.T) {
+	t.Fatalf("Test me: Wallet get success")
 }
 
-func TestStoreGetWalletStateFail(t *testing.T) {
-	t.Fatalf("Test me: WalletState get failures")
+func TestStoreGetWalletFail(t *testing.T) {
+	t.Fatalf("Test me: Wallet get failures")
 }
 
 func TestStoreSetEmailSuccess(t *testing.T) {

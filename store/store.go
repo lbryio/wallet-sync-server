@@ -18,8 +18,8 @@ var (
 	ErrDuplicateToken = fmt.Errorf("Token already exists for this user and device")
 	ErrNoToken        = fmt.Errorf("Token does not exist for this user and device")
 
-	ErrDuplicateWalletState = fmt.Errorf("WalletState already exists for this user")
-	ErrNoWalletState        = fmt.Errorf("WalletState does not exist for this user at this sequence")
+	ErrDuplicateWallet = fmt.Errorf("Wallet already exists for this user")
+	ErrNoWallet        = fmt.Errorf("Wallet does not exist for this user at this sequence")
 
 	ErrDuplicateEmail   = fmt.Errorf("Email already exists for this user")
 	ErrDuplicateAccount = fmt.Errorf("User already has an account")
@@ -30,9 +30,9 @@ var (
 // For test stubs
 type StoreInterface interface {
 	SaveToken(*auth.AuthToken) error
-	GetToken(auth.AuthTokenString) (*auth.AuthToken, error)
-	SetWalletState(auth.UserId, string, int, wallet.WalletStateHmac) (string, wallet.WalletStateHmac, bool, error)
-	GetWalletState(auth.UserId) (string, wallet.WalletStateHmac, error)
+	GetToken(auth.TokenString) (*auth.AuthToken, error)
+	SetWallet(auth.UserId, wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac) (wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac, bool, error)
+	GetWallet(auth.UserId) (wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac, error)
 	GetUserId(auth.Email, auth.Password) (auth.UserId, error)
 	CreateAccount(auth.Email, auth.Password) (err error)
 }
@@ -50,12 +50,10 @@ func (s *Store) Init(fileName string) {
 }
 
 func (s *Store) Migrate() error {
-	// We store `sequence` as a seprate field in the `wallet_state` table, even
-	// though it's also saved as part of the `walle_state_blob` column. We do
-	// this for transaction safety. For instance, let's say two different clients
-	// are trying to update the sequence from 5 to 6. The update command will
-	// specify "WHERE sequence=5". Only one of these commands will succeed, and
-	// the other will get back an error.
+	// We use the `sequence` field for transaction safety. For instance, let's
+	// say two different clients are trying to update the sequence from 5 to 6.
+	// The update command will specify "WHERE sequence=5". Only one of these
+	// commands will succeed, and the other will get back an error.
 
 	// We use AUTOINCREMENT against the protestations of people on the Internet
 	// who claim that INTEGER PRIMARY KEY automatically has autoincrment, and
@@ -80,9 +78,9 @@ func (s *Store) Migrate() error {
 			expiration DATETIME NOT NULL,
 			PRIMARY KEY (user_id, device_id)
 		);
-		CREATE TABLE IF NOT EXISTS wallet_states(
+		CREATE TABLE IF NOT EXISTS wallets(
 			user_id INTEGER NOT NULL,
-			wallet_state_blob TEXT NOT NULL,
+			encrypted_wallet TEXT NOT NULL,
 			sequence INTEGER NOT NULL,
 			hmac TEXT NOT NULL,
 			PRIMARY KEY (user_id)
@@ -108,7 +106,7 @@ func (s *Store) Migrate() error {
 // (which I did previously)?
 //
 // TODO Put the timestamp in the token to avoid duplicates over time. And/or just use a library! Someone solved this already.
-func (s *Store) GetToken(token auth.AuthTokenString) (*auth.AuthToken, error) {
+func (s *Store) GetToken(token auth.TokenString) (*auth.AuthToken, error) {
 	expirationCutoff := time.Now().UTC()
 
 	rows, err := s.db.Query(
@@ -204,13 +202,13 @@ func (s *Store) SaveToken(token *auth.AuthToken) (err error) {
 	return
 }
 
-//////////////////
-// Wallet State //
-//////////////////
+////////////
+// Wallet //
+////////////
 
-func (s *Store) GetWalletState(userId auth.UserId) (walletStateJson string, hmac wallet.WalletStateHmac, err error) {
+func (s *Store) GetWallet(userId auth.UserId) (encryptedWallet wallet.EncryptedWallet, sequence wallet.Sequence, hmac wallet.WalletHmac, err error) {
 	rows, err := s.db.Query(
-		"SELECT wallet_state_blob, hmac FROM wallet_states WHERE user_id=?",
+		"SELECT encrypted_wallet, sequence, hmac FROM wallets WHERE user_id=?",
 		userId,
 	)
 	if err != nil {
@@ -220,26 +218,27 @@ func (s *Store) GetWalletState(userId auth.UserId) (walletStateJson string, hmac
 
 	for rows.Next() {
 		err = rows.Scan(
-			&walletStateJson,
+			&encryptedWallet,
+			&sequence,
 			&hmac,
 		)
 		return
 	}
-	err = ErrNoWalletState
+	err = ErrNoWallet
 	return
 }
 
-func (s *Store) insertFirstWalletState(
+func (s *Store) insertFirstWallet(
 	userId auth.UserId,
-	walletStateJson string,
-	hmac wallet.WalletStateHmac,
+	encryptedWallet wallet.EncryptedWallet,
+	hmac wallet.WalletHmac,
 ) (err error) {
-	// This will only be used to attempt to insert the first wallet state
-	//   (sequence=1). The database will enforce that this will not be set
-	//   if this user already has a walletState.
+	// This will only be used to attempt to insert the first wallet (sequence=1).
+	//   The database will enforce that this will not be set if this user already
+	//   has a wallet.
 	_, err = s.db.Exec(
-		"INSERT INTO wallet_states (user_id, wallet_state_blob, sequence, hmac) values(?,?,?,?)",
-		userId, walletStateJson, 1, hmac,
+		"INSERT INTO wallets (user_id, encrypted_wallet, sequence, hmac) values(?,?,?,?)",
+		userId, encryptedWallet, 1, hmac,
 	)
 
 	var sqliteErr sqlite3.Error
@@ -247,26 +246,26 @@ func (s *Store) insertFirstWalletState(
 		// I initially expected to need to check for ErrConstraintUnique.
 		// Maybe for psql it will be?
 		if errors.Is(sqliteErr.ExtendedCode, sqlite3.ErrConstraintPrimaryKey) {
-			err = ErrDuplicateWalletState
+			err = ErrDuplicateWallet
 		}
 	}
 
 	return
 }
 
-func (s *Store) updateWalletStateToSequence(
+func (s *Store) updateWalletToSequence(
 	userId auth.UserId,
-	walletStateJson string,
-	sequence int,
-	hmac wallet.WalletStateHmac,
+	encryptedWallet wallet.EncryptedWallet,
+	sequence wallet.Sequence,
+	hmac wallet.WalletHmac,
 ) (err error) {
-	// This will be used for wallet states with sequence > 1.
+	// This will be used for wallets with sequence > 1.
 	// Use the database to enforce that we only update if we are incrementing the sequence.
 	// This way, if two clients attempt to update at the same time, it will return
-	// ErrNoWalletState for the second one.
+	// ErrNoWallet for the second one.
 	res, err := s.db.Exec(
-		"UPDATE wallet_states SET wallet_state_blob=?, sequence=?, hmac=? WHERE user_id=? AND sequence=?",
-		walletStateJson, sequence, hmac, userId, sequence-1,
+		"UPDATE wallets SET encrypted_wallet=?, sequence=?, hmac=? WHERE user_id=? AND sequence=?",
+		encryptedWallet, sequence, hmac, userId, sequence-1,
 	)
 	if err != nil {
 		return
@@ -277,49 +276,59 @@ func (s *Store) updateWalletStateToSequence(
 		return
 	}
 	if numRows == 0 {
-		err = ErrNoWalletState
+		err = ErrNoWallet
 	}
 	return
 }
 
-// Assumption: walletState has been validated (sequence >=1, etc)
-// Assumption: Sequence matches walletState.Sequence()
-// Sequence is only passed in here to avoid deserializing walletStateJson again
-// WalletState *struct* is not passed in because the clients need the exact string to match the hmac
-func (s *Store) SetWalletState(
+// Assumption: Sequence has been validated (>=1)
+func (s *Store) SetWallet(
 	userId auth.UserId,
-	walletStateJson string,
-	sequence int,
-	hmac wallet.WalletStateHmac,
-) (latestWalletStateJson string, latestHmac wallet.WalletStateHmac, updated bool, err error) {
+	encryptedWallet wallet.EncryptedWallet,
+	sequence wallet.Sequence,
+	hmac wallet.WalletHmac,
+	// TODO `sequenceCorrect` should probably be replaced with `status`, that can
+	//   equal `Updated` or `SequenceMismatch`. Maybe with a message for the API.
+	//     Like an error, but not, because the function still returns a value.
+	//   Right now, we have:
+	//   `sequenceCorrect==true` and `err==nil` implies it updated.
+	//   We could also have:
+	//   `sequenceMismatch==true` or `err!=nil` implying it didn't update.
+	//   Or:
+	//   `updated==false` and `err=nil` implying the sequence mismatched.
+	//   I don't like this implication stuff, the "status" should be explicit so
+	//     we don't make bugs.
+) (latestEncryptedWallet wallet.EncryptedWallet, latestSequence wallet.Sequence, latestHmac wallet.WalletHmac, sequenceCorrect bool, err error) {
 	if sequence == 1 {
 		// If sequence == 1, the client assumed that this is our first
-		// walletState. Try to insert. If we get a conflict, the client
+		// wallet. Try to insert. If we get a conflict, the client
 		// assumed incorrectly and we proceed below to return the latest
-		// walletState from the db.
-		err = s.insertFirstWalletState(userId, walletStateJson, hmac)
+		// wallet from the db.
+		err = s.insertFirstWallet(userId, encryptedWallet, hmac)
 		if err == nil {
 			// Successful update
-			latestWalletStateJson = walletStateJson
+			latestEncryptedWallet = encryptedWallet
+			latestSequence = sequence
 			latestHmac = hmac
-			updated = true
+			sequenceCorrect = true
 			return
-		} else if err != ErrDuplicateWalletState {
+		} else if err != ErrDuplicateWallet {
 			// Unsuccessful update for reasons other than sequence conflict
 			return
 		}
 	} else {
-		// If sequence > 1, the client assumed that it is replacing walletState
-		// with sequence - 1. Explicitly try to update the walletState with
+		// If sequence > 1, the client assumed that it is replacing wallet
+		// with sequence - 1. Explicitly try to update the wallet with
 		// sequence - 1. If we updated no rows, the client assumed incorrectly
-		// and we proceed below to return the latest walletState from the db.
-		err = s.updateWalletStateToSequence(userId, walletStateJson, sequence, hmac)
+		// and we proceed below to return the latest wallet from the db.
+		err = s.updateWalletToSequence(userId, encryptedWallet, sequence, hmac)
 		if err == nil {
-			latestWalletStateJson = walletStateJson
+			latestEncryptedWallet = encryptedWallet
+			latestSequence = sequence
 			latestHmac = hmac
-			updated = true
+			sequenceCorrect = true
 			return
-		} else if err != ErrNoWalletState {
+		} else if err != ErrNoWallet {
 			return
 		}
 	}
@@ -329,9 +338,9 @@ func (s *Store) SetWalletState(
 	// version right away so the requesting client can take care of it.
 	//
 	// Note that this means that `err` will not be `nil` at this point, but we
-	// already accounted for it with `updated=false`. Instead, we'll pass on any
-	// errors from calling `GetWalletState`.
-	latestWalletStateJson, latestHmac, err = s.GetWalletState(userId)
+	// already accounted for it with `sequenceCorrect=false`. Instead, we'll pass
+	// on any errors from calling `GetWallet`.
+	latestEncryptedWallet, latestSequence, latestHmac, err = s.GetWallet(userId)
 	return
 }
 

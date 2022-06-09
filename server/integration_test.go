@@ -10,6 +10,7 @@ import (
 	"orblivion/lbry-id/auth"
 	"orblivion/lbry-id/store"
 	"orblivion/lbry-id/wallet"
+	"reflect"
 	"testing"
 )
 
@@ -30,9 +31,9 @@ func checkStatusCode(t *testing.T, statusCode int, responseBody []byte, expected
 		var errorResponse ErrorResponse
 		err := json.Unmarshal(responseBody, &errorResponse)
 		if err == nil {
-			t.Fatalf("http response: %+v", errorResponse)
+			t.Errorf("http response: %+v", errorResponse)
 		} else {
-			t.Fatalf("%s", err)
+			t.Errorf("%s", err)
 		}
 	}
 }
@@ -61,11 +62,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	st, tmpFile := store.StoreTestInit(t)
 	defer store.StoreTestCleanup(tmpFile)
 
-	s := Init(
-		&auth.Auth{},
-		&st,
-		&wallet.WalletUtil{},
-	)
+	s := Init(&auth.Auth{}, &st)
 
 	////////////////////
 	// Register email address - any device
@@ -130,116 +127,107 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	}
 
 	////////////////////
-	// Put first wallet state - device 1
+	// Put first wallet - device 1
 	////////////////////
 
-	var walletStateResponse WalletStateResponse
+	var walletResponse WalletResponse
 	responseBody, statusCode = request(
 		t,
 		http.MethodPost,
-		s.postWalletState,
-		PathWalletState,
-		&walletStateResponse,
+		s.postWallet,
+		PathWallet,
+		&walletResponse,
 		fmt.Sprintf(`{
+      "version": 1,
       "token": "%s",
-      "walletStateJson": "{\"encryptedWallet\": \"blah\", \"lastSynced\":{\"dev-1\": 1}, \"deviceId\": \"dev-1\" }",
+      "encryptedWallet": "my-encrypted-wallet-1",
+      "sequence": 1,
       "hmac": "my-hmac-1"
     }`, authToken1.Token),
 	)
 
 	checkStatusCode(t, statusCode, responseBody)
 
-	var walletState wallet.WalletStateMetadata
-	err := json.Unmarshal([]byte(walletStateResponse.WalletStateJson), &walletState)
-
-	if err != nil {
-		t.Fatalf("Unexpected error: %+v", err)
+	expectedResponse := WalletResponse{
+		Version:         1,
+		EncryptedWallet: wallet.EncryptedWallet("my-encrypted-wallet-1"),
+		Sequence:        wallet.Sequence(1),
+		Hmac:            wallet.WalletHmac("my-hmac-1"),
 	}
 
-	sequence := walletState.Sequence()
-	if sequence != 1 {
-		t.Fatalf("Unexpected response Sequence(). want: %+v got: %+v", 1, sequence)
+	if !reflect.DeepEqual(walletResponse, expectedResponse) {
+		t.Fatalf("Unexpected response values. want: %+v got: %+v", expectedResponse, walletResponse)
 	}
 
 	////////////////////
-	// Get wallet state - device 2
+	// Get wallet - device 2
 	////////////////////
 
 	responseBody, statusCode = request(
 		t,
 		http.MethodGet,
-		s.getWalletState,
-		fmt.Sprintf("%s?token=%s", PathWalletState, authToken2.Token),
-		&walletStateResponse,
+		s.getWallet,
+		fmt.Sprintf("%s?token=%s", PathWallet, authToken2.Token),
+		&walletResponse,
 		"",
 	)
 
 	checkStatusCode(t, statusCode, responseBody)
 
-	err = json.Unmarshal([]byte(walletStateResponse.WalletStateJson), &walletState)
-
-	if err != nil {
-		t.Fatalf("Unexpected error: %+v", err)
-	}
-
-	sequence = walletState.Sequence()
-	if sequence != 1 {
-		t.Fatalf("Unexpected response Sequence(). want: %+v got: %+v", 1, sequence)
+	// Expect the same response getting from device 2 as when posting from device 1
+	if !reflect.DeepEqual(walletResponse, expectedResponse) {
+		t.Fatalf("Unexpected response values. want: %+v got: %+v", expectedResponse, walletResponse)
 	}
 
 	////////////////////
-	// Put second wallet state - device 2
+	// Put second wallet - device 2
 	////////////////////
 
 	responseBody, statusCode = request(
 		t,
 		http.MethodPost,
-		s.postWalletState,
-		PathWalletState,
-		&walletStateResponse,
+		s.postWallet,
+		PathWallet,
+		&walletResponse,
 		fmt.Sprintf(`{
+      "version": 1,
       "token": "%s",
-      "walletStateJson": "{\"encryptedWallet\": \"blah2\", \"lastSynced\":{\"dev-1\": 1, \"dev-2\": 2}, \"deviceId\": \"dev-2\" }",
+      "encryptedWallet": "my-encrypted-wallet-2",
+      "sequence": 2,
       "hmac": "my-hmac-2"
     }`, authToken2.Token),
 	)
 
 	checkStatusCode(t, statusCode, responseBody)
 
-	err = json.Unmarshal([]byte(walletStateResponse.WalletStateJson), &walletState)
-
-	if err != nil {
-		t.Fatalf("Unexpected error: %+v", err)
+	expectedResponse = WalletResponse{
+		Version:         1,
+		EncryptedWallet: wallet.EncryptedWallet("my-encrypted-wallet-2"),
+		Sequence:        wallet.Sequence(2),
+		Hmac:            wallet.WalletHmac("my-hmac-2"),
 	}
 
-	sequence = walletState.Sequence()
-	if sequence != 2 {
-		t.Fatalf("Unexpected response Sequence(). want: %+v got: %+v", 2, sequence)
+	if !reflect.DeepEqual(walletResponse, expectedResponse) {
+		t.Fatalf("Unexpected response values. want: %+v got: %+v", expectedResponse, walletResponse)
 	}
 
 	////////////////////
-	// Get wallet state - device 1
+	// Get wallet - device 1
 	////////////////////
 
 	responseBody, statusCode = request(
 		t,
 		http.MethodGet,
-		s.getWalletState,
-		fmt.Sprintf("%s?token=%s", PathWalletState, authToken1.Token),
-		&walletStateResponse,
+		s.getWallet,
+		fmt.Sprintf("%s?token=%s", PathWallet, authToken1.Token),
+		&walletResponse,
 		"",
 	)
 
 	checkStatusCode(t, statusCode, responseBody)
 
-	err = json.Unmarshal([]byte(walletStateResponse.WalletStateJson), &walletState)
-
-	if err != nil {
-		t.Fatalf("Unexpected error: %+v", err)
-	}
-
-	sequence = walletState.Sequence()
-	if sequence != 2 {
-		t.Fatalf("Unexpected response Sequence(). want: %+v got: %+v", 2, sequence)
+	// Expect the same response getting from device 2 as when posting from device 1
+	if !reflect.DeepEqual(walletResponse, expectedResponse) {
+		t.Fatalf("Unexpected response values. want: %+v got: %+v", expectedResponse, walletResponse)
 	}
 }

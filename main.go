@@ -5,7 +5,6 @@ import (
 	"orblivion/lbry-id/auth"
 	"orblivion/lbry-id/server"
 	"orblivion/lbry-id/store"
-	"orblivion/lbry-id/wallet"
 )
 
 func storeInit() (s store.Store) {
@@ -23,6 +22,6 @@ func storeInit() (s store.Store) {
 
 func main() {
 	store := storeInit()
-	srv := server.Init(&auth.Auth{}, &store, &wallet.WalletUtil{})
+	srv := server.Init(&auth.Auth{}, &store)
 	srv.Serve()
 }

@@ -7,30 +7,26 @@ import (
 	"net/http"
 	"orblivion/lbry-id/auth"
 	"orblivion/lbry-id/store"
-	"orblivion/lbry-id/wallet"
 )
 
 // TODO proper doc comments!
 
 const PathAuthToken = "/auth/full"
 const PathRegister = "/signup"
-const PathWalletState = "/wallet-state"
+const PathWallet = "/wallet"
 
 type Server struct {
-	auth       auth.AuthInterface
-	store      store.StoreInterface
-	walletUtil wallet.WalletUtilInterface
+	auth  auth.AuthInterface
+	store store.StoreInterface
 }
 
 func Init(
 	auth auth.AuthInterface,
 	store store.StoreInterface,
-	walletUtil wallet.WalletUtilInterface,
 ) *Server {
 	return &Server{
-		auth:       auth,
-		store:      store,
-		walletUtil: walletUtil,
+		auth:  auth,
+		store: store,
 	}
 }
 
@@ -129,7 +125,7 @@ func getGetData(w http.ResponseWriter, req *http.Request) bool {
 // deviceId. Also this is apparently not idiomatic go error handling.
 func (s *Server) checkAuth(
 	w http.ResponseWriter,
-	token auth.AuthTokenString,
+	token auth.TokenString,
 	scope auth.AuthScope,
 ) *auth.AuthToken {
 	authToken, err := s.store.GetToken(token)
@@ -155,7 +151,7 @@ func (s *Server) checkAuth(
 
 func (s *Server) Serve() {
 	http.HandleFunc(PathAuthToken, s.getAuthToken)
-	http.HandleFunc(PathWalletState, s.handleWalletState)
+	http.HandleFunc(PathWallet, s.handleWallet)
 	http.HandleFunc(PathRegister, s.register)
 
 	fmt.Println("Serving at :8090")

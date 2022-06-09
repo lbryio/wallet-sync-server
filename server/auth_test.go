@@ -8,15 +8,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"orblivion/lbry-id/auth"
-	"orblivion/lbry-id/wallet"
 	"strings"
 	"testing"
 )
 
 func TestServerAuthHandlerSuccess(t *testing.T) {
-	testAuth := TestAuth{TestToken: auth.AuthTokenString("seekrit")}
+	testAuth := TestAuth{TestToken: auth.TokenString("seekrit")}
 	testStore := TestStore{}
-	s := Server{&testAuth, &testStore, &wallet.WalletUtil{}}
+	s := Server{&testAuth, &testStore}
 
 	requestBody := []byte(`{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`)
 
@@ -116,7 +115,7 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 
 			// Set this up to fail according to specification
-			testAuth := TestAuth{TestToken: auth.AuthTokenString("seekrit")}
+			testAuth := TestAuth{TestToken: auth.TokenString("seekrit")}
 			testStore := TestStore{}
 			if tc.authFailLogin {
 				testStore.FailLogin = true
@@ -125,9 +124,9 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 			} else if tc.storeFailSave {
 				testStore.FailSave = true
 			} else {
-				testAuth.TestToken = auth.AuthTokenString("seekrit")
+				testAuth.TestToken = auth.TokenString("seekrit")
 			}
-			server := Server{&testAuth, &testStore, &wallet.WalletUtil{}}
+			server := Server{&testAuth, &testStore}
 
 			// Make request
 			req := httptest.NewRequest(tc.method, PathAuthToken, bytes.NewBuffer([]byte(tc.requestBody)))
