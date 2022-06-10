@@ -38,6 +38,10 @@ def check_hmac(wallet_state, hmac_key, hmac):
     return hmac == create_hmac(wallet_state, hmac_key)
 
 class Client():
+  # If you want to get the lastSynced stuff back, see:
+  # 512ebe3e95bf4e533562710a7f91c59616a9a197
+  # It's mostly simple, but the _validate_new_wallet_state changes may be worth
+  # looking at.
   def _validate_new_wallet_state(self, new_wallet_state):
     if self.wallet_state is None:
       # All of the validations here are in reference to what the device already
