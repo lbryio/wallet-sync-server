@@ -5,17 +5,100 @@ from pprint import pprint
 
 CURRENT_VERSION = 1
 
-BASE_URL = 'http://localhost:8090'
-AUTH_URL = BASE_URL + '/auth/full'
-REGISTER_URL = BASE_URL + '/signup'
-WALLET_URL = BASE_URL + '/wallet'
+WalletState = namedtuple('WalletState', ['sequence', 'encrypted_wallet'])
+
+class WalletSync():
+  BASE_URL = 'http://localhost:8090'
+  AUTH_URL = BASE_URL + '/auth/full'
+  REGISTER_URL = BASE_URL + '/signup'
+  WALLET_URL = BASE_URL + '/wallet'
+
+  @classmethod
+  def register(cls, email, password):
+    body = json.dumps({
+      'email': email,
+      'password': password,
+    })
+    response = requests.post(cls.REGISTER_URL, body)
+    if response.status_code != 201:
+      print ('Error', response.status_code)
+      print (response.content)
+      return False
+    return True
+
+  @classmethod
+  def get_auth_token(cls, email, password, device_id):
+    body = json.dumps({
+      'email': email,
+      'password': password,
+      'deviceId': device_id,
+    })
+    response = requests.post(cls.AUTH_URL, body)
+    if response.status_code != 200:
+      print ('Error', response.status_code)
+      print (response.content)
+      return None
+
+    return response.json()['token']
+
+  @classmethod
+  def get_wallet(cls, token):
+    params = {
+      'token': token,
+    }
+    response = requests.get(cls.WALLET_URL, params=params)
+
+    # TODO check response version on client side now
+
+    if response.status_code != 200:
+      print ('Error', response.status_code)
+      print (response.content)
+      return None, None
+
+    wallet_state = WalletState(
+      encrypted_wallet=response.json()['encryptedWallet'],
+      sequence=response.json()['sequence'],
+    )
+    hmac = response.json()['hmac']
+    return wallet_state, hmac
+
+  @classmethod
+  def update_wallet(cls, wallet_state, hmac, token):
+    body = json.dumps({
+      'version': CURRENT_VERSION,
+      'token': token,
+      "encryptedWallet": wallet_state.encrypted_wallet,
+      "sequence": wallet_state.sequence,
+      "hmac": hmac,
+    })
+
+    response = requests.post(cls.WALLET_URL, body)
+
+    # TODO check that response.json().version == CURRENT_VERSION
+
+    if response.status_code == 200:
+      conflict = False
+      print ('Successfully updated wallet state on server')
+    elif response.status_code == 409:
+      conflict = True
+      print ('Wallet state out of date. Getting updated wallet state. Try posting again after this.')
+      # Not an error! We still want to merge in the returned wallet.
+    else:
+      print ('Error', response.status_code)
+      print (response.content)
+      return None, None, None
+
+    wallet_state = WalletState(
+      encrypted_wallet=response.json()['encryptedWallet'],
+      sequence=response.json()['sequence'],
+    )
+    hmac = response.json()['hmac']
+    return wallet_state, hmac, conflict
 
 # TODO - We should have:
 # * self.last_synced_wallet_state - as described
 # * self.current_wallet_state - WalletState(cur_encrypted_wallet(), sequence + 1) - and current_wallet_state
 # We don't need it yet but we'd be avoiding the entire point of the syncing system. At least keep it around in this demo.
-
-WalletState = namedtuple('WalletState', ['sequence', 'encrypted_wallet'])
 
 # TODO - do this correctly. This is a hack example.
 def derive_login_password(root_password):
@@ -88,29 +171,22 @@ class Client():
     self.root_password = root_password
 
   def register(self):
-    body = json.dumps({
-      'email': self.email,
-      'password': derive_login_password(self.root_password),
-    })
-    response = requests.post(REGISTER_URL, body)
-    if response.status_code != 201:
-      print ('Error', response.status_code)
-      print (response.content)
-      return
-    print ("Registered")
+    success = WalletSync.register(
+      self.email,
+      derive_login_password(self.root_password),
+    )
+    if success:
+      print ("Registered")
 
   def get_auth_token(self):
-    body = json.dumps({
-      'email': self.email,
-      'password': derive_login_password(self.root_password),
-      'deviceId': self.device_id,
-    })
-    response = requests.post(AUTH_URL, body)
-    if response.status_code != 200:
-      print ('Error', response.status_code)
-      print (response.content)
+    token = WalletSync.get_auth_token(
+      self.email,
+      derive_login_password(self.root_password),
+      self.device_id,
+    )
+    if not token:
       return
-    self.auth_token = json.loads(response.content)['token']
+    self.auth_token = token
     print ("Got auth token: ", self.auth_token)
 
   # TODO - What about cases where we are managing multiple different wallets?
@@ -119,31 +195,22 @@ class Client():
   # want to annotate them with which account we're talking about. Again, we
   # should see how LBRY Desktop/SDK deal with it.
   def get_wallet(self):
-    params = {
-      'token': self.auth_token,
-    }
-    response = requests.get(WALLET_URL, params=params)
-    if response.status_code != 200:
-      # TODO check response version on client side now
-      print ('Error', response.status_code)
-      print (response.content)
+    new_wallet_state, hmac = WalletSync.get_wallet(self.auth_token)
+
+    # If there was a failure
+    if not new_wallet_state:
       return
 
     hmac_key = derive_hmac_key(self.root_password)
-
-    new_wallet_state = WalletState(
-      encrypted_wallet=response.json()['encryptedWallet'],
-      sequence=response.json()['sequence'],
-    )
-    hmac = response.json()['hmac']
     if not check_hmac(new_wallet_state, hmac_key, hmac):
       print ('Error - bad hmac on new wallet')
-      print (response.content)
+      print (new_wallet_state, hmac)
       return
 
     if self.wallet_state != new_wallet_state and not self._validate_new_wallet_state(new_wallet_state):
       print ('Error - new wallet does not validate')
-      print (response.content)
+      print ('current:', self.wallet_state)
+      print ('got:', new_wallet_state)
       return
 
     if self.wallet_state is None:
@@ -156,7 +223,7 @@ class Client():
     print ("Got latest walletState:")
     pprint(self.wallet_state)
 
-  def post_wallet(self):
+  def update_wallet(self):
     # Create a *new* wallet state, indicating that it was last updated by this
     # device, with the updated sequence, and include our local encrypted wallet changes.
     # Don't set self.wallet_state to this until we know that it's accepted by
@@ -171,45 +238,30 @@ class Client():
       encrypted_wallet=self.cur_encrypted_wallet(),
       sequence=self.wallet_state.sequence + 1
     )
-    wallet_request = {
-      'version': CURRENT_VERSION,
-      'token': self.auth_token,
-      "encryptedWallet": submitted_wallet_state.encrypted_wallet,
-      "sequence": submitted_wallet_state.sequence,
-      "hmac": create_hmac(submitted_wallet_state, hmac_key),
-    }
+    hmac = create_hmac(submitted_wallet_state, hmac_key)
 
-    response = requests.post(WALLET_URL, json.dumps(wallet_request))
+    # Submit our wallet, get the latest wallet back as a response
+    new_wallet_state, new_hmac, conflict = WalletSync.update_wallet(submitted_wallet_state, hmac, self.auth_token)
 
-    if response.status_code == 200:
-      # TODO check response version on client side now
-      # Our local changes are no longer local, so we reset them
-      self._encrypted_wallet_local_changes = ''
-      print ('Successfully updated wallet state on server')
-    elif response.status_code == 409:
-      print ('Wallet state out of date. Getting updated wallet state. Try posting again after this.')
-      # Don't return yet! We got the updated state here, so we still process it below.
-    else:
-      print ('Error', response.status_code)
-      print (response.content)
+    # If there was a failure (not just a conflict)
+    if not new_wallet_state:
       return
 
-    # Now we get a new wallet back as a response
-    # TODO - factor this code into the same thing as the get_wallet function
+    # If there's not a conflict, we submitted successfully and should reset our previously local changes
+    if not conflict:
+      self._encrypted_wallet_local_changes = ''
 
-    new_wallet_state = WalletState(
-      encrypted_wallet=response.json()['encryptedWallet'],
-      sequence=response.json()['sequence'],
-    )
-    hmac = response.json()['hmac']
-    if not check_hmac(new_wallet_state, hmac_key, hmac):
+    # TODO - there's some code in common here with the get_wallet function. factor it out.
+
+    if not check_hmac(new_wallet_state, hmac_key, new_hmac):
       print ('Error - bad hmac on new wallet')
-      print (response.content)
+      print (new_wallet_state, hmac)
       return
 
     if submitted_wallet_state != new_wallet_state and not self._validate_new_wallet_state(new_wallet_state):
       print ('Error - new wallet does not validate')
-      print (response.content)
+      print ('current:', self.wallet_state)
+      print ('got:', new_wallet_state)
       return
 
     self.wallet_state = new_wallet_state

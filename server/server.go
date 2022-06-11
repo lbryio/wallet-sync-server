@@ -103,7 +103,7 @@ func getPostData(w http.ResponseWriter, req *http.Request, reqStruct PostRequest
 	}
 
 	if err := json.NewDecoder(req.Body).Decode(&reqStruct); err != nil {
-		errorJson(w, http.StatusBadRequest, "Malformed request body JSON")
+		errorJson(w, http.StatusBadRequest, "Request body JSON malformed or structure mismatch")
 		return false
 	}
 

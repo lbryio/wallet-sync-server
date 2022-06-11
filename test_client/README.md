@@ -25,9 +25,9 @@ Now that the account exists, grab an auth token with both clients.
 
 ```
 >>> c1.get_auth_token()
-Got auth token:  a489d5cacc0a3db4811c34d203683482d90c605b03ae007fa5ae32ef17252bd9
+Got auth token:  b646a357038d394ef7b70f350c666aeb29e24072c7eeaaad4fb6759c1fca281a
 >>> c2.get_auth_token()
-Got auth token:  1fe687db8ab493ed260f499b674cfa49edefd3c03a718905c62d3f850dc50567
+Got auth token:  bd24ae67cb1bde2da8a27f2c2e5ec8ff1f9bebccb11e16dd35aea31bf422133c
 ```
 
 ## Syncing
@@ -38,7 +38,7 @@ Note that after POSTing, it says it "got" a new wallet. This is because the POST
 
 ```
 >>> c1.new_wallet_state()
->>> c1.post_wallet()
+>>> c1.update_wallet()
 Successfully updated wallet state on server
 Got new walletState:
 WalletState(sequence=1, encrypted_wallet='-')
@@ -57,7 +57,7 @@ WalletState(sequence=1, encrypted_wallet='-')
 Push a new version, GET it with the other client. Even though we haven't edited the encrypted wallet yet, we can still increment the sequence number.
 
 ```
->>> c2.post_wallet()
+>>> c2.update_wallet()
 Successfully updated wallet state on server
 Got new walletState:
 WalletState(sequence=2, encrypted_wallet='-')
@@ -75,21 +75,21 @@ For demo purposes, this test client represents each change to the wallet by appe
 '-'
 >>> c1.change_encrypted_wallet()
 >>> c1.cur_encrypted_wallet()
-'-:cfF6'
+'-:a776'
 ```
 
 The wallet is synced between the clients.
 
 ```
->>> c1.post_wallet()
+>>> c1.update_wallet()
 Successfully updated wallet state on server
 Got new walletState:
-WalletState(sequence=3, encrypted_wallet='-:cfF6')
+WalletState(sequence=3, encrypted_wallet='-:a776')
 >>> c2.get_wallet()
 Got latest walletState:
-WalletState(sequence=3, encrypted_wallet='-:cfF6')
+WalletState(sequence=3, encrypted_wallet='-:a776')
 >>> c2.cur_encrypted_wallet()
-'-:cfF6'
+'-:a776'
 ```
 
 ## Merging Changes
@@ -100,44 +100,44 @@ Both clients create changes. They now have diverging wallets.
 >>> c1.change_encrypted_wallet()
 >>> c2.change_encrypted_wallet()
 >>> c1.cur_encrypted_wallet()
-'-:cfF6:565b'
+'-:a776:8fc8'
 >>> c2.cur_encrypted_wallet()
-'-:cfF6:6De1'
+'-:a776:2433'
 ```
 
 One client POSTs its change first.
 
 ```
->>> c1.post_wallet()
+>>> c1.update_wallet()
 Successfully updated wallet state on server
 Got new walletState:
-WalletState(sequence=4, encrypted_wallet='-:cfF6:565b')
+WalletState(sequence=4, encrypted_wallet='-:a776:8fc8')
 ```
 
 The other client pulls that change, and _merges_ those changes on top of the changes it had saved locally.
 
-The _merge base_ that a given client uses is the last version that it successfully got from or POSTed to the server. You can see the merge base here: `"-:cfF6"`, the first part of the wallet which both clients had in common before the merge.
+The _merge base_ that a given client uses is the last version that it successfully got from or POSTed to the server. You can see the merge base here: `"-:a776"`, the first part of the wallet which both clients had in common before the merge.
 
 ```
 >>> c2.get_wallet()
 Got latest walletState:
-WalletState(sequence=4, encrypted_wallet='-:cfF6:565b')
+WalletState(sequence=4, encrypted_wallet='-:a776:8fc8')
 >>> c2.cur_encrypted_wallet()
-'-:cfF6:565b:6De1'
+'-:a776:8fc8:2433'
 ```
 
 Finally, the client with the merged wallet pushes it to the server, and the other client GETs the update.
 
 ```
->>> c2.post_wallet()
+>>> c2.update_wallet()
 Successfully updated wallet state on server
 Got new walletState:
-WalletState(sequence=5, encrypted_wallet='-:cfF6:565b:6De1')
+WalletState(sequence=5, encrypted_wallet='-:a776:8fc8:2433')
 >>> c1.get_wallet()
 Got latest walletState:
-WalletState(sequence=5, encrypted_wallet='-:cfF6:565b:6De1')
+WalletState(sequence=5, encrypted_wallet='-:a776:8fc8:2433')
 >>> c1.cur_encrypted_wallet()
-'-:cfF6:565b:6De1'
+'-:a776:8fc8:2433'
 ```
 
 ## Conflicts
@@ -148,22 +148,22 @@ A client cannot POST if it is not up to date. It needs to merge in any new chang
 
 ```
 >>> c2.change_encrypted_wallet()
->>> c2.post_wallet()
+>>> c2.update_wallet()
 Successfully updated wallet state on server
 Got new walletState:
-WalletState(sequence=6, encrypted_wallet='-:cfF6:565b:6De1:053a')
+WalletState(sequence=6, encrypted_wallet='-:a776:8fc8:2433:0FdD')
 >>> c1.change_encrypted_wallet()
->>> c1.post_wallet()
+>>> c1.update_wallet()
 Wallet state out of date. Getting updated wallet state. Try posting again after this.
 Got new walletState:
-WalletState(sequence=6, encrypted_wallet='-:cfF6:565b:6De1:053a')
+WalletState(sequence=6, encrypted_wallet='-:a776:8fc8:2433:0FdD')
 ```
 
 Now the merge is complete, and the client can make a second POST request containing the merged wallet.
 
 ```
->>> c1.post_wallet()
+>>> c1.update_wallet()
 Successfully updated wallet state on server
 Got new walletState:
-WalletState(sequence=7, encrypted_wallet='-:cfF6:565b:6De1:053a:6774')
+WalletState(sequence=7, encrypted_wallet='-:a776:8fc8:2433:0FdD:BA43')
 ```

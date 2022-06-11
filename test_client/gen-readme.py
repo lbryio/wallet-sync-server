@@ -59,7 +59,7 @@ Note that after POSTing, it says it "got" a new wallet. This is because the POST
 
 code_block("""
 c1.new_wallet_state()
-c1.post_wallet()
+c1.update_wallet()
 """)
 
 print("""
@@ -77,7 +77,7 @@ Push a new version, GET it with the other client. Even though we haven't edited 
 """)
 
 code_block("""
-c2.post_wallet()
+c2.update_wallet()
 c1.get_wallet()
 """)
 
@@ -98,7 +98,7 @@ The wallet is synced between the clients.
 """)
 
 code_block("""
-c1.post_wallet()
+c1.update_wallet()
 c2.get_wallet()
 c2.cur_encrypted_wallet()
 """)
@@ -123,7 +123,7 @@ One client POSTs its change first.
 """)
 
 code_block("""
-c1.post_wallet()
+c1.update_wallet()
 """)
 
 print("""
@@ -142,7 +142,7 @@ Finally, the client with the merged wallet pushes it to the server, and the othe
 """)
 
 code_block("""
-c2.post_wallet()
+c2.update_wallet()
 c1.get_wallet()
 c1.cur_encrypted_wallet()
 """)
@@ -157,9 +157,9 @@ A client cannot POST if it is not up to date. It needs to merge in any new chang
 
 code_block("""
 c2.change_encrypted_wallet()
-c2.post_wallet()
+c2.update_wallet()
 c1.change_encrypted_wallet()
-c1.post_wallet()
+c1.update_wallet()
 """)
 
 print("""
@@ -167,5 +167,5 @@ Now the merge is complete, and the client can make a second POST request contain
 """)
 
 code_block("""
-c1.post_wallet()
+c1.update_wallet()
 """)
