@@ -1,6 +1,6 @@
 #!/bin/python3
 from collections import namedtuple
-import random, string, json, uuid, requests, hashlib
+import json, uuid, requests, hashlib
 from pprint import pprint
 
 CURRENT_VERSION = 1
@@ -185,7 +185,7 @@ class Client():
 
     return True
 
-  def __init__(self):
+  def __init__(self, email, root_password, wallet_id='default_wallet'):
     # Represents normal client behavior (though a real client will of course save device id)
     self.device_id = str(uuid.uuid4())
 
@@ -193,11 +193,9 @@ class Client():
 
     self.synced_wallet_state = None
 
-    # TODO - save change to disk in between, associated with account and/or
-    # wallet
-    self._encrypted_wallet_local_changes = ''
-
-  # TODO - make this act more sdk-like. in fact maybe even install the sdk?
+    self.email = email
+    self.root_password = root_password
+    self.wallet_id = wallet_id
 
   # TODO - This does not deal with the question of tying accounts to wallets.
   # Does a new wallet state mean a we're creating a new account? What happens
@@ -206,17 +204,37 @@ class Client():
   # Etc. This sort of depends on how the LBRY Desktop/SDK usually behave. For
   # now, it'll end up just merging any un-saved local changes with whatever is
   # on the server.
-  def new_wallet_state(self):
-    # Represents what's been synced to the wallet sync server. It starts with
-    # sequence=0 which means nothing has been synced yet.
-    self.synced_wallet_state = WalletState(sequence=0, encrypted_wallet='-')
 
-    # TODO - actual encryption with encryption_key - or maybe not.
-    self._encrypted_wallet_local_changes = ''
+  # TODO - Later, we should be saving the synced_wallet_state to disk, or
+  # something like that, so we know whether there are unpushed changes on
+  # startup (which should be uncommon but possible if crash or network problem
+  # in previous run). This will be important when the client is responsible for
+  # merging what comes from the server with those local unpushed changes. For
+  # now, the SDK handles merges with timestamps and such so it's as safe as
+  # always to just merge in.
 
-  def set_account(self, email, root_password):
-    self.email = email
-    self.root_password = root_password
+  # TODO - Be careful of cases where get_remote_wallet comes back with "Not
+  # Found" even though a wallet is actually on the server. We would start with
+  # sequence=0 with the local encrypted wallet. Then next time we
+  # get_remote_wallet, it returns the actual wallet, let's say sequence=5, and
+  # it would write over what's locally saved. With the SDK as it is using
+  # sync_apply, that's okay because it has a decent way of merging it. However
+  # when the Desktop is in charge of merging, this could be a hazard. Saving
+  # the state to disk could help. Or perhaps pushing first before pulling. Or
+  # maybe if we're writing over sequence=0, we can know we should be "merging"
+  # the local encrypted wallet with whatever comes from the server.
+  def init_wallet_state(self):
+    if self.get_remote_wallet() == "Not Found":
+      print("No wallet found on the server for this account. Starting a new one.")
+
+      # Represents what's been synced to the wallet sync server. It starts with
+      # sequence=0 which means nothing has been synced yet. We start with
+      # whatever is in the SDK. Whether it's new or not, we (who choose to run
+      # this method) are assuming it's not synced yet.
+      self.synced_wallet_state = WalletState(
+        sequence=0,
+        encrypted_wallet=self.get_local_encrypted_wallet()
+      )
 
   def register(self):
     success = WalletSync.register(
@@ -239,51 +257,53 @@ class Client():
 
   # TODO - What about cases where we are managing multiple different wallets?
   # Some will have lower sequences. If you accidentally mix it up client-side,
-  # you might end up overwriting one with a lower sequence entirely. Maybe we
-  # want to annotate them with which account we're talking about. Again, we
-  # should see how LBRY Desktop/SDK deal with it.
-  def get_wallet(self):
+  # you might end up overwriting one wallet with another if the former has a
+  # higher sequence number. Maybe we want to annotate them with which account
+  # we're talking about. Again, we should see how LBRY Desktop/SDK deal with
+  # it.
+
+  # Returns: status
+  def get_remote_wallet(self):
     new_wallet_state, hmac = WalletSync.get_wallet(self.auth_token)
 
-    # If there was a failure
     if not new_wallet_state:
-      return
+      # Wallet not found, but this is not an error
+      return "Not Found"
 
     hmac_key = derive_hmac_key(self.root_password)
     if not check_hmac(new_wallet_state, hmac_key, hmac):
       print ('Error - bad hmac on new wallet')
       print (new_wallet_state, hmac)
-      return
+      return "Error"
 
     if self.synced_wallet_state != new_wallet_state and not self._validate_new_wallet_state(new_wallet_state):
       print ('Error - new wallet does not validate')
       print ('current:', self.synced_wallet_state)
       print ('got:', new_wallet_state)
-      return
-
-    if self.synced_wallet_state is None:
-      # This is if we're getting a wallet_state for the first time. Initialize
-      # the local changes.
-      self._encrypted_wallet_local_changes = ''
+      return "Error"
 
     self.synced_wallet_state = new_wallet_state
+    # TODO errors? sequence of events? This isn't gonna be quite right. Look at state diagrams.
+    self.update_local_encrypted_wallet(new_wallet_state.encrypted_wallet)
 
     print ("Got latest walletState:")
     pprint(self.synced_wallet_state)
+    return "Success"
 
-  def update_wallet(self):
+  # Returns: status
+  def update_remote_wallet(self):
     # Create a *new* wallet state, indicating that it was last updated by this
     # device, with the updated sequence, and include our local encrypted wallet changes.
     # Don't set self.synced_wallet_state to this until we know that it's accepted by
     # the server.
     if not self.synced_wallet_state:
       print ("No wallet state to post.")
-      return
+      return "Error"
 
     hmac_key = derive_hmac_key(self.root_password)
 
     submitted_wallet_state = WalletState(
-      encrypted_wallet=self.cur_encrypted_wallet(),
+      encrypted_wallet=self.get_local_encrypted_wallet(),
       sequence=self.synced_wallet_state.sequence + 1
     )
     hmac = create_hmac(submitted_wallet_state, hmac_key)
@@ -291,45 +311,41 @@ class Client():
     # Submit our wallet, get the latest wallet back as a response
     new_wallet_state, new_hmac, conflict = WalletSync.update_wallet(submitted_wallet_state, hmac, self.auth_token)
 
-    # If there was a failure (not just a conflict)
-    if not new_wallet_state:
-      return
-
-    # TODO - there's some code in common here with the get_wallet function. factor it out.
+    # TODO - there's some code in common here with the get_remote_wallet function. factor it out.
 
     if not check_hmac(new_wallet_state, hmac_key, new_hmac):
       print ('Error - bad hmac on new wallet')
       print (new_wallet_state, hmac)
-      return
+      return "Error"
 
     if submitted_wallet_state != new_wallet_state and not self._validate_new_wallet_state(new_wallet_state):
       print ('Error - new wallet does not validate')
       print ('current:', self.synced_wallet_state)
       print ('got:', new_wallet_state)
-      return
+      return "Error"
 
-    # If there's not a conflict, we submitted successfully and should reset our previously local changes
-    if not conflict:
-      self._encrypted_wallet_local_changes = ''
-
+    # TODO - `concflict` determines whether we need to a smart merge here.
+    # However for now the SDK handles all of that.
     self.synced_wallet_state = new_wallet_state
+    # TODO errors? sequence of events? This isn't gonna be quite right. Look at state diagrams.
+    self.update_local_encrypted_wallet(new_wallet_state.encrypted_wallet)
 
     print ("Got new walletState:")
     pprint(self.synced_wallet_state)
+    return "Success"
 
-  def change_encrypted_wallet(self):
-    if not self.synced_wallet_state:
-      print ("No wallet state, so we can't add to it yet.")
-      return
+  def set_preference(self, key, value):
+    # TODO - error checking
+    return LBRYSDK.set_preference(key, value)
 
-    self._encrypted_wallet_local_changes += ':' + ''.join(random.choice(string.hexdigits) for x in range(4))
+  def get_preferences(self):
+    # TODO - error checking
+    return LBRYSDK.get_preferences()
 
-  def cur_encrypted_wallet(self):
-    if not self.synced_wallet_state:
-      print ("No wallet state, so no encrypted wallet.")
-      return
+  def update_local_encrypted_wallet(self, encrypted_wallet):
+    # TODO - error checking
+    return LBRYSDK.update_wallet(self.wallet_id, derive_sdk_password(self.root_password), encrypted_wallet)
 
-    # The local changes on top of whatever came from the server
-    # If we pull new changes from server, we "rebase" these on top of it
-    # If we push changes, the full "rebased" version gets committed to the server
-    return self.synced_wallet_state.encrypted_wallet + self._encrypted_wallet_local_changes
+  def get_local_encrypted_wallet(self):
+    # TODO - error checking
+    return LBRYSDK.get_wallet(self.wallet_id, derive_sdk_password(self.root_password))
