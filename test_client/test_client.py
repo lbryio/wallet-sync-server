@@ -96,11 +96,15 @@ class WalletSync():
     response = requests.get(cls.WALLET_URL, params=params)
 
     # TODO check response version on client side now
+    if response.status_code == 404:
+      print ('Wallet not found')
+      # "No wallet" is not an error, so no exception raised
+      return None, None
 
     if response.status_code != 200:
       print ('Error', response.status_code)
       print (response.content)
-      return None, None
+      raise Exception("Unexpected status code")
 
     wallet_state = WalletState(
       encrypted_wallet=response.json()['encryptedWallet'],
@@ -133,7 +137,7 @@ class WalletSync():
     else:
       print ('Error', response.status_code)
       print (response.content)
-      return None, None, None
+      raise Exception("Unexpected status code")
 
     wallet_state = WalletState(
       encrypted_wallet=response.json()['encryptedWallet'],
