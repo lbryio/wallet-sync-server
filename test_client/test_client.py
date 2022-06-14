@@ -148,15 +148,16 @@ class WalletSync():
 
 # TODO - do this correctly. This is a hack example.
 def derive_login_password(root_password):
-    return hashlib.sha256('login:' + root_password.encode('utf-8')).hexdigest()
+    return hashlib.sha256(('login:' + root_password).encode('utf-8')).hexdigest()
 
 # TODO - do this correctly. This is a hack example.
 def derive_sdk_password(root_password):
-    return hashlib.sha256('sdk:' + root_password.encode('utf-8')).hexdigest()
+    return hashlib.sha256(('sdk:' + root_password).encode('utf-8')).hexdigest()
 
 # TODO - do this correctly. This is a hack example.
+# TODO - wallet_id in this? or in all of the derivations?
 def derive_hmac_key(root_password):
-    return hashlib.sha256('hmac:' + root_password.encode('utf-8')).hexdigest()
+    return hashlib.sha256(('hmac:' + root_password).encode('utf-8')).hexdigest()
 
 # TODO - do this correctly. This is a hack example.
 def create_hmac(wallet_state, hmac_key):
