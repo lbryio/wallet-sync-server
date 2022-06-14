@@ -7,6 +7,53 @@ CURRENT_VERSION = 1
 
 WalletState = namedtuple('WalletState', ['sequence', 'encrypted_wallet'])
 
+class LBRYSDK():
+  # TODO - error checking
+  @staticmethod
+  def get_wallet(wallet_id, password):
+    response = requests.post('http://localhost:5279', json.dumps({
+      "method": "sync_apply",
+      "params": {
+        "password": password,
+        "wallet_id": wallet_id,
+      },
+    }))
+    return response.json()['result']['data']
+
+  # TODO - error checking
+  @staticmethod
+  def update_wallet(wallet_id, password, data):
+    response = requests.post('http://localhost:5279', json.dumps({
+      "method": "sync_apply",
+      "params": {
+        "data": data,
+        "password": password,
+        "wallet_id": wallet_id,
+      },
+    }))
+    return response.json()['result']['data']
+
+  # TODO - error checking
+  @staticmethod
+  def set_preference(key, value):
+    response = requests.post('http://localhost:5279', json.dumps({
+      "method": "preference_set",
+      "params": {
+        "key": key,
+        "value": value,
+      },
+    }))
+    return response.json()['result']
+
+  # TODO - error checking
+  @staticmethod
+  def get_preferences():
+    response = requests.post('http://localhost:5279', json.dumps({
+      "method": "preference_get",
+      "params": {},
+    }))
+    return response.json()['result']
+
 class WalletSync():
   BASE_URL = 'http://localhost:8090'
   AUTH_URL = BASE_URL + '/auth/full'
