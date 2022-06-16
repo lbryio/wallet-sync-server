@@ -35,22 +35,25 @@ class LBRYSDK():
 
   # TODO - error checking
   @staticmethod
-  def set_preference(key, value):
+  def set_preference(wallet_id, key, value):
     response = requests.post('http://localhost:5279', json.dumps({
       "method": "preference_set",
       "params": {
         "key": key,
         "value": value,
+        "wallet_id": wallet_id,
       },
     }))
     return response.json()['result']
 
   # TODO - error checking
   @staticmethod
-  def get_preferences():
+  def get_preferences(wallet_id):
     response = requests.post('http://localhost:5279', json.dumps({
       "method": "preference_get",
-      "params": {},
+      "params": {
+        "wallet_id": wallet_id,
+      },
     }))
     return response.json()['result']
 
@@ -223,6 +226,9 @@ class Client():
   # the state to disk could help. Or perhaps pushing first before pulling. Or
   # maybe if we're writing over sequence=0, we can know we should be "merging"
   # the local encrypted wallet with whatever comes from the server.
+
+  # TODO - what if two clients initialize, make changes, and then both push?
+  # We'll need a way to "merge" from a merge base of an empty wallet.
   def init_wallet_state(self):
     if self.get_remote_wallet() == "Not Found":
       print("No wallet found on the server for this account. Starting a new one.")
@@ -336,11 +342,11 @@ class Client():
 
   def set_preference(self, key, value):
     # TODO - error checking
-    return LBRYSDK.set_preference(key, value)
+    return LBRYSDK.set_preference(self.wallet_id, key, value)
 
   def get_preferences(self):
     # TODO - error checking
-    return LBRYSDK.get_preferences()
+    return LBRYSDK.get_preferences(self.wallet_id)
 
   def update_local_encrypted_wallet(self, encrypted_wallet):
     # TODO - error checking
