@@ -1,7 +1,9 @@
 #!/bin/python3
 from collections import namedtuple
-import json, uuid, requests, hashlib
+import base64, json, uuid, requests, hashlib
 from pprint import pprint
+from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+from cryptography.hazmat.backends import default_backend as crypto_default_backend
 
 
 WalletState = namedtuple('WalletState', ['sequence', 'encrypted_wallet'])
@@ -150,22 +152,47 @@ class WalletSync():
     hmac = response.json()['hmac']
     return wallet_state, hmac, conflict
 
-# TODO - do this correctly. This is a hack example.
-def derive_login_password(root_password):
-    return hashlib.sha256(('login:' + root_password).encode('utf-8')).hexdigest()
+def derive_secrets(root_password, salt):
+    # TODO - Audit me audit me audit me! I don't know if these values are
+    # optimal.
+    #
+    # I will say that it seems like there's an optimal for access control, and
+    # there's a stronger optimal for sensitive storage.
+    # TODO - wallet_id in the salt? (with domain etc if we go that way)
+    # But, we probably want random salt anyway for each domain, who cares
+    scrypt_n = 1<<13
+    scrypt_r = 16
+    scrypt_p = 1
 
-# TODO - do this correctly. This is a hack example.
-def derive_sdk_password(root_password):
-    return hashlib.sha256(('sdk:' + root_password).encode('utf-8')).hexdigest()
+    key_length = 32
+    num_keys = 3
 
-# TODO - do this correctly. This is a hack example.
-# TODO - wallet_id in this? or in all of the derivations?
-def derive_hmac_key(root_password):
-    return hashlib.sha256(('hmac:' + root_password).encode('utf-8')).hexdigest()
+    kdf = Scrypt(
+      salt,
+      length=key_length * num_keys,
+      n=scrypt_n,
+      r=scrypt_r,
+      p=scrypt_p,
+      backend=crypto_default_backend(),
+    )
+    kdf_output = kdf.derive(root_password)
+
+    # Split the output in three
+    parts = (
+      kdf_output[:key_length],
+      kdf_output[key_length:key_length * 2],
+      kdf_output[key_length * 2:],
+    )
+
+    wallet_sync_password = base64.b64encode(parts[0]).decode('utf-8')
+    sdk_password = base64.b64encode(parts[1]).decode('utf-8')
+    hmac_key = parts[2]
+
+    return wallet_sync_password, sdk_password, hmac_key
 
 # TODO - do this correctly. This is a hack example.
 def create_hmac(wallet_state, hmac_key):
-    input_str = hmac_key + ':' + str(wallet_state.sequence) + ':' + wallet_state.encrypted_wallet
+    input_str = base64.b64encode(hmac_key).decode('utf-8') + ':' + str(wallet_state.sequence) + ':' + wallet_state.encrypted_wallet
     return hashlib.sha256(input_str.encode('utf-8')).hexdigest()
 
 def check_hmac(wallet_state, hmac_key, hmac):
@@ -192,13 +219,20 @@ class Client():
   def __init__(self, email, root_password, wallet_id='default_wallet', local=False):
     # Represents normal client behavior (though a real client will of course save device id)
     self.device_id = str(uuid.uuid4())
-
     self.auth_token = 'bad token'
-
     self.synced_wallet_state = None
 
     self.email = email
-    self.root_password = root_password
+
+    # TODO - generate randomly CLIENT SIDE and post to server with
+    # registration. And maybe get it to new clients along with the auth token.
+    # But is there an attack vector if we don't trust the salt? See how others
+    # do it. Since the same server sees one of the outputs of the KDF. Huh.
+    self.salt = b'I AM A SALT'
+
+    # TODO - is UTF-8 appropriate for root_password? based on characters used etc.
+    self.wallet_sync_password, self.sdk_password, self.hmac_key = derive_secrets(bytes(root_password, 'utf-8'), self.salt)
+
     self.wallet_id = wallet_id
 
     self.wallet_sync_api = WalletSync(local=local)
@@ -248,7 +282,7 @@ class Client():
   def register(self):
     success = self.wallet_sync_api.register(
       self.email,
-      derive_login_password(self.root_password),
+      self.wallet_sync_password,
     )
     if success:
       print ("Registered")
@@ -256,7 +290,7 @@ class Client():
   def get_auth_token(self):
     token = self.wallet_sync_api.get_auth_token(
       self.email,
-      derive_login_password(self.root_password),
+      self.wallet_sync_password,
       self.device_id,
     )
     if not token:
@@ -279,8 +313,7 @@ class Client():
       # Wallet not found, but this is not an error
       return "Not Found"
 
-    hmac_key = derive_hmac_key(self.root_password)
-    if not check_hmac(new_wallet_state, hmac_key, hmac):
+    if not check_hmac(new_wallet_state, self.hmac_key, hmac):
       print ('Error - bad hmac on new wallet')
       print (new_wallet_state, hmac)
       return "Error"
@@ -309,20 +342,18 @@ class Client():
       print ("No wallet state to post.")
       return "Error"
 
-    hmac_key = derive_hmac_key(self.root_password)
-
     submitted_wallet_state = WalletState(
       encrypted_wallet=self.get_local_encrypted_wallet(),
       sequence=self.synced_wallet_state.sequence + 1
     )
-    hmac = create_hmac(submitted_wallet_state, hmac_key)
+    hmac = create_hmac(submitted_wallet_state, self.hmac_key)
 
     # Submit our wallet, get the latest wallet back as a response
     new_wallet_state, new_hmac, conflict = self.wallet_sync_api.update_wallet(submitted_wallet_state, hmac, self.auth_token)
 
     # TODO - there's some code in common here with the get_remote_wallet function. factor it out.
 
-    if not check_hmac(new_wallet_state, hmac_key, new_hmac):
+    if not check_hmac(new_wallet_state, self.hmac_key, new_hmac):
       print ('Error - bad hmac on new wallet')
       print (new_wallet_state, hmac)
       return "Error"
@@ -353,8 +384,8 @@ class Client():
 
   def update_local_encrypted_wallet(self, encrypted_wallet):
     # TODO - error checking
-    return LBRYSDK.update_wallet(self.wallet_id, derive_sdk_password(self.root_password), encrypted_wallet)
+    return LBRYSDK.update_wallet(self.wallet_id, self.sdk_password, encrypted_wallet)
 
   def get_local_encrypted_wallet(self):
     # TODO - error checking
-    return LBRYSDK.get_wallet(self.wallet_id, derive_sdk_password(self.root_password))
+    return LBRYSDK.get_wallet(self.wallet_id, self.sdk_password)
