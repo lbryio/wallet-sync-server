@@ -1,6 +1,6 @@
 #!/bin/python3
 from collections import namedtuple
-import base64, json, uuid, requests, hashlib
+import base64, json, uuid, requests, hashlib, hmac
 from pprint import pprint
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt # TODO - hashlib.scrypt instead? Why are there so many options?
 from cryptography.hazmat.backends import default_backend as crypto_default_backend
@@ -189,10 +189,9 @@ def derive_secrets(root_password, salt):
 
     return wallet_sync_password, sdk_password, hmac_key
 
-# TODO - do this correctly. This is a hack example.
 def create_hmac(wallet_state, hmac_key):
-    input_str = base64.b64encode(hmac_key).decode('utf-8') + ':' + str(wallet_state.sequence) + ':' + wallet_state.encrypted_wallet
-    return hashlib.sha256(input_str.encode('utf-8')).hexdigest()
+    input_str = str(wallet_state.sequence) + ':' + wallet_state.encrypted_wallet
+    return hmac.new(hmac_key, input_str.encode('utf-8'), hashlib.sha256 ).hexdigest()
 
 def check_hmac(wallet_state, hmac_key, hmac):
     return hmac == create_hmac(wallet_state, hmac_key)
