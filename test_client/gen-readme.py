@@ -3,11 +3,15 @@
 # NOTE - delete the database before running this, or else you'll get an error for registering. also we want the wallet to start empty
 # NOTE - in the SDK, create wallets called "test_wallet_1" and "test_wallet_2"
 
+import time
 from test_client import LBRYSDK
 # reset all of the preferences so we can run our example
 for wallet in ['test_wallet_1', 'test_wallet_2']:
   for pref_key in ['car', 'animal']:
     LBRYSDK.set_preference(wallet, pref_key, '')
+
+# Make sure the next preference changes have a later timestamp!
+time.sleep(3)
 
 def code_block(code):
   print ("```")
@@ -29,12 +33,14 @@ A couple example flows so it's clear how it works. We're assuming that we're sta
 print("""## Initial setup and account recovery
 
 Set up a client for each wallet, but with the same sync account (which won't exist on the server yet). This will simulate clients on two different computers.
+
+For this example we will be working with a locally running server so that we don't care about the data. If you want to communicate with `dev.lbry.id`, simply omit the `local=True`.
 """)
 
 code_block("""
 from test_client import Client
-c1 = Client("joe2@example.com", "123abc2", 'test_wallet_1')
-c2 = Client("joe2@example.com", "123abc2", 'test_wallet_2')
+c1 = Client("joe2@example.com", "123abc2", 'test_wallet_1', local=True)
+c2 = Client("joe2@example.com", "123abc2", 'test_wallet_2', local=True)
 """)
 
 print("""
@@ -155,7 +161,6 @@ c1.get_preferences()
 """)
 
 # Make sure the next preference changes have a later timestamp!
-import time
 time.sleep(3)
 
 print("""

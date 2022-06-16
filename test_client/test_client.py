@@ -58,32 +58,34 @@ class LBRYSDK():
     return response.json()['result']
 
 class WalletSync():
-  BASE_URL = 'http://localhost:8090'
-  AUTH_URL = BASE_URL + '/auth/full'
-  REGISTER_URL = BASE_URL + '/signup'
-  WALLET_URL = BASE_URL + '/wallet'
+  def __init__(self, local):
+    if local:
+      BASE_URL = 'http://localhost:8090'
+    else:
+      BASE_URL = 'https://dev.lbry.id:8091'
+    self.AUTH_URL = BASE_URL + '/auth/full'
+    self.REGISTER_URL = BASE_URL + '/signup'
+    self.WALLET_URL = BASE_URL + '/wallet'
 
-  @classmethod
-  def register(cls, email, password):
+  def register(self, email, password):
     body = json.dumps({
       'email': email,
       'password': password,
     })
-    response = requests.post(cls.REGISTER_URL, body)
+    response = requests.post(self.REGISTER_URL, body)
     if response.status_code != 201:
       print ('Error', response.status_code)
       print (response.content)
       return False
     return True
 
-  @classmethod
-  def get_auth_token(cls, email, password, device_id):
+  def get_auth_token(self, email, password, device_id):
     body = json.dumps({
       'email': email,
       'password': password,
       'deviceId': device_id,
     })
-    response = requests.post(cls.AUTH_URL, body)
+    response = requests.post(self.AUTH_URL, body)
     if response.status_code != 200:
       print ('Error', response.status_code)
       print (response.content)
@@ -91,12 +93,11 @@ class WalletSync():
 
     return response.json()['token']
 
-  @classmethod
-  def get_wallet(cls, token):
+  def get_wallet(self, token):
     params = {
       'token': token,
     }
-    response = requests.get(cls.WALLET_URL, params=params)
+    response = requests.get(self.WALLET_URL, params=params)
 
     # TODO check response version on client side now
     if response.status_code == 404:
@@ -116,8 +117,7 @@ class WalletSync():
     hmac = response.json()['hmac']
     return wallet_state, hmac
 
-  @classmethod
-  def update_wallet(cls, wallet_state, hmac, token):
+  def update_wallet(self, wallet_state, hmac, token):
     body = json.dumps({
       'version': CURRENT_VERSION,
       'token': token,
@@ -126,7 +126,7 @@ class WalletSync():
       "hmac": hmac,
     })
 
-    response = requests.post(cls.WALLET_URL, body)
+    response = requests.post(self.WALLET_URL, body)
 
     # TODO check that response.json().version == CURRENT_VERSION
 
@@ -188,7 +188,7 @@ class Client():
 
     return True
 
-  def __init__(self, email, root_password, wallet_id='default_wallet'):
+  def __init__(self, email, root_password, wallet_id='default_wallet', local=False):
     # Represents normal client behavior (though a real client will of course save device id)
     self.device_id = str(uuid.uuid4())
 
@@ -199,6 +199,8 @@ class Client():
     self.email = email
     self.root_password = root_password
     self.wallet_id = wallet_id
+
+    self.wallet_sync_api = WalletSync(local=local)
 
   # TODO - This does not deal with the question of tying accounts to wallets.
   # Does a new wallet state mean a we're creating a new account? What happens
@@ -243,7 +245,7 @@ class Client():
       )
 
   def register(self):
-    success = WalletSync.register(
+    success = self.wallet_sync_api.register(
       self.email,
       derive_login_password(self.root_password),
     )
@@ -251,7 +253,7 @@ class Client():
       print ("Registered")
 
   def get_auth_token(self):
-    token = WalletSync.get_auth_token(
+    token = self.wallet_sync_api.get_auth_token(
       self.email,
       derive_login_password(self.root_password),
       self.device_id,
@@ -270,7 +272,7 @@ class Client():
 
   # Returns: status
   def get_remote_wallet(self):
-    new_wallet_state, hmac = WalletSync.get_wallet(self.auth_token)
+    new_wallet_state, hmac = self.wallet_sync_api.get_wallet(self.auth_token)
 
     if not new_wallet_state:
       # Wallet not found, but this is not an error
@@ -315,7 +317,7 @@ class Client():
     hmac = create_hmac(submitted_wallet_state, hmac_key)
 
     # Submit our wallet, get the latest wallet back as a response
-    new_wallet_state, new_hmac, conflict = WalletSync.update_wallet(submitted_wallet_state, hmac, self.auth_token)
+    new_wallet_state, new_hmac, conflict = self.wallet_sync_api.update_wallet(submitted_wallet_state, hmac, self.auth_token)
 
     # TODO - there's some code in common here with the get_remote_wallet function. factor it out.
 
