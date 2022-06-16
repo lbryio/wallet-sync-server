@@ -3,7 +3,6 @@ from collections import namedtuple
 import json, uuid, requests, hashlib
 from pprint import pprint
 
-CURRENT_VERSION = 1
 
 WalletState = namedtuple('WalletState', ['sequence', 'encrypted_wallet'])
 
@@ -67,6 +66,8 @@ class WalletSync():
     self.REGISTER_URL = BASE_URL + '/signup'
     self.WALLET_URL = BASE_URL + '/wallet'
 
+    self.API_VERSION = 1
+
   def register(self, email, password):
     body = json.dumps({
       'email': email,
@@ -119,7 +120,7 @@ class WalletSync():
 
   def update_wallet(self, wallet_state, hmac, token):
     body = json.dumps({
-      'version': CURRENT_VERSION,
+      'version': self.API_VERSION,
       'token': token,
       "encryptedWallet": wallet_state.encrypted_wallet,
       "sequence": wallet_state.sequence,
@@ -128,7 +129,7 @@ class WalletSync():
 
     response = requests.post(self.WALLET_URL, body)
 
-    # TODO check that response.json().version == CURRENT_VERSION
+    # TODO check that response.json().version == self.API_VERSION
 
     if response.status_code == 200:
       conflict = False
