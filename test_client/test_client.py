@@ -2,9 +2,8 @@
 from collections import namedtuple
 import base64, json, uuid, requests, hashlib
 from pprint import pprint
-from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+from cryptography.hazmat.primitives.kdf.scrypt import Scrypt # TODO - hashlib.scrypt instead? Why are there so many options?
 from cryptography.hazmat.backends import default_backend as crypto_default_backend
-
 
 WalletState = namedtuple('WalletState', ['sequence', 'encrypted_wallet'])
 
