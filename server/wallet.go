@@ -9,8 +9,6 @@ import (
 	"orblivion/lbry-id/wallet"
 )
 
-const CURRENT_VERSION = 1
-
 type WalletRequest struct {
 	Version         int                    `json:"version"`
 	Token           auth.TokenString       `json:"token"`
@@ -20,8 +18,7 @@ type WalletRequest struct {
 }
 
 func (r *WalletRequest) validate() bool {
-	return (r.Version == CURRENT_VERSION &&
-		r.Token != auth.TokenString("") &&
+	return (r.Token != auth.TokenString("") &&
 		r.EncryptedWallet != wallet.EncryptedWallet("") &&
 		r.Hmac != wallet.WalletHmac("") &&
 		r.Sequence >= wallet.Sequence(1))
@@ -92,7 +89,6 @@ func (s *Server) getWallet(w http.ResponseWriter, req *http.Request) {
 	}
 
 	walletResponse := WalletResponse{
-		Version:         CURRENT_VERSION,
 		EncryptedWallet: latestEncryptedWallet,
 		Sequence:        latestSequence,
 		Hmac:            latestHmac,
@@ -143,7 +139,6 @@ func (s *Server) postWallet(w http.ResponseWriter, req *http.Request) {
 	}
 
 	walletResponse := WalletResponse{
-		Version:         CURRENT_VERSION,
 		EncryptedWallet: latestEncryptedWallet,
 		Sequence:        latestSequence,
 		Hmac:            latestHmac,

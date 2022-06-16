@@ -59,15 +59,17 @@ class LBRYSDK():
 
 class WalletSync():
   def __init__(self, local):
+    self.API_VERSION = 1
+
     if local:
       BASE_URL = 'http://localhost:8090'
     else:
       BASE_URL = 'https://dev.lbry.id:8091'
-    self.AUTH_URL = BASE_URL + '/auth/full'
-    self.REGISTER_URL = BASE_URL + '/signup'
-    self.WALLET_URL = BASE_URL + '/wallet'
+    API_URL = BASE_URL + '/api/%d' % self.API_VERSION
 
-    self.API_VERSION = 1
+    self.AUTH_URL = API_URL + '/auth/full'
+    self.REGISTER_URL = API_URL + '/signup'
+    self.WALLET_URL = API_URL + '/wallet'
 
   def register(self, email, password):
     body = json.dumps({
@@ -121,7 +123,6 @@ class WalletSync():
 
   def update_wallet(self, wallet_state, hmac, token):
     body = json.dumps({
-      'version': self.API_VERSION,
       'token': token,
       "encryptedWallet": wallet_state.encrypted_wallet,
       "sequence": wallet_state.sequence,
@@ -129,8 +130,6 @@ class WalletSync():
     })
 
     response = requests.post(self.WALLET_URL, body)
-
-    # TODO check that response.json().version == self.API_VERSION
 
     if response.status_code == 200:
       conflict = False

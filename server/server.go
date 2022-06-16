@@ -11,6 +11,8 @@ import (
 
 // TODO proper doc comments!
 
+const API_VERSION = 1
+
 const PathAuthToken = "/auth/full"
 const PathRegister = "/signup"
 const PathWallet = "/wallet"
@@ -150,9 +152,10 @@ func (s *Server) checkAuth(
 // PUT = "...creates a new resource or replaces a representation of the target resource with the request payload."
 
 func (s *Server) Serve() {
-	http.HandleFunc(PathAuthToken, s.getAuthToken)
-	http.HandleFunc(PathWallet, s.handleWallet)
-	http.HandleFunc(PathRegister, s.register)
+	PathPrefix := fmt.Sprintf("/api/%d", API_VERSION)
+	http.HandleFunc(PathPrefix+PathAuthToken, s.getAuthToken)
+	http.HandleFunc(PathPrefix+PathWallet, s.handleWallet)
+	http.HandleFunc(PathPrefix+PathRegister, s.register)
 
 	fmt.Println("Serving at localhost:8090")
 	http.ListenAndServe("localhost:8090", nil)
