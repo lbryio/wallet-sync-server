@@ -154,6 +154,6 @@ func (s *Server) Serve() {
 	http.HandleFunc(PathWallet, s.handleWallet)
 	http.HandleFunc(PathRegister, s.register)
 
-	fmt.Println("Serving at :8090")
-	http.ListenAndServe(":8090", nil)
+	fmt.Println("Serving at localhost:8090")
+	http.ListenAndServe("localhost:8090", nil)
 }
