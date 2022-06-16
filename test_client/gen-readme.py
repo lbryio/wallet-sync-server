@@ -11,7 +11,7 @@ for wallet in ['test_wallet_1', 'test_wallet_2']:
     LBRYSDK.set_preference(wallet, pref_key, '')
 
 # Make sure the next preference changes have a later timestamp!
-time.sleep(3)
+time.sleep(1.1)
 
 def code_block(code):
   print ("```")
@@ -23,6 +23,9 @@ def code_block(code):
       result = eval(line)
       if result is not None:
         print(repr(result))
+      if 'set_preference' in line:
+        # Make sure the next preference changes have a later timestamp!
+        time.sleep(1.1)
   print ("```")
 
 print("""# Test Client
@@ -159,9 +162,6 @@ c2.update_remote_wallet()
 c1.get_remote_wallet()
 c1.get_preferences()
 """)
-
-# Make sure the next preference changes have a later timestamp!
-time.sleep(3)
 
 print("""
 Note that we're sidestepping the question of merging different changes to the same preference. The SDK resolves this, again, by timestamps. But ideally we would resolve such an issue with a user interaction (particularly if one of the changes involves _deleting_ the preference altogether). Using timestamps as the SDK does is a holdover from the current system, so we won't distract ourselves by demonstrating it here.
