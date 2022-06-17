@@ -10,7 +10,6 @@ import (
 )
 
 type WalletRequest struct {
-	Version         int                    `json:"version"`
 	Token           auth.TokenString       `json:"token"`
 	EncryptedWallet wallet.EncryptedWallet `json:"encryptedWallet"`
 	Sequence        wallet.Sequence        `json:"sequence"`
@@ -25,7 +24,6 @@ func (r *WalletRequest) validate() bool {
 }
 
 type WalletResponse struct {
-	Version         int                    `json:"version"`
 	EncryptedWallet wallet.EncryptedWallet `json:"encryptedWallet"`
 	Sequence        wallet.Sequence        `json:"sequence"`
 	Hmac            wallet.WalletHmac      `json:"hmac"`

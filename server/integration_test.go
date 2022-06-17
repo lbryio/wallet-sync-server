@@ -138,7 +138,6 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 		PathWallet,
 		&walletResponse,
 		fmt.Sprintf(`{
-      "version": 1,
       "token": "%s",
       "encryptedWallet": "my-encrypted-wallet-1",
       "sequence": 1,
@@ -149,7 +148,6 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	checkStatusCode(t, statusCode, responseBody)
 
 	expectedResponse := WalletResponse{
-		Version:         1,
 		EncryptedWallet: wallet.EncryptedWallet("my-encrypted-wallet-1"),
 		Sequence:        wallet.Sequence(1),
 		Hmac:            wallet.WalletHmac("my-hmac-1"),
@@ -190,7 +188,6 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 		PathWallet,
 		&walletResponse,
 		fmt.Sprintf(`{
-      "version": 1,
       "token": "%s",
       "encryptedWallet": "my-encrypted-wallet-2",
       "sequence": 2,
@@ -201,7 +198,6 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	checkStatusCode(t, statusCode, responseBody)
 
 	expectedResponse = WalletResponse{
-		Version:         1,
 		EncryptedWallet: wallet.EncryptedWallet("my-encrypted-wallet-2"),
 		Sequence:        wallet.Sequence(2),
 		Hmac:            wallet.WalletHmac("my-hmac-2"),
