@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/mail"
 	"orblivion/lbry-id/auth"
 	"orblivion/lbry-id/store"
 )
@@ -147,6 +148,20 @@ func (s *Server) checkAuth(
 	}
 
 	return authToken
+}
+
+func validateEmail(email auth.Email) bool {
+	e, err := mail.ParseAddress(string(email))
+	if err != nil {
+		return false
+	}
+	// "Joe <joe@example.com>" is valid according to ParseAddress. Likewise
+	// " joe@example.com". Etc. We only want the exact address, "joe@example.com"
+	// to be valid. ParseAddress will extract the exact address as e.Address. So
+	// we'll take the input email, put it through ParseAddress, see if it parses
+	// successfully, and then compare the input email to e.Address to make sure
+	// that it was an exact address to begin with.
+	return string(email) == e.Address
 }
 
 // TODO - both wallet and token requests should be PUT, not POST.

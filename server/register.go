@@ -17,7 +17,7 @@ type RegisterRequest struct {
 }
 
 func (r *RegisterRequest) validate() bool {
-	return r.Email != "" && r.Password != ""
+	return validateEmail(r.Email) && r.Password != ""
 }
 
 func (s *Server) register(w http.ResponseWriter, req *http.Request) {

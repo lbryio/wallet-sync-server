@@ -41,5 +41,26 @@ func TestServerRegisterErrors(t *testing.T) {
 }
 
 func TestServerValidateRegisterRequest(t *testing.T) {
-	t.Fatalf("Test me: Implement and test RegisterRequest.validate()")
+	registerRequest := RegisterRequest{Email: "joe@example.com", Password: "aoeu"}
+	if !registerRequest.validate() {
+		t.Fatalf("Expected valid RegisterRequest to successfully validate")
+	}
+
+	registerRequest = RegisterRequest{Email: "joe-example.com", Password: "aoeu"}
+	if registerRequest.validate() {
+		t.Fatalf("Expected RegisterRequest with invalid email to not successfully validate")
+	}
+
+	// Note that Golang's email address parser, which I use, will accept
+	// "Joe <joe@example.com>" so we need to make sure to avoid accepting it. See
+	// the implementation.
+	registerRequest = RegisterRequest{Email: "Joe <joe@example.com>", Password: "aoeu"}
+	if registerRequest.validate() {
+		t.Fatalf("Expected RegisterRequest with email with unexpected formatting to not successfully validate")
+	}
+
+	registerRequest = RegisterRequest{Email: "joe@example.com"}
+	if registerRequest.validate() {
+		t.Fatalf("Expected RegisterRequest with missing password to not successfully validate")
+	}
 }
