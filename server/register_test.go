@@ -59,6 +59,11 @@ func TestServerValidateRegisterRequest(t *testing.T) {
 		t.Fatalf("Expected RegisterRequest with email with unexpected formatting to not successfully validate")
 	}
 
+	registerRequest = RegisterRequest{Password: "aoeu"}
+	if registerRequest.validate() {
+		t.Fatalf("Expected RegisterRequest with missing email to not successfully validate")
+	}
+
 	registerRequest = RegisterRequest{Email: "joe@example.com"}
 	if registerRequest.validate() {
 		t.Fatalf("Expected RegisterRequest with missing password to not successfully validate")

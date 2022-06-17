@@ -169,6 +169,11 @@ func TestServerValidateAuthRequest(t *testing.T) {
 		t.Fatalf("Expected AuthRequest with email with unexpected formatting to not successfully validate")
 	}
 
+	authRequest = AuthRequest{DeviceId: "dId", Password: "aoeu"}
+	if authRequest.validate() {
+		t.Fatalf("Expected AuthRequest with missing email to not successfully validate")
+	}
+
 	authRequest = AuthRequest{DeviceId: "dId", Email: "joe@example.com"}
 	if authRequest.validate() {
 		t.Fatalf("Expected AuthRequest with missing password to not successfully validate")
