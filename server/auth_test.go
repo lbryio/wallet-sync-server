@@ -37,7 +37,7 @@ func TestServerAuthHandlerSuccess(t *testing.T) {
 		t.Errorf("Expected auth response to contain token: result: %+v err: %+v", string(body), err)
 	}
 
-	if !testStore.SaveTokenCalled {
+	if !testStore.Called.SaveToken {
 		t.Errorf("Expected Store.SaveToken to be called")
 	}
 }
@@ -50,9 +50,8 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 		expectedStatusCode  int
 		expectedErrorString string
 
-		authFailLogin    bool
+		storeFailures    TestStoreFunctions
 		authFailGenToken bool
-		storeFailSave    bool
 	}{
 		{
 			name:                "bad method",
@@ -90,7 +89,7 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 			expectedStatusCode:  http.StatusUnauthorized,
 			expectedErrorString: http.StatusText(http.StatusUnauthorized) + ": No match for email and password",
 
-			authFailLogin: true,
+			storeFailures: TestStoreFunctions{GetUserId: true},
 		},
 		{
 			name:                "generate token fail",
@@ -108,7 +107,7 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 			expectedStatusCode:  http.StatusInternalServerError,
 			expectedErrorString: http.StatusText(http.StatusInternalServerError),
 
-			storeFailSave: true,
+			storeFailures: TestStoreFunctions{SaveToken: true},
 		},
 	}
 	for _, tc := range tt {
@@ -116,15 +115,9 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 
 			// Set this up to fail according to specification
 			testAuth := TestAuth{TestToken: auth.TokenString("seekrit")}
-			testStore := TestStore{}
-			if tc.authFailLogin {
-				testStore.FailLogin = true
-			} else if tc.authFailGenToken {
+			testStore := TestStore{Failures: tc.storeFailures}
+			if tc.authFailGenToken { // TODO - TestAuth{Failures:authFailures}
 				testAuth.FailGenToken = true
-			} else if tc.storeFailSave {
-				testStore.FailSave = true
-			} else {
-				testAuth.TestToken = auth.TokenString("seekrit")
 			}
 			server := Server{&testAuth, &testStore}
 
