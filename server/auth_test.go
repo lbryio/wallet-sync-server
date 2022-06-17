@@ -72,7 +72,7 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 			method:              http.MethodPost,
 			requestBody:         "{",
 			expectedStatusCode:  http.StatusBadRequest,
-			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Malformed request body JSON",
+			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request body JSON malformed or structure mismatch",
 		},
 		{
 			name:                "body JSON failed validation",
