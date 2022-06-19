@@ -1,11 +1,56 @@
 package server
 
 import (
+	"bytes"
+	"encoding/json"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"orblivion/lbry-id/auth"
+	"orblivion/lbry-id/wallet"
 )
 
 func TestServerGetWalletSuccess(t *testing.T) {
-	t.Fatalf("Test me: GetWallet succeeds")
+	testAuth := TestAuth{
+		TestToken: auth.TokenString("seekrit"),
+	}
+	testStore := TestStore{
+		TestAuthToken: auth.AuthToken{
+			Token: auth.TokenString("seekrit"),
+			Scope: auth.ScopeFull,
+		},
+
+		TestEncryptedWallet: wallet.EncryptedWallet("my-encrypted-wallet"),
+		TestSequence:        wallet.Sequence(2),
+		TestHmac:            wallet.WalletHmac("my-hmac"),
+	}
+
+	s := Server{&testAuth, &testStore}
+
+	req := httptest.NewRequest(http.MethodGet, PathWallet+"/?token=seekrit", bytes.NewBuffer([]byte{}))
+	w := httptest.NewRecorder()
+
+	// test handleWallet while we're at it, which is a dispatch for get and post
+	// wallet
+	s.handleWallet(w, req)
+	body, _ := ioutil.ReadAll(w.Body)
+
+	if want, got := http.StatusOK, w.Result().StatusCode; want != got {
+		t.Errorf("StatusCode: expected %s (%d), got %s (%d)", http.StatusText(want), want, http.StatusText(got), got)
+	}
+
+	var result WalletResponse
+	err := json.Unmarshal(body, &result)
+
+	if err != nil || result.EncryptedWallet != testStore.TestEncryptedWallet || result.Hmac != testStore.TestHmac || result.Sequence != testStore.TestSequence {
+		t.Errorf("Expected wallet response to have the test wallet values: result: %+v err: %+v", string(body), err)
+	}
+
+	if !testStore.Called.GetWallet {
+		t.Errorf("Expected Store.GetWallet to be called")
+	}
 }
 
 func TestServerGetWalletErrors(t *testing.T) {

@@ -25,12 +25,11 @@ func TestServerAuthHandlerSuccess(t *testing.T) {
 	s.getAuthToken(w, req)
 	body, _ := ioutil.ReadAll(w.Body)
 
-	var result auth.AuthToken
-
 	if want, got := http.StatusOK, w.Result().StatusCode; want != got {
 		t.Errorf("StatusCode: expected %s (%d), got %s (%d)", http.StatusText(want), want, http.StatusText(got), got)
 	}
 
+	var result auth.AuthToken
 	err := json.Unmarshal(body, &result)
 
 	if err != nil || result.Token != testAuth.TestToken {

@@ -52,6 +52,12 @@ type TestStore struct {
 	// Fake store functions will return the errors (including `nil`) specified in
 	// the test setup
 	Errors TestStoreFunctionsErrors
+
+	TestAuthToken auth.AuthToken
+
+	TestEncryptedWallet wallet.EncryptedWallet
+	TestSequence        wallet.Sequence
+	TestHmac            wallet.WalletHmac
 }
 
 func (s *TestStore) SaveToken(token *auth.AuthToken) error {
@@ -61,7 +67,7 @@ func (s *TestStore) SaveToken(token *auth.AuthToken) error {
 
 func (s *TestStore) GetToken(auth.TokenString) (*auth.AuthToken, error) {
 	s.Called.GetToken = true
-	return nil, s.Errors.GetToken
+	return &s.TestAuthToken, s.Errors.GetToken
 }
 
 func (s *TestStore) GetUserId(auth.Email, auth.Password) (auth.UserId, error) {
@@ -88,6 +94,11 @@ func (s *TestStore) SetWallet(
 func (s *TestStore) GetWallet(userId auth.UserId) (encryptedWallet wallet.EncryptedWallet, sequence wallet.Sequence, hmac wallet.WalletHmac, err error) {
 	s.Called.GetWallet = true
 	err = s.Errors.GetWallet
+	if err == nil {
+		encryptedWallet = s.TestEncryptedWallet
+		sequence = s.TestSequence
+		hmac = s.TestHmac
+	}
 	return
 }
 
