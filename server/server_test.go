@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"orblivion/lbry-id/auth"
-	"orblivion/lbry-id/store"
 	"orblivion/lbry-id/wallet"
 	"strings"
 	"testing"
@@ -28,7 +27,7 @@ func (a *TestAuth) NewToken(userId auth.UserId, deviceId auth.DeviceId, scope au
 	return &auth.AuthToken{Token: a.TestToken, UserId: userId, DeviceId: deviceId, Scope: scope}, nil
 }
 
-type TestStoreFunctions struct {
+type TestStoreFunctionsCalled struct {
 	SaveToken     bool
 	GetToken      bool
 	GetUserId     bool
@@ -37,45 +36,42 @@ type TestStoreFunctions struct {
 	GetWallet     bool
 }
 
+type TestStoreFunctionsErrors struct {
+	SaveToken     error
+	GetToken      error
+	GetUserId     error
+	CreateAccount error
+	SetWallet     error
+	GetWallet     error
+}
+
 type TestStore struct {
 	// Fake store functions will set these to `true` as they are called
-	Called TestStoreFunctions
+	Called TestStoreFunctionsCalled
 
-	// Fake store functions will fail if these are set to `true` by the test
-	// setup
-	Failures TestStoreFunctions
+	// Fake store functions will return the errors (including `nil`) specified in
+	// the test setup
+	Errors TestStoreFunctionsErrors
 }
 
 func (s *TestStore) SaveToken(token *auth.AuthToken) error {
-	if s.Failures.SaveToken {
-		return fmt.Errorf("TestStore.SaveToken fail")
-	}
 	s.Called.SaveToken = true
-	return nil
+	return s.Errors.SaveToken
 }
 
 func (s *TestStore) GetToken(auth.TokenString) (*auth.AuthToken, error) {
-	if s.Failures.GetToken {
-		return nil, fmt.Errorf("TestStore.GetToken fail")
-	}
 	s.Called.GetToken = true
-	return nil, nil
+	return nil, s.Errors.GetToken
 }
 
 func (s *TestStore) GetUserId(auth.Email, auth.Password) (auth.UserId, error) {
-	if s.Failures.GetUserId {
-		return 0, store.ErrNoUId
-	}
 	s.Called.GetUserId = true
-	return 0, nil
+	return 0, s.Errors.GetUserId
 }
 
 func (s *TestStore) CreateAccount(auth.Email, auth.Password) error {
-	if s.Failures.CreateAccount {
-		return fmt.Errorf("TestStore.CreateAccount fail")
-	}
 	s.Called.CreateAccount = true
-	return nil
+	return s.Errors.CreateAccount
 }
 
 func (s *TestStore) SetWallet(
@@ -84,20 +80,14 @@ func (s *TestStore) SetWallet(
 	sequence wallet.Sequence,
 	hmac wallet.WalletHmac,
 ) (latestEncryptedWallet wallet.EncryptedWallet, latestSequence wallet.Sequence, latestHmac wallet.WalletHmac, sequenceCorrect bool, err error) {
-	if s.Failures.SetWallet {
-		err = fmt.Errorf("TestStore.SetWallet fail")
-		return
-	}
 	s.Called.SetWallet = true
+	err = s.Errors.SetWallet
 	return
 }
 
 func (s *TestStore) GetWallet(userId auth.UserId) (encryptedWallet wallet.EncryptedWallet, sequence wallet.Sequence, hmac wallet.WalletHmac, err error) {
-	if s.Failures.GetWallet {
-		err = fmt.Errorf("TestStore.GetWallet fail")
-		return
-	}
 	s.Called.GetWallet = true
+	err = s.Errors.GetWallet
 	return
 }
 

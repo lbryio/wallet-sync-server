@@ -3,10 +3,12 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"orblivion/lbry-id/auth"
+	"orblivion/lbry-id/store"
 	"testing"
 )
 
@@ -46,16 +48,15 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 		expectedStatusCode  int
 		expectedErrorString string
 
-		storeFailures    TestStoreFunctions
+		storeErrors      TestStoreFunctionsErrors
 		authFailGenToken bool
 	}{
 		{
-			name: "login fail",
-			// so long as the JSON is well-formed, the content doesn't matter here since the password check will be stubbed out
+			name:                "login fail",
 			expectedStatusCode:  http.StatusUnauthorized,
 			expectedErrorString: http.StatusText(http.StatusUnauthorized) + ": No match for email and password",
 
-			storeFailures: TestStoreFunctions{GetUserId: true},
+			storeErrors: TestStoreFunctionsErrors{GetUserId: store.ErrNoUId},
 		},
 		{
 			name:                "generate token fail",
@@ -69,7 +70,7 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 			expectedStatusCode:  http.StatusInternalServerError,
 			expectedErrorString: http.StatusText(http.StatusInternalServerError),
 
-			storeFailures: TestStoreFunctions{SaveToken: true},
+			storeErrors: TestStoreFunctionsErrors{SaveToken: fmt.Errorf("TestStore.SaveToken fail")},
 		},
 	}
 	for _, tc := range tt {
@@ -77,13 +78,14 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 
 			// Set this up to fail according to specification
 			testAuth := TestAuth{TestToken: auth.TokenString("seekrit")}
-			testStore := TestStore{Failures: tc.storeFailures}
-			if tc.authFailGenToken { // TODO - TestAuth{Failures:authFailures}
+			testStore := TestStore{Errors: tc.storeErrors}
+			if tc.authFailGenToken { // TODO - TestAuth{Errors:authErrors}
 				testAuth.FailGenToken = true
 			}
 			server := Server{&testAuth, &testStore}
 
 			// Make request
+			// So long as the JSON is well-formed, the content doesn't matter here since the password check will be stubbed out
 			requestBody := `{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`
 			req := httptest.NewRequest(http.MethodPost, PathAuthToken, bytes.NewBuffer([]byte(requestBody)))
 			w := httptest.NewRecorder()
