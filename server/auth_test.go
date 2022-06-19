@@ -92,20 +92,7 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 
 			server.getAuthToken(w, req)
 
-			if want, got := tc.expectedStatusCode, w.Result().StatusCode; want != got {
-				t.Errorf("StatusCode: expected %d, got %d", want, got)
-			}
-
-			body, _ := ioutil.ReadAll(w.Body)
-
-			var result ErrorResponse
-			if err := json.Unmarshal(body, &result); err != nil {
-				t.Fatalf("Error decoding error message %s: `%s`", err, body)
-			}
-
-			if want, got := tc.expectedErrorString, result.Error; want != got {
-				t.Errorf("Error String: expected %s, got %s", want, got)
-			}
+			expectErrorResponse(t, w, tc.expectedStatusCode, tc.expectedErrorString)
 		})
 	}
 }
