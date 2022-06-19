@@ -2,12 +2,15 @@ package server
 
 import (
 	"bytes"
+	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"orblivion/lbry-id/auth"
+	"orblivion/lbry-id/store"
 )
 
 func TestServerRegisterSuccess(t *testing.T) {
@@ -37,7 +40,60 @@ func TestServerRegisterSuccess(t *testing.T) {
 }
 
 func TestServerRegisterErrors(t *testing.T) {
-	t.Fatalf("Test me:")
+	tt := []struct {
+		name                string
+		requestBody         string
+		expectedStatusCode  int
+		expectedErrorString string
+
+		storeErrors TestStoreFunctionsErrors
+	}{
+		{
+			name:                "existing account",
+			expectedStatusCode:  http.StatusConflict,
+			expectedErrorString: http.StatusText(http.StatusConflict) + ": Error registering",
+
+			storeErrors: TestStoreFunctionsErrors{CreateAccount: store.ErrDuplicateEmail},
+		},
+		{
+			name:                "unspecified account creation failure",
+			expectedStatusCode:  http.StatusInternalServerError,
+			expectedErrorString: http.StatusText(http.StatusInternalServerError),
+
+			storeErrors: TestStoreFunctionsErrors{CreateAccount: fmt.Errorf("TestStore.CreateAccount fail")},
+		},
+	}
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+
+			// Set this up to fail according to specification
+			testAuth := TestAuth{TestToken: auth.TokenString("seekrit")}
+			testStore := TestStore{Errors: tc.storeErrors}
+			server := Server{&testAuth, &testStore}
+
+			// Make request
+			requestBody := `{ "email": "abc@example.com", "password": "123"}`
+			req := httptest.NewRequest(http.MethodPost, PathAuthToken, bytes.NewBuffer([]byte(requestBody)))
+			w := httptest.NewRecorder()
+
+			server.register(w, req)
+
+			if want, got := tc.expectedStatusCode, w.Result().StatusCode; want != got {
+				t.Errorf("StatusCode: expected %d, got %d", want, got)
+			}
+
+			body, _ := ioutil.ReadAll(w.Body)
+
+			var result ErrorResponse
+			if err := json.Unmarshal(body, &result); err != nil {
+				t.Fatalf("Error decoding error message %s: `%s`", err, body)
+			}
+
+			if want, got := tc.expectedErrorString, result.Error; want != got {
+				t.Errorf("Error String: expected %s, got %s", want, got)
+			}
+		})
+	}
 }
 
 func TestServerValidateRegisterRequest(t *testing.T) {
