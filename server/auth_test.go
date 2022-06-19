@@ -3,12 +3,10 @@ package server
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"orblivion/lbry-id/auth"
-	"strings"
 	"testing"
 )
 
@@ -45,8 +43,6 @@ func TestServerAuthHandlerSuccess(t *testing.T) {
 func TestServerAuthHandlerErrors(t *testing.T) {
 	tt := []struct {
 		name                string
-		method              string
-		requestBody         string
 		expectedStatusCode  int
 		expectedErrorString string
 
@@ -54,38 +50,8 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 		authFailGenToken bool
 	}{
 		{
-			name:                "bad method",
-			method:              http.MethodGet,
-			requestBody:         "",
-			expectedStatusCode:  http.StatusMethodNotAllowed,
-			expectedErrorString: http.StatusText(http.StatusMethodNotAllowed),
-		},
-		{
-			name:                "request body too large",
-			method:              http.MethodPost,
-			requestBody:         fmt.Sprintf(`{"password": "%s"}`, strings.Repeat("a", 10000)),
-			expectedStatusCode:  http.StatusRequestEntityTooLarge,
-			expectedErrorString: http.StatusText(http.StatusRequestEntityTooLarge),
-		},
-		{
-			name:                "malformed request body JSON",
-			method:              http.MethodPost,
-			requestBody:         "{",
-			expectedStatusCode:  http.StatusBadRequest,
-			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request body JSON malformed or structure mismatch",
-		},
-		{
-			name:                "body JSON failed validation",
-			method:              http.MethodPost,
-			requestBody:         "{}",
-			expectedStatusCode:  http.StatusBadRequest,
-			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation",
-		},
-		{
-			name:   "login fail",
-			method: http.MethodPost,
+			name: "login fail",
 			// so long as the JSON is well-formed, the content doesn't matter here since the password check will be stubbed out
-			requestBody:         `{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`,
 			expectedStatusCode:  http.StatusUnauthorized,
 			expectedErrorString: http.StatusText(http.StatusUnauthorized) + ": No match for email and password",
 
@@ -93,8 +59,6 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 		},
 		{
 			name:                "generate token fail",
-			method:              http.MethodPost,
-			requestBody:         `{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`,
 			expectedStatusCode:  http.StatusInternalServerError,
 			expectedErrorString: http.StatusText(http.StatusInternalServerError),
 
@@ -102,8 +66,6 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 		},
 		{
 			name:                "save token fail",
-			method:              http.MethodPost,
-			requestBody:         `{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`,
 			expectedStatusCode:  http.StatusInternalServerError,
 			expectedErrorString: http.StatusText(http.StatusInternalServerError),
 
@@ -122,7 +84,8 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 			server := Server{&testAuth, &testStore}
 
 			// Make request
-			req := httptest.NewRequest(tc.method, PathAuthToken, bytes.NewBuffer([]byte(tc.requestBody)))
+			requestBody := `{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`
+			req := httptest.NewRequest(http.MethodPost, PathAuthToken, bytes.NewBuffer([]byte(requestBody)))
 			w := httptest.NewRecorder()
 
 			server.getAuthToken(w, req)

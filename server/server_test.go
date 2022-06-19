@@ -1,10 +1,16 @@
 package server
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"orblivion/lbry-id/auth"
 	"orblivion/lbry-id/store"
 	"orblivion/lbry-id/wallet"
+	"strings"
 	"testing"
 )
 
@@ -110,11 +116,84 @@ func TestServerHelperGetGetDataErrors(t *testing.T) {
 	t.Fatalf("Test me: getGetData failure")
 }
 
+type TestReqStruct struct{ key string }
+
+func (t *TestReqStruct) validate() bool { return t.key != "" }
+
 func TestServerHelperGetPostDataSuccess(t *testing.T) {
-	t.Fatalf("Test me: getPostData success")
+	requestBody := []byte(`{}`)
+	req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewBuffer(requestBody))
+	w := httptest.NewRecorder()
+	success := getPostData(w, req, &TestReqStruct{key: "hi"})
+	if !success {
+		t.Errorf("getPostData failed unexpectedly")
+	}
 }
+
 func TestServerHelperGetPostDataErrors(t *testing.T) {
-	t.Fatalf("Test me: getPostData failure")
+	tt := []struct {
+		name                string
+		method              string
+		requestBody         string
+		expectedStatusCode  int
+		expectedErrorString string
+	}{
+		{
+			name:                "bad method",
+			method:              http.MethodGet,
+			requestBody:         "",
+			expectedStatusCode:  http.StatusMethodNotAllowed,
+			expectedErrorString: http.StatusText(http.StatusMethodNotAllowed),
+		},
+		{
+			name:                "request body too large",
+			method:              http.MethodPost,
+			requestBody:         fmt.Sprintf(`{"key": "%s"}`, strings.Repeat("a", 10000)),
+			expectedStatusCode:  http.StatusRequestEntityTooLarge,
+			expectedErrorString: http.StatusText(http.StatusRequestEntityTooLarge),
+		},
+		{
+			name:                "malformed request body JSON",
+			method:              http.MethodPost,
+			requestBody:         "{",
+			expectedStatusCode:  http.StatusBadRequest,
+			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request body JSON malformed or structure mismatch",
+		},
+		{
+			name:                "body JSON failed validation",
+			method:              http.MethodPost,
+			requestBody:         "{}",
+			expectedStatusCode:  http.StatusBadRequest,
+			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation",
+		},
+	}
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			// Make request
+			req := httptest.NewRequest(tc.method, PathAuthToken, bytes.NewBuffer([]byte(tc.requestBody)))
+			w := httptest.NewRecorder()
+
+			success := getPostData(w, req, &TestReqStruct{})
+			if success {
+				t.Errorf("getPostData succeeded unexpectedly")
+			}
+
+			if want, got := tc.expectedStatusCode, w.Result().StatusCode; want != got {
+				t.Errorf("StatusCode: expected %d, got %d", want, got)
+			}
+
+			body, _ := ioutil.ReadAll(w.Body)
+
+			var result ErrorResponse
+			if err := json.Unmarshal(body, &result); err != nil {
+				t.Fatalf("Error decoding error message %s: `%s`", err, body)
+			}
+
+			if want, got := tc.expectedErrorString, result.Error; want != got {
+				t.Errorf("Error String: expected %s, got %s", want, got)
+			}
+		})
+	}
 }
 
 func TestServerHelperRequestOverheadSuccess(t *testing.T) {
