@@ -140,6 +140,7 @@ func TestServerHelperGetPostDataSuccess(t *testing.T) {
 	}
 }
 
+// Test getPostData, including requestOverhead and any other mini-helpers it calls.
 func TestServerHelperGetPostDataErrors(t *testing.T) {
 	tt := []struct {
 		name                string
@@ -191,11 +192,4 @@ func TestServerHelperGetPostDataErrors(t *testing.T) {
 			expectErrorResponse(t, w, tc.expectedStatusCode, tc.expectedErrorString)
 		})
 	}
-}
-
-func TestServerHelperRequestOverheadSuccess(t *testing.T) {
-	t.Fatalf("Test me: requestOverhead success")
-}
-func TestServerHelperRequestOverheadErrors(t *testing.T) {
-	t.Fatalf("Test me: requestOverhead failures")
 }
