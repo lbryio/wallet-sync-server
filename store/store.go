@@ -379,6 +379,7 @@ func (s *Store) CreateAccount(email auth.Email, password auth.Password) (err err
 		// Maybe for psql it will be?
 		// TODO - is this right? Does the above comment explain that it's backwards
 		// from what I would have expected? Or did I do this backwards?
+		// Or is this a holdover from when an account was attached to a walletstate?
 		if errors.Is(sqliteErr.ExtendedCode, sqlite3.ErrConstraintPrimaryKey) {
 			err = ErrDuplicateEmail
 		}

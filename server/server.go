@@ -82,16 +82,6 @@ func requestOverhead(w http.ResponseWriter, req *http.Request, method string) bo
 		return false
 	}
 
-	/*
-		TODO - http.StatusRequestEntityTooLarge for some arbitrary large size
-		see:
-		* MaxBytesReader or LimitReader
-		* https://pkg.go.dev/net/http#Request.ParseForm
-		* some library/framework that handles it (along with req.Method)
-
-		also - GET params too large?
-	*/
-
 	return true
 }
 
@@ -100,14 +90,31 @@ type PostRequest interface {
 	validate() bool
 }
 
+// TODO decoder.DisallowUnknownFields?
+// TODO GET params too large (like StatusRequestEntityTooLarge)? Or is that
+//   somehow handled by the http library due to a size limit in the http spec?
+
 // Confirm it's a Post request, various overhead, decode the json, validate the struct
 func getPostData(w http.ResponseWriter, req *http.Request, reqStruct PostRequest) bool {
 	if !requestOverhead(w, req, http.MethodPost) {
 		return false
 	}
 
-	if err := json.NewDecoder(req.Body).Decode(&reqStruct); err != nil {
-		errorJson(w, http.StatusBadRequest, "Request body JSON malformed or structure mismatch")
+	// Make the limit 100k. Increase from there as needed. I'd rather block some
+	// people's large wallets and increase the limit than OOM for everybody and
+	// decrease the limit.
+	req.Body = http.MaxBytesReader(w, req.Body, 100000)
+	err := json.NewDecoder(req.Body).Decode(&reqStruct)
+	switch {
+	case err == nil:
+		break
+	case err.Error() == "http: request body too large":
+		errorJson(w, http.StatusRequestEntityTooLarge, "")
+		return false
+	default:
+		// Maybe we can suss out specific errors later. Need to study what errors
+		// come from Decode.
+		errorJson(w, http.StatusBadRequest, "Error parsing JSON")
 		return false
 	}
 

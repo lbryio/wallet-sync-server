@@ -158,7 +158,7 @@ func TestServerHelperGetPostDataErrors(t *testing.T) {
 		{
 			name:                "request body too large",
 			method:              http.MethodPost,
-			requestBody:         fmt.Sprintf(`{"key": "%s"}`, strings.Repeat("a", 10000)),
+			requestBody:         fmt.Sprintf(`{"key": "%s"}`, strings.Repeat("a", 100000)),
 			expectedStatusCode:  http.StatusRequestEntityTooLarge,
 			expectedErrorString: http.StatusText(http.StatusRequestEntityTooLarge),
 		},
@@ -167,7 +167,7 @@ func TestServerHelperGetPostDataErrors(t *testing.T) {
 			method:              http.MethodPost,
 			requestBody:         "{",
 			expectedStatusCode:  http.StatusBadRequest,
-			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request body JSON malformed or structure mismatch",
+			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Error parsing JSON",
 		},
 		{
 			name:                "body JSON failed validation",
