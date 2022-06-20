@@ -27,12 +27,13 @@ func (a *TestAuth) NewToken(userId auth.UserId, deviceId auth.DeviceId, scope au
 	return &auth.AuthToken{Token: a.TestToken, UserId: userId, DeviceId: deviceId, Scope: scope}, nil
 }
 
+// Whether functions are called, and sometimes what they're called with
 type TestStoreFunctionsCalled struct {
-	SaveToken     bool
-	GetToken      bool
+	SaveToken     auth.TokenString
+	GetToken      auth.TokenString
 	GetUserId     bool
 	CreateAccount bool
-	SetWallet     bool
+	SetWallet     wallet.EncryptedWallet
 	GetWallet     bool
 }
 
@@ -60,13 +61,13 @@ type TestStore struct {
 	TestHmac            wallet.WalletHmac
 }
 
-func (s *TestStore) SaveToken(token *auth.AuthToken) error {
-	s.Called.SaveToken = true
+func (s *TestStore) SaveToken(authToken *auth.AuthToken) error {
+	s.Called.SaveToken = authToken.Token
 	return s.Errors.SaveToken
 }
 
-func (s *TestStore) GetToken(auth.TokenString) (*auth.AuthToken, error) {
-	s.Called.GetToken = true
+func (s *TestStore) GetToken(token auth.TokenString) (*auth.AuthToken, error) {
+	s.Called.GetToken = token
 	return &s.TestAuthToken, s.Errors.GetToken
 }
 
@@ -86,7 +87,7 @@ func (s *TestStore) SetWallet(
 	sequence wallet.Sequence,
 	hmac wallet.WalletHmac,
 ) (latestEncryptedWallet wallet.EncryptedWallet, latestSequence wallet.Sequence, latestHmac wallet.WalletHmac, sequenceCorrect bool, err error) {
-	s.Called.SetWallet = true
+	s.Called.SetWallet = encryptedWallet
 	err = s.Errors.SetWallet
 	return
 }

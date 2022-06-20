@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
@@ -29,7 +28,10 @@ func TestServerGetWalletSuccess(t *testing.T) {
 
 	s := Server{&testAuth, &testStore}
 
-	req := httptest.NewRequest(http.MethodGet, PathWallet+"/?token=seekrit", bytes.NewBuffer([]byte{}))
+	req := httptest.NewRequest(http.MethodGet, PathWallet, nil)
+	q := req.URL.Query()
+	q.Add("token", string(testStore.TestAuthToken.Token))
+	req.URL.RawQuery = q.Encode()
 	w := httptest.NewRecorder()
 
 	// test handleWallet while we're at it, which is a dispatch for get and post
@@ -50,6 +52,11 @@ func TestServerGetWalletSuccess(t *testing.T) {
 
 	if !testStore.Called.GetWallet {
 		t.Errorf("Expected Store.GetWallet to be called")
+	}
+
+	// Make sure the right auth was gotten
+	if testStore.Called.GetToken != testAuth.TestToken {
+		t.Errorf("Expected Store.GetToken to be called with %s", testAuth.TestToken)
 	}
 }
 

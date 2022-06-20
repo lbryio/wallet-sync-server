@@ -36,8 +36,8 @@ func TestServerAuthHandlerSuccess(t *testing.T) {
 		t.Errorf("Expected auth response to contain token: result: %+v err: %+v", string(body), err)
 	}
 
-	if !testStore.Called.SaveToken {
-		t.Errorf("Expected Store.SaveToken to be called")
+	if testStore.Called.SaveToken != testAuth.TestToken {
+		t.Errorf("Expected Store.SaveToken to be called with %s", testAuth.TestToken)
 	}
 }
 
