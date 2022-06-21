@@ -12,53 +12,66 @@ import (
 )
 
 func TestServerGetWalletSuccess(t *testing.T) {
-	testAuth := TestAuth{
-		TestToken: auth.TokenString("seekrit"),
-	}
-	testStore := TestStore{
-		TestAuthToken: auth.AuthToken{
-			Token: auth.TokenString("seekrit"),
-			Scope: auth.ScopeFull,
+	tt := []struct {
+		name string
+	}{
+		{
+			name: "success",
 		},
-
-		TestEncryptedWallet: wallet.EncryptedWallet("my-encrypted-wallet"),
-		TestSequence:        wallet.Sequence(2),
-		TestHmac:            wallet.WalletHmac("my-hmac"),
 	}
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
 
-	s := Server{&testAuth, &testStore}
+			testAuth := TestAuth{
+				TestToken: auth.TokenString("seekrit"),
+			}
+			testStore := TestStore{
+				TestAuthToken: auth.AuthToken{
+					Token: auth.TokenString("seekrit"),
+					Scope: auth.ScopeFull,
+				},
 
-	req := httptest.NewRequest(http.MethodGet, PathWallet, nil)
-	q := req.URL.Query()
-	q.Add("token", string(testStore.TestAuthToken.Token))
-	req.URL.RawQuery = q.Encode()
-	w := httptest.NewRecorder()
+				TestEncryptedWallet: wallet.EncryptedWallet("my-encrypted-wallet"),
+				TestSequence:        wallet.Sequence(2),
+				TestHmac:            wallet.WalletHmac("my-hmac"),
+			}
 
-	// test handleWallet while we're at it, which is a dispatch for get and post
-	// wallet
-	s.handleWallet(w, req)
-	body, _ := ioutil.ReadAll(w.Body)
+			s := Server{&testAuth, &testStore}
 
-	if want, got := http.StatusOK, w.Result().StatusCode; want != got {
-		t.Errorf("StatusCode: expected %s (%d), got %s (%d)", http.StatusText(want), want, http.StatusText(got), got)
-	}
+			req := httptest.NewRequest(http.MethodGet, PathWallet, nil)
+			q := req.URL.Query()
+			q.Add("token", string(testStore.TestAuthToken.Token))
+			req.URL.RawQuery = q.Encode()
+			w := httptest.NewRecorder()
 
-	var result WalletResponse
-	err := json.Unmarshal(body, &result)
+			// test handleWallet while we're at it, which is a dispatch for get and post
+			// wallet
+			s.handleWallet(w, req)
+			body, _ := ioutil.ReadAll(w.Body)
 
-	if err != nil || result.EncryptedWallet != testStore.TestEncryptedWallet || result.Hmac != testStore.TestHmac || result.Sequence != testStore.TestSequence {
-		t.Errorf("Expected wallet response to have the test wallet values: result: %+v err: %+v", string(body), err)
-	}
+			if want, got := http.StatusOK, w.Result().StatusCode; want != got {
+				t.Errorf("StatusCode: expected %s (%d), got %s (%d)", http.StatusText(want), want, http.StatusText(got), got)
+			}
 
-	if !testStore.Called.GetWallet {
-		t.Errorf("Expected Store.GetWallet to be called")
-	}
+			var result WalletResponse
+			err := json.Unmarshal(body, &result)
 
-	// Make sure the right auth was gotten
-	if testStore.Called.GetToken != testAuth.TestToken {
-		t.Errorf("Expected Store.GetToken to be called with %s", testAuth.TestToken)
+			if err != nil || result.EncryptedWallet != testStore.TestEncryptedWallet || result.Hmac != testStore.TestHmac || result.Sequence != testStore.TestSequence {
+				t.Errorf("Expected wallet response to have the test wallet values: result: %+v err: %+v", string(body), err)
+			}
+
+			if !testStore.Called.GetWallet {
+				t.Errorf("Expected Store.GetWallet to be called")
+			}
+
+			// Make sure the right auth was gotten
+			if testStore.Called.GetToken != testAuth.TestToken {
+				t.Errorf("Expected Store.GetToken to be called with %s", testAuth.TestToken)
+			}
+		})
 	}
 }
+
 
 func TestServerGetWalletErrors(t *testing.T) {
 	t.Fatalf("Test me: GetWallet fails for various reasons (malformed, auth, db fail)")
