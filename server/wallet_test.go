@@ -121,7 +121,3 @@ func TestServerValidateWalletRequest(t *testing.T) {
 	// also add a basic test case for this in TestServerAuthHandlerSuccess to make sure it's called at all
 	t.Fatalf("Test me: Implement and test WalletRequest.validate()")
 }
-
-func TestServerHandleWallet(t *testing.T) {
-	t.Fatalf("Test me: Call the get or post function as appropriate. Alternately: call handleWallet for the existing tests.")
-}
