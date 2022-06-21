@@ -357,6 +357,33 @@ func TestServerPostWallet(t *testing.T) {
 }
 
 func TestServerValidateWalletRequest(t *testing.T) {
-	// also add a basic test case for this in TestServerAuthHandlerSuccess to make sure it's called at all
-	t.Fatalf("Test me: Implement and test WalletRequest.validate()")
+	walletRequest := WalletRequest{Token: "seekrit", EncryptedWallet: "my-encrypted-wallet", Hmac: "my-hmac", Sequence: 2}
+	if !walletRequest.validate() {
+		t.Fatalf("Expected valid WalletRequest to successfully validate")
+	}
+
+	tt := []struct {
+		walletRequest        WalletRequest
+		failureDescription string
+	}{
+		{
+			WalletRequest{EncryptedWallet: "my-encrypted-wallet", Hmac: "my-hmac", Sequence: 2},
+			"Expected WalletRequest with missing token to not successfully validate",
+		}, {
+			WalletRequest{Token: "seekrit", Hmac: "my-hmac", Sequence: 2},
+			"Expected WalletRequest with missing encrypted wallet to not successfully validate",
+		}, {
+			WalletRequest{Token: "seekrit", EncryptedWallet: "my-encrypted-wallet", Sequence: 2},
+			"Expected WalletRequest with missing hmac to not successfully validate",
+		}, {
+	    WalletRequest{Token: "seekrit", EncryptedWallet: "my-encrypted-wallet", Hmac: "my-hmac", Sequence: 0},
+			"Expected WalletRequest with sequence < 1 to not successfully validate",
+		},
+	}
+	for _, tc := range tt {
+		if tc.walletRequest.validate() {
+			t.Errorf(tc.failureDescription)
+		}
+
+	}
 }

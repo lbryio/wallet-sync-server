@@ -101,31 +101,33 @@ func TestServerValidateAuthRequest(t *testing.T) {
 		t.Fatalf("Expected valid AuthRequest to successfully validate")
 	}
 
-	authRequest = AuthRequest{Email: "joe@example.com", Password: "aoeu"}
-	if authRequest.validate() {
-		t.Fatalf("Expected AuthRequest with missing device to not successfully validate")
+	tt := []struct {
+		authRequest        AuthRequest
+		failureDescription string
+	}{
+		{
+			AuthRequest{Email: "joe@example.com", Password: "aoeu"},
+			"Expected AuthRequest with missing device to not successfully validate",
+		}, {
+			AuthRequest{DeviceId: "dId", Email: "joe-example.com", Password: "aoeu"},
+			"Expected AuthRequest with invalid email to not successfully validate",
+		}, {
+			// Note that Golang's email address parser, which I use, will accept
+			// "Joe <joe@example.com>" so we need to make sure to avoid accepting it. See
+			// the implementation.
+			AuthRequest{DeviceId: "dId", Email: "Joe <joe@example.com>", Password: "aoeu"},
+			"Expected AuthRequest with email with unexpected formatting to not successfully validate",
+		}, {
+			AuthRequest{DeviceId: "dId", Password: "aoeu"},
+			"Expected AuthRequest with missing email to not successfully validate",
+		}, {
+			AuthRequest{DeviceId: "dId", Email: "joe@example.com"},
+			"Expected AuthRequest with missing password to not successfully validate",
+		},
 	}
-
-	authRequest = AuthRequest{DeviceId: "dId", Email: "joe-example.com", Password: "aoeu"}
-	if authRequest.validate() {
-		t.Fatalf("Expected AuthRequest with invalid email to not successfully validate")
-	}
-
-	// Note that Golang's email address parser, which I use, will accept
-	// "Joe <joe@example.com>" so we need to make sure to avoid accepting it. See
-	// the implementation.
-	authRequest = AuthRequest{DeviceId: "dId", Email: "Joe <joe@example.com>", Password: "aoeu"}
-	if authRequest.validate() {
-		t.Fatalf("Expected AuthRequest with email with unexpected formatting to not successfully validate")
-	}
-
-	authRequest = AuthRequest{DeviceId: "dId", Password: "aoeu"}
-	if authRequest.validate() {
-		t.Fatalf("Expected AuthRequest with missing email to not successfully validate")
-	}
-
-	authRequest = AuthRequest{DeviceId: "dId", Email: "joe@example.com"}
-	if authRequest.validate() {
-		t.Fatalf("Expected AuthRequest with missing password to not successfully validate")
+	for _, tc := range tt {
+		if tc.authRequest.validate() {
+			t.Errorf(tc.failureDescription)
+		}
 	}
 }
