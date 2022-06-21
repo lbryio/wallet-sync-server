@@ -42,6 +42,7 @@ func TestServerAuthHandlerSuccess(t *testing.T) {
 func TestServerAuthHandlerErrors(t *testing.T) {
 	tt := []struct {
 		name                string
+		email                string
 		expectedStatusCode  int
 		expectedErrorString string
 
@@ -49,7 +50,18 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 		authFailGenToken bool
 	}{
 		{
+			name:                "validation error", // missing email address
+			email:               "",
+			expectedStatusCode:  http.StatusBadRequest,
+			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation",
+
+			// Just check one validation error (missing email address) to make sure the
+			// validate function is called. We'll check the rest of the validation
+			// errors in the other test below.
+		},
+		{
 			name:                "login fail",
+			email:               "abc@example.com",
 			expectedStatusCode:  http.StatusUnauthorized,
 			expectedErrorString: http.StatusText(http.StatusUnauthorized) + ": No match for email and password",
 
@@ -57,6 +69,7 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 		},
 		{
 			name:                "generate token fail",
+			email:               "abc@example.com",
 			expectedStatusCode:  http.StatusInternalServerError,
 			expectedErrorString: http.StatusText(http.StatusInternalServerError),
 
@@ -64,6 +77,7 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 		},
 		{
 			name:                "save token fail",
+			email:               "abc@example.com",
 			expectedStatusCode:  http.StatusInternalServerError,
 			expectedErrorString: http.StatusText(http.StatusInternalServerError),
 
@@ -83,7 +97,7 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 
 			// Make request
 			// So long as the JSON is well-formed, the content doesn't matter here since the password check will be stubbed out
-			requestBody := `{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`
+			requestBody := fmt.Sprintf(`{"deviceId": "dev-1", "email": "%s", "password": "123"}`, tc.email)
 			req := httptest.NewRequest(http.MethodPost, PathAuthToken, bytes.NewBuffer([]byte(requestBody)))
 			w := httptest.NewRecorder()
 

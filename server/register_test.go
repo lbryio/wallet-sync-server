@@ -38,6 +38,7 @@ func TestServerRegisterSuccess(t *testing.T) {
 func TestServerRegisterErrors(t *testing.T) {
 	tt := []struct {
 		name                string
+		email string
 		requestBody         string
 		expectedStatusCode  int
 		expectedErrorString string
@@ -45,7 +46,18 @@ func TestServerRegisterErrors(t *testing.T) {
 		storeErrors TestStoreFunctionsErrors
 	}{
 		{
+			name:                "validation error", // missing email address
+			email:               "",
+			expectedStatusCode:  http.StatusBadRequest,
+			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation",
+
+			// Just check one validation error (missing email address) to make sure the
+			// validate function is called. We'll check the rest of the validation
+			// errors in the other test below.
+		},
+		{
 			name:                "existing account",
+			email:               "abc@example.com",
 			expectedStatusCode:  http.StatusConflict,
 			expectedErrorString: http.StatusText(http.StatusConflict) + ": Error registering",
 
@@ -53,6 +65,7 @@ func TestServerRegisterErrors(t *testing.T) {
 		},
 		{
 			name:                "unspecified account creation failure",
+			email:               "abc@example.com",
 			expectedStatusCode:  http.StatusInternalServerError,
 			expectedErrorString: http.StatusText(http.StatusInternalServerError),
 
@@ -68,7 +81,7 @@ func TestServerRegisterErrors(t *testing.T) {
 			server := Server{&testAuth, &testStore}
 
 			// Make request
-			requestBody := `{ "email": "abc@example.com", "password": "123"}`
+			requestBody := fmt.Sprintf(`{"email": "%s", "password": "123"}`, tc.email)
 			req := httptest.NewRequest(http.MethodPost, PathAuthToken, bytes.NewBuffer([]byte(requestBody)))
 			w := httptest.NewRecorder()
 

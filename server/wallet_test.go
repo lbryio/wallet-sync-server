@@ -30,10 +30,14 @@ func TestServerGetWallet(t *testing.T) {
 			expectedStatusCode: http.StatusOK,
 		},
 		{
-			name:                "validation error", // mising auth token
+			name:                "validation error", // missing auth token
 			tokenString:         auth.TokenString(""),
 			expectedStatusCode:  http.StatusBadRequest,
 			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Missing token parameter",
+
+			// Just check one validation error (missing auth token) to make sure the
+			// validate function is called. We'll check the rest of the validation
+			// errors in the other test below.
 		},
 		{
 			name:        "auth error",
