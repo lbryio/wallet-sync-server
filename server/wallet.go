@@ -45,7 +45,7 @@ func (s *Server) handleWallet(w http.ResponseWriter, req *http.Request) {
 func getWalletParams(req *http.Request) (token auth.TokenString, err error) {
 	tokenSlice, hasTokenSlice := req.URL.Query()["token"]
 
-	if !hasTokenSlice {
+	if !hasTokenSlice || tokenSlice[0] == "" {
 		err = fmt.Errorf("Missing token parameter")
 	}
 

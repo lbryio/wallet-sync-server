@@ -16,7 +16,8 @@ import (
 
 func TestServerGetWallet(t *testing.T) {
 	tt := []struct {
-		name string
+		name        string
+		tokenString auth.TokenString
 
 		expectedStatusCode  int
 		expectedErrorString string
@@ -25,10 +26,18 @@ func TestServerGetWallet(t *testing.T) {
 	}{
 		{
 			name:               "success",
+			tokenString:        auth.TokenString("seekrit"),
 			expectedStatusCode: http.StatusOK,
 		},
 		{
-			name: "auth error",
+			name:                "validation error", // mising auth token
+			tokenString:         auth.TokenString(""),
+			expectedStatusCode:  http.StatusBadRequest,
+			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Missing token parameter",
+		},
+		{
+			name:        "auth error",
+			tokenString: auth.TokenString("seekrit"),
 
 			expectedStatusCode:  http.StatusUnauthorized,
 			expectedErrorString: http.StatusText(http.StatusUnauthorized) + ": Token Not Found",
@@ -36,7 +45,8 @@ func TestServerGetWallet(t *testing.T) {
 			storeErrors: TestStoreFunctionsErrors{GetToken: store.ErrNoToken},
 		},
 		{
-			name: "db error getting wallet",
+			name:        "db error getting wallet",
+			tokenString: auth.TokenString("seekrit"),
 
 			expectedStatusCode:  http.StatusInternalServerError,
 			expectedErrorString: http.StatusText(http.StatusInternalServerError),
@@ -50,7 +60,7 @@ func TestServerGetWallet(t *testing.T) {
 			testAuth := TestAuth{}
 			testStore := TestStore{
 				TestAuthToken: auth.AuthToken{
-					Token: auth.TokenString("seekrit"),
+					Token: auth.TokenString(tc.tokenString),
 					Scope: auth.ScopeFull,
 				},
 
@@ -75,6 +85,9 @@ func TestServerGetWallet(t *testing.T) {
 
 			// Make sure we tried to get an auth based on the `token` param (whether or
 			// not it was a valid `token`)
+			// NOTE: For tests that set testStore.TestAuthToken.Token=="", this will
+			// pass even if GetToken isn't called. But we don't care, we expect the
+			// request to fail for other reasons at that point.
 			if want, got := testStore.TestAuthToken.Token, testStore.Called.GetToken; want != got {
 				t.Errorf("testStore.Called.GetToken called with: expected %s, got %s", want, got)
 			}
@@ -116,6 +129,12 @@ func TestServerPostWallet(t *testing.T) {
 		// There is one case where we expect both the error field and the normal
 		// body fields. So, this needs to be separate.
 		expectWalletBody bool
+
+		// This is getting messy, but in the case of validation failures, we don't
+		// even get around to trying to get an auth token, since the token string is
+		// part of what's being validated. So, we want to be able to skip that
+		// check in that case.
+		skipAuthCheck bool
 
 		// `new...` refers to what is being passed into the via POST request (and
 		//   what gets passed into SetWallet for the *non-error* cases below)
@@ -206,6 +225,25 @@ func TestServerPostWallet(t *testing.T) {
 			storeErrors: TestStoreFunctionsErrors{SetWallet: store.ErrNoWallet},
 		},
 		{
+			name:                "validation error",
+			expectedStatusCode:  http.StatusBadRequest,
+			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation",
+			skipAuthCheck:       true, // we can't get an auth token without the data we just failed to validate
+
+			// Just check one validation error (empty encrypted wallet) to make sure the
+			// validate function is called. We'll check the rest of the validation
+			// errors in the other test below.
+
+			sequenceCorrect:         true,
+			newEncryptedWallet:      wallet.EncryptedWallet(""),
+			returnedEncryptedWallet: wallet.EncryptedWallet("my-encrypted-wallet"),
+			newSequence:             wallet.Sequence(2),
+			returnedSequence:        wallet.Sequence(2),
+			newHmac:                 wallet.WalletHmac("my-hmac"),
+			returnedHmac:            wallet.WalletHmac("my-hmac"),
+		},
+
+		{
 			name:                "auth error",
 			expectedStatusCode:  http.StatusUnauthorized,
 			expectedErrorString: http.StatusText(http.StatusUnauthorized) + ": Token Not Found",
@@ -220,7 +258,7 @@ func TestServerPostWallet(t *testing.T) {
 			newHmac:                 wallet.WalletHmac("my-hmac"),
 			returnedHmac:            wallet.WalletHmac("my-hmac"),
 
-      // What causes the error
+			// What causes the error
 			storeErrors: TestStoreFunctionsErrors{GetToken: store.ErrNoToken},
 		},
 		{
@@ -238,9 +276,14 @@ func TestServerPostWallet(t *testing.T) {
 			newHmac:                 wallet.WalletHmac("my-hmac"),
 			returnedHmac:            wallet.WalletHmac("my-hmac"),
 
-      // What causes the error
+			// What causes the error
 			storeErrors: TestStoreFunctionsErrors{SetWallet: fmt.Errorf("Some random db problem")},
 		},
+
+		// TODO
+		// Future test case when we get lastSynced back: Error if
+		// lastSynced.device_id doesn't match authToken.device_id
+
 	}
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
@@ -280,7 +323,7 @@ func TestServerPostWallet(t *testing.T) {
 
 			// Make sure we tried to get an auth based on the `token` param (whether or
 			// not it was a valid `token`)
-			if want, got := testStore.TestAuthToken.Token, testStore.Called.GetToken; want != got {
+			if want, got := testStore.TestAuthToken.Token, testStore.Called.GetToken; !tc.skipAuthCheck && want != got {
 				t.Errorf("testStore.Called.GetToken called with: expected %s, got %s", want, got)
 			}
 
@@ -311,13 +354,6 @@ func TestServerPostWallet(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestServerPostWalletErrors(t *testing.T) {
-	// (malformed json, db fail, auth token not found, wallet metadata invalid (via stub, make sure the validation function is even called), sequence too high, device id doesn't match token device id)
-	// Client sends sequence != 1 for first entry
-	// Client sends sequence == x + 10 for xth entry or whatever
-	t.Fatalf("Test me: PostWallet fails for various reasons")
 }
 
 func TestServerValidateWalletRequest(t *testing.T) {
