@@ -8,12 +8,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"orblivion/lbry-id/auth"
 	"orblivion/lbry-id/store"
 )
 
 func TestServerRegisterSuccess(t *testing.T) {
-	testAuth := TestAuth{TestToken: auth.TokenString("seekrit")}
+	testAuth := TestAuth{}
 	testStore := TestStore{}
 	s := Server{&testAuth, &testStore}
 
@@ -25,9 +24,7 @@ func TestServerRegisterSuccess(t *testing.T) {
 	s.register(w, req)
 	body, _ := ioutil.ReadAll(w.Body)
 
-	if want, got := http.StatusCreated, w.Result().StatusCode; want != got {
-		t.Errorf("StatusCode: expected %s (%d), got %s (%d)", http.StatusText(want), want, http.StatusText(got), got)
-	}
+	expectStatusCode(t, w, http.StatusCreated)
 
 	if string(body) != "{}" {
 		t.Errorf("Expected register response to be \"{}\": result: %+v", string(body))
@@ -66,7 +63,7 @@ func TestServerRegisterErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 
 			// Set this up to fail according to specification
-			testAuth := TestAuth{TestToken: auth.TokenString("seekrit")}
+			testAuth := TestAuth{}
 			testStore := TestStore{Errors: tc.storeErrors}
 			server := Server{&testAuth, &testStore}
 
@@ -77,7 +74,8 @@ func TestServerRegisterErrors(t *testing.T) {
 
 			server.register(w, req)
 
-			expectErrorResponse(t, w, tc.expectedStatusCode, tc.expectedErrorString)
+			expectStatusCode(t, w, tc.expectedStatusCode)
+			expectErrorString(t, w, tc.expectedErrorString)
 		})
 	}
 }

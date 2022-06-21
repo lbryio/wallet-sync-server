@@ -2,29 +2,51 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"orblivion/lbry-id/auth"
+	"orblivion/lbry-id/store"
 	"orblivion/lbry-id/wallet"
 )
 
-func TestServerGetWalletSuccess(t *testing.T) {
+func TestServerGetWallet(t *testing.T) {
 	tt := []struct {
 		name string
+
+		expectedStatusCode  int
+		expectedErrorString string
+
+		storeErrors TestStoreFunctionsErrors
 	}{
 		{
-			name: "success",
+			name:               "success",
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name: "auth error",
+
+			expectedStatusCode:  http.StatusUnauthorized,
+			expectedErrorString: http.StatusText(http.StatusUnauthorized) + ": Token Not Found",
+
+			storeErrors: TestStoreFunctionsErrors{GetToken: store.ErrNoToken},
+		},
+		{
+			name: "db error getting wallet",
+
+			expectedStatusCode:  http.StatusInternalServerError,
+			expectedErrorString: http.StatusText(http.StatusInternalServerError),
+
+			storeErrors: TestStoreFunctionsErrors{GetWallet: fmt.Errorf("Some random DB Error!")},
 		},
 	}
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 
-			testAuth := TestAuth{
-				TestToken: auth.TokenString("seekrit"),
-			}
+			testAuth := TestAuth{}
 			testStore := TestStore{
 				TestAuthToken: auth.AuthToken{
 					Token: auth.TokenString("seekrit"),
@@ -34,6 +56,8 @@ func TestServerGetWalletSuccess(t *testing.T) {
 				TestEncryptedWallet: wallet.EncryptedWallet("my-encrypted-wallet"),
 				TestSequence:        wallet.Sequence(2),
 				TestHmac:            wallet.WalletHmac("my-hmac"),
+
+				Errors: tc.storeErrors,
 			}
 
 			s := Server{&testAuth, &testStore}
@@ -47,42 +71,39 @@ func TestServerGetWalletSuccess(t *testing.T) {
 			// test handleWallet while we're at it, which is a dispatch for get and post
 			// wallet
 			s.handleWallet(w, req)
-			body, _ := ioutil.ReadAll(w.Body)
 
-			if want, got := http.StatusOK, w.Result().StatusCode; want != got {
-				t.Errorf("StatusCode: expected %s (%d), got %s (%d)", http.StatusText(want), want, http.StatusText(got), got)
+			// Make sure we tried to get an auth based on the `token` param (whether or
+			// not it was a valid `token`)
+			if testStore.Called.GetToken != testStore.TestAuthToken.Token {
+				t.Errorf("Expected Store.GetToken to be called with %s. Got %s",
+					testStore.TestAuthToken.Token,
+					testStore.Called.GetToken)
 			}
 
+			expectStatusCode(t, w, tc.expectedStatusCode)
+
+			if len(tc.expectedErrorString) > 0 {
+				// Only check if we're expecting an error, since it reads the body
+				expectErrorString(t, w, tc.expectedErrorString)
+				return
+			}
+
+			body, _ := ioutil.ReadAll(w.Body)
 			var result WalletResponse
 			err := json.Unmarshal(body, &result)
 
-			if err != nil || result.EncryptedWallet != testStore.TestEncryptedWallet || result.Hmac != testStore.TestHmac || result.Sequence != testStore.TestSequence {
+			if err != nil ||
+				result.EncryptedWallet != testStore.TestEncryptedWallet ||
+				result.Hmac != testStore.TestHmac ||
+				result.Sequence != testStore.TestSequence {
 				t.Errorf("Expected wallet response to have the test wallet values: result: %+v err: %+v", string(body), err)
 			}
 
 			if !testStore.Called.GetWallet {
 				t.Errorf("Expected Store.GetWallet to be called")
 			}
-
-			// Make sure the right auth was gotten
-			if testStore.Called.GetToken != testAuth.TestToken {
-				t.Errorf("Expected Store.GetToken to be called with %s", testAuth.TestToken)
-			}
 		})
 	}
-}
-
-
-func TestServerGetWalletErrors(t *testing.T) {
-	t.Fatalf("Test me: GetWallet fails for various reasons (malformed, auth, db fail)")
-}
-
-func TestServerGetWalletParams(t *testing.T) {
-	t.Fatalf("Test me: getWalletParams")
-}
-
-func TestServerPostWalletSuccess(t *testing.T) {
-	t.Fatalf("Test me: PostWallet succeeds and returns the new wallet, PostWallet succeeds but is preempted")
 }
 
 func TestServerPostWalletTooLate(t *testing.T) {

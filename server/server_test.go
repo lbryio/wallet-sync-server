@@ -16,15 +16,15 @@ import (
 // Implementing interfaces for stubbed out packages
 
 type TestAuth struct {
-	TestToken    auth.TokenString
-	FailGenToken bool
+	TestNewTokenString auth.TokenString
+	FailGenToken       bool
 }
 
 func (a *TestAuth) NewToken(userId auth.UserId, deviceId auth.DeviceId, scope auth.AuthScope) (*auth.AuthToken, error) {
 	if a.FailGenToken {
 		return nil, fmt.Errorf("Test error: fail to generate token")
 	}
-	return &auth.AuthToken{Token: a.TestToken, UserId: userId, DeviceId: deviceId, Scope: scope}, nil
+	return &auth.AuthToken{Token: a.TestNewTokenString, UserId: userId, DeviceId: deviceId, Scope: scope}, nil
 }
 
 // Whether functions are called, and sometimes what they're called with
@@ -103,19 +103,22 @@ func (s *TestStore) GetWallet(userId auth.UserId) (encryptedWallet wallet.Encryp
 	return
 }
 
-// expectErrorResponse: A helper to call in functions that test that request
-// handlers fail with a certain status code and error string. Cuts down on
-// noise.
-func expectErrorResponse(t *testing.T, w *httptest.ResponseRecorder, expectedStatusCode int, expectedErrorString string) {
+// expectStatusCode: A helper to call in functions that test that request
+// handlers responded with a certain status code. Cuts down on noise.
+func expectStatusCode(t *testing.T, w *httptest.ResponseRecorder, expectedStatusCode int) {
 	if want, got := expectedStatusCode, w.Result().StatusCode; want != got {
-		t.Errorf("StatusCode: expected %d, got %d", want, got)
+		t.Errorf("StatusCode: expected %s (%d), got %s (%d)", http.StatusText(want), want, http.StatusText(got), got)
 	}
+}
 
+// expectErrorString: A helper to call in functions that test that request
+// handlers failed with a certain error string. Cuts down on noise.
+func expectErrorString(t *testing.T, w *httptest.ResponseRecorder, expectedErrorString string) {
 	body, _ := ioutil.ReadAll(w.Body)
 
 	var result ErrorResponse
 	if err := json.Unmarshal(body, &result); err != nil {
-		t.Fatalf("Error decoding error message %s: `%s`", err, body)
+		t.Fatalf("Error decoding error message: %s: `%s`", err, body)
 	}
 
 	if want, got := expectedErrorString, result.Error; want != got {
@@ -201,7 +204,8 @@ func TestServerHelperGetPostDataErrors(t *testing.T) {
 				t.Errorf("getPostData succeeded unexpectedly")
 			}
 
-			expectErrorResponse(t, w, tc.expectedStatusCode, tc.expectedErrorString)
+			expectStatusCode(t, w, tc.expectedStatusCode)
+			expectErrorString(t, w, tc.expectedErrorString)
 		})
 	}
 }

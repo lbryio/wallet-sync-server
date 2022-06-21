@@ -13,7 +13,7 @@ import (
 )
 
 func TestServerAuthHandlerSuccess(t *testing.T) {
-	testAuth := TestAuth{TestToken: auth.TokenString("seekrit")}
+	testAuth := TestAuth{TestNewTokenString: auth.TokenString("seekrit")}
 	testStore := TestStore{}
 	s := Server{&testAuth, &testStore}
 
@@ -25,19 +25,17 @@ func TestServerAuthHandlerSuccess(t *testing.T) {
 	s.getAuthToken(w, req)
 	body, _ := ioutil.ReadAll(w.Body)
 
-	if want, got := http.StatusOK, w.Result().StatusCode; want != got {
-		t.Errorf("StatusCode: expected %s (%d), got %s (%d)", http.StatusText(want), want, http.StatusText(got), got)
-	}
+	expectStatusCode(t, w, http.StatusOK)
 
 	var result auth.AuthToken
 	err := json.Unmarshal(body, &result)
 
-	if err != nil || result.Token != testAuth.TestToken {
+	if err != nil || result.Token != testAuth.TestNewTokenString {
 		t.Errorf("Expected auth response to contain token: result: %+v err: %+v", string(body), err)
 	}
 
-	if testStore.Called.SaveToken != testAuth.TestToken {
-		t.Errorf("Expected Store.SaveToken to be called with %s", testAuth.TestToken)
+	if testStore.Called.SaveToken != testAuth.TestNewTokenString {
+		t.Errorf("Expected Store.SaveToken to be called with %s", testAuth.TestNewTokenString)
 	}
 }
 
@@ -76,7 +74,7 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 
 			// Set this up to fail according to specification
-			testAuth := TestAuth{TestToken: auth.TokenString("seekrit")}
+			testAuth := TestAuth{TestNewTokenString: auth.TokenString("seekrit")}
 			testStore := TestStore{Errors: tc.storeErrors}
 			if tc.authFailGenToken { // TODO - TestAuth{Errors:authErrors}
 				testAuth.FailGenToken = true
@@ -91,7 +89,8 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 
 			server.getAuthToken(w, req)
 
-			expectErrorResponse(t, w, tc.expectedStatusCode, tc.expectedErrorString)
+			expectStatusCode(t, w, tc.expectedStatusCode)
+			expectErrorString(t, w, tc.expectedErrorString)
 		})
 	}
 }
