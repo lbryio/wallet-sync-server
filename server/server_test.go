@@ -27,13 +27,19 @@ func (a *TestAuth) NewToken(userId auth.UserId, deviceId auth.DeviceId, scope au
 	return &auth.AuthToken{Token: a.TestNewTokenString, UserId: userId, DeviceId: deviceId, Scope: scope}, nil
 }
 
+type SetWalletCall struct {
+	EncryptedWallet wallet.EncryptedWallet
+	Sequence        wallet.Sequence
+	Hmac            wallet.WalletHmac
+}
+
 // Whether functions are called, and sometimes what they're called with
 type TestStoreFunctionsCalled struct {
 	SaveToken     auth.TokenString
 	GetToken      auth.TokenString
 	GetUserId     bool
 	CreateAccount bool
-	SetWallet     wallet.EncryptedWallet
+	SetWallet     SetWalletCall
 	GetWallet     bool
 }
 
@@ -59,6 +65,7 @@ type TestStore struct {
 	TestEncryptedWallet wallet.EncryptedWallet
 	TestSequence        wallet.Sequence
 	TestHmac            wallet.WalletHmac
+	TestSequenceCorrect bool
 }
 
 func (s *TestStore) SaveToken(authToken *auth.AuthToken) error {
@@ -87,8 +94,14 @@ func (s *TestStore) SetWallet(
 	sequence wallet.Sequence,
 	hmac wallet.WalletHmac,
 ) (latestEncryptedWallet wallet.EncryptedWallet, latestSequence wallet.Sequence, latestHmac wallet.WalletHmac, sequenceCorrect bool, err error) {
-	s.Called.SetWallet = encryptedWallet
+	s.Called.SetWallet = SetWalletCall{encryptedWallet, sequence, hmac}
 	err = s.Errors.SetWallet
+	if err == nil {
+		latestEncryptedWallet = s.TestEncryptedWallet
+		latestSequence = s.TestSequence
+		latestHmac = s.TestHmac
+		sequenceCorrect = s.TestSequenceCorrect
+	}
 	return
 }
 

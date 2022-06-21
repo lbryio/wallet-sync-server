@@ -132,7 +132,7 @@ func (s *Server) postWallet(w http.ResponseWriter, req *http.Request) {
 		return
 	} else if err != nil {
 		// Something other than sequence error
-		internalServiceErrorJson(w, err, "Error saving wallet")
+		internalServiceErrorJson(w, err, "Error saving or getting wallet")
 		return
 	}
 
@@ -144,7 +144,7 @@ func (s *Server) postWallet(w http.ResponseWriter, req *http.Request) {
 
 	if !sequenceCorrect {
 		// TODO - should we even call this an error?
-		walletResponse.Error = "Bad sequence number"
+		walletResponse.Error = http.StatusText(http.StatusConflict) + ": " + "Bad sequence number"
 	}
 	response, err = json.Marshal(walletResponse)
 
