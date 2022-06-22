@@ -2,8 +2,7 @@
 from collections import namedtuple
 import base64, json, uuid, requests, hashlib, hmac
 from pprint import pprint
-from cryptography.hazmat.primitives.kdf.scrypt import Scrypt # TODO - hashlib.scrypt instead? Why are there so many options?
-from cryptography.hazmat.backends import default_backend as crypto_default_backend
+from hashlib import scrypt # TODO - audit! Should I use hazmat `Scrypt` instead for some reason?
 
 WalletState = namedtuple('WalletState', ['sequence', 'encrypted_wallet'])
 
@@ -154,10 +153,6 @@ def derive_secrets(root_password, salt):
     # TODO - Audit me audit me audit me! I don't know if these values are
     # optimal.
     #
-    # TODO - try hashlib.scrypt? see if the values are the same? And maybe
-    # switch to it, that sounds less bad than "hazmat". Also just look it up
-    # maybe there's an answer as to why both are around.
-    #
     # TODO - wallet_id in the salt? (with domain etc if we go that way)
     # But, we probably want random salt anyway for each domain, who cares
     #
@@ -176,15 +171,15 @@ def derive_secrets(root_password, salt):
     key_length = 32
     num_keys = 3
 
-    kdf = Scrypt(
-      salt,
-      length=key_length * num_keys,
+    kdf_output = scrypt(
+      bytes(root_password, 'utf-8'),
+      salt=salt,
+      dklen=key_length * num_keys,
       n=scrypt_n,
       r=scrypt_r,
       p=scrypt_p,
-      backend=crypto_default_backend(),
+      maxmem=1100000000, # TODO - is this a lot?
     )
-    kdf_output = kdf.derive(root_password)
 
     # Split the output in three
     parts = (
@@ -239,7 +234,7 @@ class Client():
     self.salt = b'I AM A SALT'
 
     # TODO - is UTF-8 appropriate for root_password? based on characters used etc.
-    self.wallet_sync_password, self.sdk_password, self.hmac_key = derive_secrets(bytes(root_password, 'utf-8'), self.salt)
+    self.wallet_sync_password, self.sdk_password, self.hmac_key = derive_secrets(root_password, self.salt)
 
     self.wallet_id = wallet_id
 
