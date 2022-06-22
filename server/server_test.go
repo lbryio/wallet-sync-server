@@ -7,10 +7,12 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"orblivion/lbry-id/auth"
-	"orblivion/lbry-id/wallet"
 	"strings"
 	"testing"
+
+	"orblivion/lbry-id/auth"
+	"orblivion/lbry-id/store"
+	"orblivion/lbry-id/wallet"
 )
 
 // Implementing interfaces for stubbed out packages
@@ -139,12 +141,77 @@ func expectErrorString(t *testing.T, w *httptest.ResponseRecorder, expectedError
 	}
 }
 
-func TestServerHelperCheckAuthSuccess(t *testing.T) {
-	t.Fatalf("Test me: checkAuth success")
-}
+func TestServerHelperCheckAuth(t *testing.T) {
+	tt := []struct {
+		name          string
+		requiredScope auth.AuthScope
+		userScope     auth.AuthScope
 
-func TestServerHelperCheckAuthErrors(t *testing.T) {
-	t.Fatalf("Test me: checkAuth failure")
+		tokenExpected       bool
+		expectedStatusCode  int
+		expectedErrorString string
+
+		storeErrors TestStoreFunctionsErrors
+	}{
+		{
+			name: "success",
+			// Just check that scope checks exist. The more detailed specific tests
+			// go in the auth module
+			requiredScope: auth.AuthScope("banana"),
+			userScope:     auth.AuthScope("*"),
+
+			// not that it's a full request but as of now no error yet means 200 by default
+			expectedStatusCode: 200,
+			tokenExpected:      true,
+		}, {
+			name:          "auth token not found",
+			requiredScope: auth.AuthScope("banana"),
+			userScope:     auth.AuthScope("*"),
+
+			expectedStatusCode:  http.StatusUnauthorized,
+			expectedErrorString: http.StatusText(http.StatusUnauthorized) + ": Token Not Found",
+
+			storeErrors: TestStoreFunctionsErrors{GetToken: store.ErrNoToken},
+		}, {
+			name:          "unknown auth token db error",
+			requiredScope: auth.AuthScope("banana"),
+			userScope:     auth.AuthScope("*"),
+
+			expectedStatusCode:  http.StatusInternalServerError,
+			expectedErrorString: http.StatusText(http.StatusInternalServerError),
+
+			storeErrors: TestStoreFunctionsErrors{GetToken: fmt.Errorf("Some random DB Error!")},
+		}, {
+			name:          "auth scope failure",
+			requiredScope: auth.AuthScope("banana"),
+			userScope:     auth.AuthScope("carrot"),
+
+			expectedStatusCode:  http.StatusForbidden,
+			expectedErrorString: http.StatusText(http.StatusForbidden) + ": Scope",
+		},
+	}
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			testStore := TestStore{
+				Errors:        tc.storeErrors,
+				TestAuthToken: auth.AuthToken{Token: auth.TokenString("seekrit"), Scope: tc.userScope},
+			}
+			s := Server{&TestAuth{}, &testStore}
+
+			w := httptest.NewRecorder()
+			authToken := s.checkAuth(w, testStore.TestAuthToken.Token, tc.requiredScope)
+			if tc.tokenExpected && (*authToken != testStore.TestAuthToken) {
+				t.Errorf("Expected checkAuth to return a valid AuthToken")
+			}
+			if !tc.tokenExpected && (authToken != nil) {
+				t.Errorf("Expected checkAuth not to return a valid AuthToken")
+			}
+			expectStatusCode(t, w, tc.expectedStatusCode)
+			if len(tc.expectedErrorString) > 0 {
+				expectErrorString(t, w, tc.expectedErrorString)
+			}
+		})
+	}
 }
 
 func TestServerHelperGetGetDataSuccess(t *testing.T) {
