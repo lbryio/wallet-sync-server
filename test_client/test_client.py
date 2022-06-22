@@ -154,12 +154,23 @@ def derive_secrets(root_password, salt):
     # TODO - Audit me audit me audit me! I don't know if these values are
     # optimal.
     #
-    # I will say that it seems like there's an optimal for access control, and
-    # there's a stronger optimal for sensitive storage.
+    # TODO - try hashlib.scrypt? see if the values are the same? And maybe
+    # switch to it, that sounds less bad than "hazmat". Also just look it up
+    # maybe there's an answer as to why both are around.
+    #
     # TODO - wallet_id in the salt? (with domain etc if we go that way)
     # But, we probably want random salt anyway for each domain, who cares
-    scrypt_n = 1<<13
-    scrypt_r = 16
+    #
+    # TODO - save scrypt parameters with the keys so we can change parameters
+    # and still read old keys?
+    #
+    # https://stackoverflow.com/a/12581268
+    # Per this, there's an optimal for interactive use, and there's a stronger
+    # optimal for sensitive storage. Going with the latter since we're storing
+    # encrypted stuff on a server. That said, that's based on presentation
+    # slides from 2009. Maybe I should go even more secure?
+    scrypt_n = 1<<20
+    scrypt_r = 8
     scrypt_p = 1
 
     key_length = 32
