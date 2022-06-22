@@ -96,16 +96,18 @@ func TestServerGetWallet(t *testing.T) {
 				t.Errorf("testStore.Called.GetToken called with: expected %s, got %s", want, got)
 			}
 
-			expectStatusCode(t, w, tc.expectedStatusCode)
+			body, _ := ioutil.ReadAll(w.Body)
 
-			if len(tc.expectedErrorString) > 0 {
-				// Only do this check if we're expecting an error and only an error,
-				// since it reads the body and would break the ioutil.ReadAll below.
-				expectErrorString(t, w, tc.expectedErrorString)
-				return
+			expectStatusCode(t, w, tc.expectedStatusCode)
+			expectErrorString(t, body, tc.expectedErrorString)
+
+			// In this case, a wallet body is expected iff there is no error string
+			expectWalletBody := len(tc.expectedErrorString) == 0
+
+			if !expectWalletBody {
+				return // The rest of the test does not apply
 			}
 
-			body, _ := ioutil.ReadAll(w.Body)
 			var result WalletResponse
 			err := json.Unmarshal(body, &result)
 
@@ -331,26 +333,23 @@ func TestServerPostWallet(t *testing.T) {
 				t.Errorf("testStore.Called.GetToken called with: expected %s, got %s", want, got)
 			}
 
+			body, _ := ioutil.ReadAll(w.Body)
+
 			expectStatusCode(t, w, tc.expectedStatusCode)
+			expectErrorString(t, body, tc.expectedErrorString)
 
 			if !tc.expectWalletBody {
-				// Only do this check if we're expecting an error and only an error,
-				// since it reads the body and would break the ioutil.ReadAll below.
-				expectErrorString(t, w, tc.expectedErrorString)
-				return
+				return // The rest of the test does not apply
 			}
 
-			body, _ := ioutil.ReadAll(w.Body)
 			var result WalletResponse
 			err := json.Unmarshal(body, &result)
 
 			if err != nil ||
 				result.EncryptedWallet != tc.returnedEncryptedWallet ||
 				result.Hmac != tc.returnedHmac ||
-				result.Sequence != tc.returnedSequence ||
-				result.Error != tc.expectedErrorString {
-
-				t.Errorf("Expected wallet response to have the test wallet values and error string: result: %+v err: %+v", string(body), err)
+				result.Sequence != tc.returnedSequence {
+				t.Errorf("Expected wallet response to have the test wallet values: result: %+v err: %+v", string(body), err)
 			}
 
 			if want, got := (SetWalletCall{tc.newEncryptedWallet, tc.newSequence, tc.newHmac}), testStore.Called.SetWallet; want != got {

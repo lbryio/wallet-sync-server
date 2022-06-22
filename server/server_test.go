@@ -128,8 +128,14 @@ func expectStatusCode(t *testing.T, w *httptest.ResponseRecorder, expectedStatus
 
 // expectErrorString: A helper to call in functions that test that request
 // handlers failed with a certain error string. Cuts down on noise.
-func expectErrorString(t *testing.T, w *httptest.ResponseRecorder, expectedErrorString string) {
-	body, _ := ioutil.ReadAll(w.Body)
+func expectErrorString(t *testing.T, body []byte, expectedErrorString string) {
+	if len(body) == 0 {
+		// Nothing to decode
+		if expectedErrorString == "" {
+			return // Nothing expected either, we're all good
+		}
+		t.Errorf("Error String: expected %s, got an empty body (no JSON to decode)", expectedErrorString)
+	}
 
 	var result ErrorResponse
 	if err := json.Unmarshal(body, &result); err != nil {
@@ -206,10 +212,10 @@ func TestServerHelperCheckAuth(t *testing.T) {
 			if !tc.tokenExpected && (authToken != nil) {
 				t.Errorf("Expected checkAuth not to return a valid AuthToken")
 			}
+			body, _ := ioutil.ReadAll(w.Body)
+
 			expectStatusCode(t, w, tc.expectedStatusCode)
-			if len(tc.expectedErrorString) > 0 {
-				expectErrorString(t, w, tc.expectedErrorString)
-			}
+			expectErrorString(t, body, tc.expectedErrorString)
 		})
 	}
 }
@@ -283,9 +289,10 @@ func TestServerHelperGetPostDataErrors(t *testing.T) {
 			if success {
 				t.Errorf("getPostData succeeded unexpectedly")
 			}
+			body, _ := ioutil.ReadAll(w.Body)
 
 			expectStatusCode(t, w, tc.expectedStatusCode)
-			expectErrorString(t, w, tc.expectedErrorString)
+			expectErrorString(t, body, tc.expectedErrorString)
 		})
 	}
 }

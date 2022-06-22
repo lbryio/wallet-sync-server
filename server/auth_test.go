@@ -103,8 +103,10 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 
 			server.getAuthToken(w, req)
 
+			body, _ := ioutil.ReadAll(w.Body)
+
 			expectStatusCode(t, w, tc.expectedStatusCode)
-			expectErrorString(t, w, tc.expectedErrorString)
+			expectErrorString(t, body, tc.expectedErrorString)
 		})
 	}
 }
