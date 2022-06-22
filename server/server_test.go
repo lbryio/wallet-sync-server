@@ -221,10 +221,21 @@ func TestServerHelperCheckAuth(t *testing.T) {
 }
 
 func TestServerHelperGetGetDataSuccess(t *testing.T) {
-	t.Fatalf("Test me: getGetData success")
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	w := httptest.NewRecorder()
+	success := getGetData(w, req)
+	if !success {
+		t.Errorf("getGetData failed unexpectedly")
+	}
 }
 func TestServerHelperGetGetDataErrors(t *testing.T) {
-	t.Fatalf("Test me: getGetData failure")
+  // Only error right now is if you do a POST request
+	req := httptest.NewRequest(http.MethodPost, "/test", nil)
+	w := httptest.NewRecorder()
+	success := getGetData(w, req)
+	if success {
+		t.Errorf("getGetData succeeded unexpectedly")
+	}
 }
 
 type TestReqStruct struct{ key string }
