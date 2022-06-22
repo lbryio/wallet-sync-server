@@ -42,7 +42,7 @@ func TestServerAuthHandlerSuccess(t *testing.T) {
 func TestServerAuthHandlerErrors(t *testing.T) {
 	tt := []struct {
 		name                string
-		email                string
+		email               string
 		expectedStatusCode  int
 		expectedErrorString string
 

@@ -38,7 +38,7 @@ func TestServerRegisterSuccess(t *testing.T) {
 func TestServerRegisterErrors(t *testing.T) {
 	tt := []struct {
 		name                string
-		email string
+		email               string
 		requestBody         string
 		expectedStatusCode  int
 		expectedErrorString string

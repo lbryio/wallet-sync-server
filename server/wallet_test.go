@@ -367,7 +367,7 @@ func TestServerValidateWalletRequest(t *testing.T) {
 	}
 
 	tt := []struct {
-		walletRequest        WalletRequest
+		walletRequest      WalletRequest
 		failureDescription string
 	}{
 		{
@@ -380,7 +380,7 @@ func TestServerValidateWalletRequest(t *testing.T) {
 			WalletRequest{Token: "seekrit", EncryptedWallet: "my-encrypted-wallet", Sequence: 2},
 			"Expected WalletRequest with missing hmac to not successfully validate",
 		}, {
-	    WalletRequest{Token: "seekrit", EncryptedWallet: "my-encrypted-wallet", Hmac: "my-hmac", Sequence: 0},
+			WalletRequest{Token: "seekrit", EncryptedWallet: "my-encrypted-wallet", Hmac: "my-hmac", Sequence: 0},
 			"Expected WalletRequest with sequence < 1 to not successfully validate",
 		},
 	}
