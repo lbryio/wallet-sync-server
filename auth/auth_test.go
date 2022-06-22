@@ -48,4 +48,8 @@ func TestAuthScopeInvalid(t *testing.T) {
 	if bananaAuthToken.ScopeValid("*") {
 		t.Fatalf("Expected banana to be an invalid scope for *")
 	}
+
+	if bananaAuthToken.ScopeValid("carrot") {
+		t.Fatalf("Expected banana to be an invalid scope for carrot")
+	}
 }
