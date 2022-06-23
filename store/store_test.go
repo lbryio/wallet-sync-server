@@ -10,7 +10,7 @@ import (
 )
 
 // Test insertToken, using GetToken as a helper
-// Try insertToken twice with the same public key, error the second time
+// Try insertToken twice with the same user and device, error the second time
 func TestStoreInsertToken(t *testing.T) {
 
 	s, sqliteTmpFile := StoreTestInit(t)
@@ -329,7 +329,7 @@ func TestStoreSetWalletFail(t *testing.T) {
 }
 
 // Test insertFirstWallet, using GetWallet, CreateAccount and GetUserID as a helpers
-// Try insertToken twice with the same public key, error the second time
+// Try insertFirstWallet twice with the same user id, error the second time
 func TestStoreInsertWallet(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
@@ -356,7 +356,7 @@ func TestStoreInsertWallet(t *testing.T) {
 		sequence != wallet.Sequence(1) ||
 		hmac != wallet.WalletHmac("my-hmac") ||
 		err != nil {
-		t.Fatalf("Expected values for wallet: encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
+		t.Fatalf("Unexpected values for wallet: encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
 	}
 
 	// Put in a first wallet for a second time, have an error for trying
@@ -370,7 +370,7 @@ func TestStoreInsertWallet(t *testing.T) {
 		sequence != wallet.Sequence(1) ||
 		hmac != wallet.WalletHmac("my-hmac") ||
 		err != nil {
-		t.Fatalf("Expected values for wallet: encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
+		t.Fatalf("Unexpected values for wallet: encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
 	}
 }
 
