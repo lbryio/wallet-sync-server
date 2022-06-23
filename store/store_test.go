@@ -258,7 +258,7 @@ func TestStoreGetToken(t *testing.T) {
 	}
 	expiration := time.Time(time.Now().UTC().Add(time.Hour * 24 * 14))
 
-	// Not found (nothing saved for this pubkey)
+	// Not found (nothing saved for this token string)
 	gotToken, err := s.GetToken(authToken.Token)
 	if gotToken != nil || err != ErrNoToken {
 		t.Fatalf("Expected ErrNoToken. token: %+v err: %+v", gotToken, err)
@@ -350,18 +350,10 @@ func TestStoreGetWalletFail(t *testing.T) {
 	t.Fatalf("Test me: Wallet get failures")
 }
 
-func TestStoreSetEmailSuccess(t *testing.T) {
-	t.Fatalf("Test me: Email get success")
+func TestStoreCreateAccount(t *testing.T) {
+	t.Fatalf("Test me: Account create success and failures")
 }
 
-func TestStoreSetEmailFail(t *testing.T) {
-	t.Fatalf("Test me: Email get failures")
-}
-
-func TestStoreGetPublicKeySuccess(t *testing.T) {
-	t.Fatalf("Test me: Public Key get success")
-}
-
-func TestStoreGetPublicKeyFail(t *testing.T) {
-	t.Fatalf("Test me: Public Key get failures")
+func TestStoreGetUserId(t *testing.T) {
+	t.Fatalf("Test me: User ID get success and failures")
 }
