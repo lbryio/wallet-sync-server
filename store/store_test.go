@@ -1,10 +1,12 @@
 package store
 
 import (
-	"orblivion/lbry-id/auth"
 	"reflect"
 	"testing"
 	"time"
+
+	"orblivion/lbry-id/auth"
+	"orblivion/lbry-id/wallet"
 )
 
 // Test insertToken, using GetToken as a helper
@@ -326,12 +328,50 @@ func TestStoreSetWalletFail(t *testing.T) {
 	t.Fatalf("Test me: Wallet Set failures")
 }
 
-func TestStoreInsertWalletSuccess(t *testing.T) {
-	t.Fatalf("Test me: Wallet insert successes")
-}
+// Test insertFirstWallet, using GetWallet, CreateAccount and GetUserID as a helpers
+// Try insertToken twice with the same public key, error the second time
+func TestStoreInsertWallet(t *testing.T) {
+	s, sqliteTmpFile := StoreTestInit(t)
+	defer StoreTestCleanup(sqliteTmpFile)
 
-func TestStoreInsertWalletFail(t *testing.T) {
-	t.Fatalf("Test me: Wallet insert failures")
+	// Get a valid userId
+	email, password := auth.Email("abc@example.com"), auth.Password("123")
+	_ = s.CreateAccount(email, password)
+	userId, _ := s.GetUserId(email, password)
+
+	// Get a wallet, come back empty
+	encryptedWallet, sequence, hmac, err := s.GetWallet(userId)
+	if len(encryptedWallet) != 0 || sequence != 0 || len(hmac) != 0 || err != ErrNoWallet {
+		t.Fatalf("Expected ErrNoWallet. encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
+	}
+
+	// Put in a first wallet
+	if err := s.insertFirstWallet(userId, wallet.EncryptedWallet("my-encrypted-wallet"), wallet.WalletHmac("my-hmac")); err != nil {
+		t.Fatalf("Unexpected error in insertFirstWallet: %+v", err)
+	}
+
+	// Get a wallet, have the values we put in with a sequence of 1
+	encryptedWallet, sequence, hmac, err = s.GetWallet(userId)
+	if encryptedWallet != wallet.EncryptedWallet("my-encrypted-wallet") ||
+		sequence != wallet.Sequence(1) ||
+		hmac != wallet.WalletHmac("my-hmac") ||
+		err != nil {
+		t.Fatalf("Expected values for wallet: encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
+	}
+
+	// Put in a first wallet for a second time, have an error for trying
+	if err := s.insertFirstWallet(userId, wallet.EncryptedWallet("my-encrypted-wallet-2"), wallet.WalletHmac("my-hmac-2")); err != ErrDuplicateWallet {
+		t.Fatalf(`insertFirstWallet err: wanted "%+v", got "%+v"`, ErrDuplicateToken, err)
+	}
+
+	// Get the same *first* wallet we successfully put in
+	encryptedWallet, sequence, hmac, err = s.GetWallet(userId)
+	if encryptedWallet != wallet.EncryptedWallet("my-encrypted-wallet") ||
+		sequence != wallet.Sequence(1) ||
+		hmac != wallet.WalletHmac("my-hmac") ||
+		err != nil {
+		t.Fatalf("Expected values for wallet: encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
+	}
 }
 
 func TestStoreUpdateWalletSuccess(t *testing.T) {
