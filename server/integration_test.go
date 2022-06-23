@@ -78,6 +78,8 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 		`{"email": "abc@example.com", "password": "123"}`,
 	)
 
+	checkStatusCode(t, statusCode, responseBody, http.StatusCreated)
+
 	////////////////////
 	// Get auth token - device 1
 	////////////////////
@@ -130,13 +132,13 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	// Put first wallet - device 1
 	////////////////////
 
-	var walletResponse WalletResponse
+	var walletPostResponse struct{}
 	responseBody, statusCode = request(
 		t,
 		http.MethodPost,
 		s.postWallet,
 		PathWallet,
-		&walletResponse,
+		&walletPostResponse,
 		fmt.Sprintf(`{
       "token": "%s",
       "encryptedWallet": "my-encrypted-wallet-1",
@@ -147,34 +149,30 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 
 	checkStatusCode(t, statusCode, responseBody)
 
+	////////////////////
+	// Get wallet - device 2
+	////////////////////
+
+	var walletGetResponse WalletResponse
+	responseBody, statusCode = request(
+		t,
+		http.MethodGet,
+		s.getWallet,
+		fmt.Sprintf("%s?token=%s", PathWallet, authToken2.Token),
+		&walletGetResponse,
+		"",
+	)
+
+	checkStatusCode(t, statusCode, responseBody)
+
 	expectedResponse := WalletResponse{
 		EncryptedWallet: wallet.EncryptedWallet("my-encrypted-wallet-1"),
 		Sequence:        wallet.Sequence(1),
 		Hmac:            wallet.WalletHmac("my-hmac-1"),
 	}
 
-	if !reflect.DeepEqual(walletResponse, expectedResponse) {
-		t.Fatalf("Unexpected response values. want: %+v got: %+v", expectedResponse, walletResponse)
-	}
-
-	////////////////////
-	// Get wallet - device 2
-	////////////////////
-
-	responseBody, statusCode = request(
-		t,
-		http.MethodGet,
-		s.getWallet,
-		fmt.Sprintf("%s?token=%s", PathWallet, authToken2.Token),
-		&walletResponse,
-		"",
-	)
-
-	checkStatusCode(t, statusCode, responseBody)
-
-	// Expect the same response getting from device 2 as when posting from device 1
-	if !reflect.DeepEqual(walletResponse, expectedResponse) {
-		t.Fatalf("Unexpected response values. want: %+v got: %+v", expectedResponse, walletResponse)
+	if !reflect.DeepEqual(walletGetResponse, expectedResponse) {
+		t.Fatalf("Unexpected response values. want: %+v got: %+v", expectedResponse, walletGetResponse)
 	}
 
 	////////////////////
@@ -186,7 +184,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 		http.MethodPost,
 		s.postWallet,
 		PathWallet,
-		&walletResponse,
+		&walletPostResponse,
 		fmt.Sprintf(`{
       "token": "%s",
       "encryptedWallet": "my-encrypted-wallet-2",
@@ -197,16 +195,6 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 
 	checkStatusCode(t, statusCode, responseBody)
 
-	expectedResponse = WalletResponse{
-		EncryptedWallet: wallet.EncryptedWallet("my-encrypted-wallet-2"),
-		Sequence:        wallet.Sequence(2),
-		Hmac:            wallet.WalletHmac("my-hmac-2"),
-	}
-
-	if !reflect.DeepEqual(walletResponse, expectedResponse) {
-		t.Fatalf("Unexpected response values. want: %+v got: %+v", expectedResponse, walletResponse)
-	}
-
 	////////////////////
 	// Get wallet - device 1
 	////////////////////
@@ -216,14 +204,20 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 		http.MethodGet,
 		s.getWallet,
 		fmt.Sprintf("%s?token=%s", PathWallet, authToken1.Token),
-		&walletResponse,
+		&walletGetResponse,
 		"",
 	)
 
 	checkStatusCode(t, statusCode, responseBody)
 
+	expectedResponse = WalletResponse{
+		EncryptedWallet: wallet.EncryptedWallet("my-encrypted-wallet-2"),
+		Sequence:        wallet.Sequence(2),
+		Hmac:            wallet.WalletHmac("my-hmac-2"),
+	}
+
 	// Expect the same response getting from device 2 as when posting from device 1
-	if !reflect.DeepEqual(walletResponse, expectedResponse) {
-		t.Fatalf("Unexpected response values. want: %+v got: %+v", expectedResponse, walletResponse)
+	if !reflect.DeepEqual(walletGetResponse, expectedResponse) {
+		t.Fatalf("Unexpected response values. want: %+v got: %+v", expectedResponse, walletGetResponse)
 	}
 }

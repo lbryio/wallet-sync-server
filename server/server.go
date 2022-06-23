@@ -12,7 +12,7 @@ import (
 
 // TODO proper doc comments!
 
-const ApiVersion = "1"
+const ApiVersion = "2"
 const PathPrefix = "/api/" + ApiVersion
 
 const PathAuthToken = PathPrefix + "/auth/full"

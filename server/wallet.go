@@ -27,7 +27,6 @@ type WalletResponse struct {
 	EncryptedWallet wallet.EncryptedWallet `json:"encryptedWallet"`
 	Sequence        wallet.Sequence        `json:"sequence"`
 	Hmac            wallet.WalletHmac      `json:"hmac"`
-	Error           string                 `json:"error"` // in case of 409 Conflict responses. TODO - make field not show up if it's empty, to avoid confusion
 }
 
 func (s *Server) handleWallet(w http.ResponseWriter, req *http.Request) {
@@ -103,6 +102,11 @@ func (s *Server) getWallet(w http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(w, string(response))
 }
 
+// Response Code:
+//   200: Update successful
+//   409: Update unsuccessful due to new wallet's sequence not being 1 +
+//     current wallet's sequence
+//   500: Update unsuccessful for unanticipated reasons
 func (s *Server) postWallet(w http.ResponseWriter, req *http.Request) {
 	var walletRequest WalletRequest
 	if !getPostData(w, req, &walletRequest) {
@@ -114,21 +118,10 @@ func (s *Server) postWallet(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	latestEncryptedWallet, latestSequence, latestHmac, sequenceCorrect, err := s.store.SetWallet(
-		authToken.UserId,
-		walletRequest.EncryptedWallet,
-		walletRequest.Sequence,
-		walletRequest.Hmac,
-	)
+	err := s.store.SetWallet(authToken.UserId, walletRequest.EncryptedWallet, walletRequest.Sequence, walletRequest.Hmac)
 
-	var response []byte
-
-	if err == store.ErrNoWallet {
-		// We failed to update, and when we tried pulling the latest wallet,
-		// there was nothing there. This should only happen if the client sets
-		// sequence != 1 for the first wallet, which would be a bug.
-		// TODO - figure out better error messages and/or document this
-		errorJson(w, http.StatusConflict, "Bad sequence number (No existing wallet)")
+	if err == store.ErrWrongSequence {
+		errorJson(w, http.StatusConflict, "Bad sequence number")
 		return
 	} else if err != nil {
 		// Something other than sequence error
@@ -136,16 +129,8 @@ func (s *Server) postWallet(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	walletResponse := WalletResponse{
-		EncryptedWallet: latestEncryptedWallet,
-		Sequence:        latestSequence,
-		Hmac:            latestHmac,
-	}
-
-	if !sequenceCorrect {
-		// TODO - should we even call this an error?
-		walletResponse.Error = http.StatusText(http.StatusConflict) + ": " + "Bad sequence number"
-	}
+	var response []byte
+	var walletResponse struct{}
 	response, err = json.Marshal(walletResponse)
 
 	if err != nil {
@@ -153,18 +138,5 @@ func (s *Server) postWallet(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Response Code:
-	//   200: Update successful
-	//   409: Update unsuccessful, probably due to new wallet's
-	//      sequence not being 1 + current wallet's sequence
-	//
-	// Response Body:
-	//   Current wallet (if it exists). If update successful, we just return
-	//   the same one passed in. If update not successful, return the latest one
-	//   from the db for the client to merge.
-	if sequenceCorrect {
-		fmt.Fprintf(w, string(response))
-	} else {
-		http.Error(w, string(response), http.StatusConflict)
-	}
+	fmt.Fprintf(w, string(response))
 }

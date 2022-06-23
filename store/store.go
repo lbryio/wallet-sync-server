@@ -21,6 +21,8 @@ var (
 	ErrDuplicateWallet = fmt.Errorf("Wallet already exists for this user")
 	ErrNoWallet        = fmt.Errorf("Wallet does not exist for this user at this sequence")
 
+	ErrWrongSequence = fmt.Errorf("Wallet could not be updated to this sequence")
+
 	ErrDuplicateEmail   = fmt.Errorf("Email already exists for this user")
 	ErrDuplicateAccount = fmt.Errorf("User already has an account")
 
@@ -31,7 +33,7 @@ var (
 type StoreInterface interface {
 	SaveToken(*auth.AuthToken) error
 	GetToken(auth.TokenString) (*auth.AuthToken, error)
-	SetWallet(auth.UserId, wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac) (wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac, bool, error)
+	SetWallet(auth.UserId, wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac) error
 	GetWallet(auth.UserId) (wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac, error)
 	GetUserId(auth.Email, auth.Password) (auth.UserId, error)
 	CreateAccount(auth.Email, auth.Password) (err error)
@@ -282,39 +284,17 @@ func (s *Store) updateWalletToSequence(
 }
 
 // Assumption: Sequence has been validated (>=1)
-func (s *Store) SetWallet(
-	userId auth.UserId,
-	encryptedWallet wallet.EncryptedWallet,
-	sequence wallet.Sequence,
-	hmac wallet.WalletHmac,
-	// TODO `sequenceCorrect` should probably be replaced with `status`, that can
-	//   equal `Updated` or `SequenceMismatch`. Maybe with a message for the API.
-	//     Like an error, but not, because the function still returns a value.
-	//   Right now, we have:
-	//   `sequenceCorrect==true` and `err==nil` implies it updated.
-	//   We could also have:
-	//   `sequenceMismatch==true` or `err!=nil` implying it didn't update.
-	//   Or:
-	//   `updated==false` and `err=nil` implying the sequence mismatched.
-	//   I don't like this implication stuff, the "status" should be explicit so
-	//     we don't make bugs.
-) (latestEncryptedWallet wallet.EncryptedWallet, latestSequence wallet.Sequence, latestHmac wallet.WalletHmac, sequenceCorrect bool, err error) {
+func (s *Store) SetWallet(userId auth.UserId, encryptedWallet wallet.EncryptedWallet, sequence wallet.Sequence, hmac wallet.WalletHmac) (err error) {
 	if sequence == 1 {
 		// If sequence == 1, the client assumed that this is our first
 		// wallet. Try to insert. If we get a conflict, the client
 		// assumed incorrectly and we proceed below to return the latest
 		// wallet from the db.
 		err = s.insertFirstWallet(userId, encryptedWallet, hmac)
-		if err == nil {
-			// Successful update
-			latestEncryptedWallet = encryptedWallet
-			latestSequence = sequence
-			latestHmac = hmac
-			sequenceCorrect = true
-			return
-		} else if err != ErrDuplicateWallet {
-			// Unsuccessful update for reasons other than sequence conflict
-			return
+		if err == ErrDuplicateWallet {
+			// A wallet already exists. That means the input sequence should not be 1.
+			// To the caller, this means the sequence was wrong.
+			err = ErrWrongSequence
 		}
 	} else {
 		// If sequence > 1, the client assumed that it is replacing wallet
@@ -322,25 +302,12 @@ func (s *Store) SetWallet(
 		// sequence - 1. If we updated no rows, the client assumed incorrectly
 		// and we proceed below to return the latest wallet from the db.
 		err = s.updateWalletToSequence(userId, encryptedWallet, sequence, hmac)
-		if err == nil {
-			latestEncryptedWallet = encryptedWallet
-			latestSequence = sequence
-			latestHmac = hmac
-			sequenceCorrect = true
-			return
-		} else if err != ErrNoWallet {
-			return
+		if err == ErrNoWallet {
+			// No wallet found to replace at the `sequence - 1`. To the caller, this
+			// means the sequence they put in was wrong.
+			err = ErrWrongSequence
 		}
 	}
-
-	// We failed to update above due to a sequence conflict. Perhaps the client
-	// was unaware of an update done by another client. Let's send back the latest
-	// version right away so the requesting client can take care of it.
-	//
-	// Note that this means that `err` will not be `nil` at this point, but we
-	// already accounted for it with `sequenceCorrect=false`. Instead, we'll pass
-	// on any errors from calling `GetWallet`.
-	latestEncryptedWallet, latestSequence, latestHmac, err = s.GetWallet(userId)
 	return
 }
 

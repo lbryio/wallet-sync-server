@@ -58,7 +58,7 @@ class LBRYSDK():
 
 class WalletSync():
   def __init__(self, local):
-    self.API_VERSION = 1
+    self.API_VERSION = 2
 
     if local:
       BASE_URL = 'http://localhost:8090'
@@ -131,23 +131,15 @@ class WalletSync():
     response = requests.post(self.WALLET_URL, body)
 
     if response.status_code == 200:
-      conflict = False
       print ('Successfully updated wallet state on server')
+      return True
     elif response.status_code == 409:
-      conflict = True
-      print ('Wallet state out of date. Getting updated wallet state. Try posting again after this.')
-      # Not an error! We still want to merge in the returned wallet.
+      print ('Submitted wallet is out of date.')
+      return False
     else:
       print ('Error', response.status_code)
       print (response.content)
       raise Exception("Unexpected status code")
-
-    wallet_state = WalletState(
-      encrypted_wallet=response.json()['encryptedWallet'],
-      sequence=response.json()['sequence'],
-    )
-    hmac = response.json()['hmac']
-    return wallet_state, hmac, conflict
 
 def derive_secrets(root_password, salt):
     # TODO - Audit me audit me audit me! I don't know if these values are
@@ -256,31 +248,23 @@ class Client():
   # now, the SDK handles merges with timestamps and such so it's as safe as
   # always to just merge in.
 
-  # TODO - Be careful of cases where get_remote_wallet comes back with "Not
-  # Found" even though a wallet is actually on the server. We would start with
-  # sequence=0 with the local encrypted wallet. Then next time we
-  # get_remote_wallet, it returns the actual wallet, let's say sequence=5, and
-  # it would write over what's locally saved. With the SDK as it is using
-  # sync_apply, that's okay because it has a decent way of merging it. However
-  # when the Desktop is in charge of merging, this could be a hazard. Saving
-  # the state to disk could help. Or perhaps pushing first before pulling. Or
-  # maybe if we're writing over sequence=0, we can know we should be "merging"
-  # the local encrypted wallet with whatever comes from the server.
+  # TODO - Save wallet state to disk, and init by pulling from disk. That way,
+  # we'll know what the merge base is, and we won't have to merge from 0 each
+  # time the app restarts.
 
-  # TODO - what if two clients initialize, make changes, and then both push?
-  # We'll need a way to "merge" from a merge base of an empty wallet.
+  # TODO - Wrap this back into __init__, now that I got the empty encrypted
+  # wallet right.
   def init_wallet_state(self):
-    if self.get_remote_wallet() == "Not Found":
-      print("No wallet found on the server for this account. Starting a new one.")
-
-      # Represents what's been synced to the wallet sync server. It starts with
-      # sequence=0 which means nothing has been synced yet. We start with
-      # whatever is in the SDK. Whether it's new or not, we (who choose to run
-      # this method) are assuming it's not synced yet.
-      self.synced_wallet_state = WalletState(
-        sequence=0,
-        encrypted_wallet=self.get_local_encrypted_wallet()
-      )
+    # Represents what's been synced to the wallet sync server. It starts with
+    # sequence=0 which means nothing has been synced yet. As such, we start
+    # with an empty encrypted_wallet here. Anything currently in the SDK is a
+    # local-only change until it's pushed. If there's a merge conflict,
+    # sequence=0, empty encrypted_wallet will be the merge base. That way we
+    # won't lose any changes.
+    self.synced_wallet_state = WalletState(
+      sequence=0,
+      encrypted_wallet="",
+    )
 
   def register(self):
     success = self.wallet_sync_api.register(
@@ -308,6 +292,29 @@ class Client():
   # we're talking about. Again, we should see how LBRY Desktop/SDK deal with
   # it.
 
+  def get_merged_wallet_state(self, new_wallet_state):
+    # Eventually, we will look for local changes in
+    # `get_local_encrypted_wallet()` by comparing it to
+    # `self.synced_wallet_state.encrypted_wallet`.
+    #
+    # If there are no local changes, we can just return `new_wallet_state`.
+    #
+    # If there are local changes, we will merge between `new_wallet_state` and
+    # `get_local_encrypted_wallet()`, using
+    # `self.synced_wallet_state.encrypted_wallet` as our merge base.
+    #
+    # For really hairy cases, this could even be a whole interactive process,
+    # not just a function.
+
+    # For now, the SDK handles merging (in a way that we hope to improve with
+    # the above eventually) so we will just return `new_wallet_state`.
+    #
+    # It would be nice to have a little "we just merged in changes" log output
+    # if there are local changes, just for demo purpoes. Unfortunately, the SDK
+    # outputs a different encrypted blob each time we ask it for the encrypted
+    # wallet, so there's no easy way to check if it actually changed.
+    return new_wallet_state
+
   # Returns: status
   def get_remote_wallet(self):
     new_wallet_state, hmac = self.wallet_sync_api.get_wallet(self.auth_token)
@@ -327,11 +334,14 @@ class Client():
       print ('got:', new_wallet_state)
       return "Error"
 
-    self.synced_wallet_state = new_wallet_state
-    # TODO errors? sequence of events? This isn't gonna be quite right. Look at state diagrams.
-    self.update_local_encrypted_wallet(new_wallet_state.encrypted_wallet)
+    merged_wallet_state = self.get_merged_wallet_state(new_wallet_state)
 
-    print ("Got latest walletState:")
+    # TODO error recovery between these two steps? sequence of events?
+    # This isn't gonna be quite right. Look at state diagrams.
+    self.synced_wallet_state = merged_wallet_state
+    self.update_local_encrypted_wallet(merged_wallet_state.encrypted_wallet)
+
+    print ("Got (and maybe merged in) latest walletState:")
     pprint(self.synced_wallet_state)
     return "Success"
 
@@ -351,31 +361,19 @@ class Client():
     )
     hmac = create_hmac(submitted_wallet_state, self.hmac_key)
 
-    # Submit our wallet, get the latest wallet back as a response
-    new_wallet_state, new_hmac, conflict = self.wallet_sync_api.update_wallet(submitted_wallet_state, hmac, self.auth_token)
+    # Submit our wallet.
+    updated = self.wallet_sync_api.update_wallet(submitted_wallet_state, hmac, self.auth_token)
 
-    # TODO - there's some code in common here with the get_remote_wallet function. factor it out.
+    if updated:
+      # We updated it. Now it's synced and we mark it as such.
+      self.synced_wallet_state = submitted_wallet_state
 
-    if not check_hmac(new_wallet_state, self.hmac_key, new_hmac):
-      print ('Error - bad hmac on new wallet')
-      print (new_wallet_state, hmac)
-      return "Error"
+      print ("Synced walletState:")
+      pprint(self.synced_wallet_state)
+      return "Success"
 
-    if submitted_wallet_state != new_wallet_state and not self._validate_new_wallet_state(new_wallet_state):
-      print ('Error - new wallet does not validate')
-      print ('current:', self.synced_wallet_state)
-      print ('got:', new_wallet_state)
-      return "Error"
-
-    # TODO - `concflict` determines whether we need to a smart merge here.
-    # However for now the SDK handles all of that.
-    self.synced_wallet_state = new_wallet_state
-    # TODO errors? sequence of events? This isn't gonna be quite right. Look at state diagrams.
-    self.update_local_encrypted_wallet(new_wallet_state.encrypted_wallet)
-
-    print ("Got new walletState:")
-    pprint(self.synced_wallet_state)
-    return "Success"
+    print ("Could not update. Need to get new wallet and merge")
+    return "Failure"
 
   def set_preference(self, key, value):
     # TODO - error checking

@@ -67,7 +67,6 @@ type TestStore struct {
 	TestEncryptedWallet wallet.EncryptedWallet
 	TestSequence        wallet.Sequence
 	TestHmac            wallet.WalletHmac
-	TestSequenceCorrect bool
 }
 
 func (s *TestStore) SaveToken(authToken *auth.AuthToken) error {
@@ -95,16 +94,9 @@ func (s *TestStore) SetWallet(
 	encryptedWallet wallet.EncryptedWallet,
 	sequence wallet.Sequence,
 	hmac wallet.WalletHmac,
-) (latestEncryptedWallet wallet.EncryptedWallet, latestSequence wallet.Sequence, latestHmac wallet.WalletHmac, sequenceCorrect bool, err error) {
+) (err error) {
 	s.Called.SetWallet = SetWalletCall{encryptedWallet, sequence, hmac}
-	err = s.Errors.SetWallet
-	if err == nil {
-		latestEncryptedWallet = s.TestEncryptedWallet
-		latestSequence = s.TestSequence
-		latestHmac = s.TestHmac
-		sequenceCorrect = s.TestSequenceCorrect
-	}
-	return
+	return s.Errors.SetWallet
 }
 
 func (s *TestStore) GetWallet(userId auth.UserId) (encryptedWallet wallet.EncryptedWallet, sequence wallet.Sequence, hmac wallet.WalletHmac, err error) {
@@ -229,7 +221,7 @@ func TestServerHelperGetGetDataSuccess(t *testing.T) {
 	}
 }
 func TestServerHelperGetGetDataErrors(t *testing.T) {
-  // Only error right now is if you do a POST request
+	// Only error right now is if you do a POST request
 	req := httptest.NewRequest(http.MethodPost, "/test", nil)
 	w := httptest.NewRecorder()
 	success := getGetData(w, req)

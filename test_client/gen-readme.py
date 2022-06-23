@@ -67,8 +67,6 @@ print("""
 ## Syncing
 
 Create a new wallet + metadata (we'll wrap it in a struct we'll call `WalletState` in this client) using `init_wallet_state` and POST them to the server. The metadata (as of now) in the walletstate is only `sequence`. `sequence` is an integer that increments for every POSTed wallet. This is bookkeeping to prevent certain syncing errors.
-
-_Note that after POSTing, it says it "got" a new wallet. This is because the POST endpoint also returns the latest version. The purpose of this will be explained in "Conflicts" below._
 """)
 
 code_block("""
@@ -77,13 +75,14 @@ c1.update_remote_wallet()
 """)
 
 print("""
-Now, call `init_wallet_state` with the other client. This time, `init_wallet_state` will GET the wallet from the server. In general, `init_wallet_state` is used to set up a new client; first it checks the server, then failing that, it initializes it locally. (In a real client, it would save the walletstate to disk, and `init_wallet_state` would check there before checking the server).
+Now, call `init_wallet_state` with the other client. Then, we call `get_remote_wallet` to GET the wallet from the server. (In a real client, it would also save the walletstate to disk, and `init_wallet_state` would check there before checking the server).
 
 (There are a few potential unresolved issues surrounding this related to sequence of events. Check comments on `init_wallet_state`. SDK again works around them with the timestamps.)
 """)
 
 code_block("""
 c2.init_wallet_state()
+c2.get_remote_wallet()
 """)
 
 print("""
@@ -183,7 +182,7 @@ c1.get_preferences()
 """)
 
 print("""
-We try to POST both of them to the server, but the second one fails because of the conflict. Instead, merges the two locally:
+We try to POST both of them to the server. The second one fails because of the conflict, and we see that its preferences don't change yet.
 """)
 
 code_block("""
@@ -193,9 +192,11 @@ c1.get_preferences()
 """)
 
 print("""
-Now that the merge is complete, the client can make a second POST request containing the merged wallet.
+The client that is out of date will then call `get_remote_wallet`, which GETs and automatically merges in the latest wallet. We see the preferences are now merged. Now it can make a second POST request containing the merged wallet.
 """)
 
 code_block("""
+c1.get_remote_wallet()
+c1.get_preferences()
 c1.update_remote_wallet()
 """)
