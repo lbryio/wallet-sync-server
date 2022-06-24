@@ -428,12 +428,29 @@ func TestStoreSetWallet(t *testing.T) {
 	expectWalletExists(t, &s, userId, wallet.EncryptedWallet("my-enc-wallet-c"), wallet.Sequence(3), wallet.WalletHmac("my-hmac-c"))
 }
 
-func TestStoreGetWalletSuccess(t *testing.T) {
-	t.Fatalf("Test me: Wallet get success")
-}
+// Pretty simple, only two cases: wallet is there or it's not.
+func TestStoreGetWallet(t *testing.T) {
+	s, sqliteTmpFile := StoreTestInit(t)
+	defer StoreTestCleanup(sqliteTmpFile)
 
-func TestStoreGetWalletFail(t *testing.T) {
-	t.Fatalf("Test me: Wallet get failures")
+	// Get a valid userId
+	userId := setupWalletTest(&s)
+
+	// GetWallet fails when there's no wallet
+	encryptedWallet, sequence, hmac, err := s.GetWallet(userId)
+	if len(encryptedWallet) != 0 || sequence != 0 || len(hmac) != 0 || err != ErrNoWallet {
+		t.Fatalf("Expected ErrNoWallet, and no wallet values. Instead got: encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
+	}
+
+	if err := s.SetWallet(userId, wallet.EncryptedWallet("my-enc-wallet-a"), wallet.Sequence(1), wallet.WalletHmac("my-hmac-a")); err != nil {
+		t.Fatalf("Unexpected error in SetWallet: %+v", err)
+	}
+
+	// GetWallet succeeds when there's a wallet
+	encryptedWallet, sequence, hmac, err = s.GetWallet(userId)
+	if encryptedWallet != wallet.EncryptedWallet("my-enc-wallet-a") || sequence != wallet.Sequence(1) || hmac != wallet.WalletHmac("my-hmac-a") || err != nil {
+		t.Fatalf("Unexpected values for wallet: encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
+	}
 }
 
 func TestStoreCreateAccount(t *testing.T) {
