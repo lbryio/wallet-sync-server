@@ -2,6 +2,7 @@ package store
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -162,7 +163,7 @@ func TestStoreSaveToken(t *testing.T) {
 	if authToken_d1_1.Expiration == nil {
 		t.Fatalf("Expected SaveToken to set an Expiration")
 	}
-	nowDiff := authToken_d1_1.Expiration.Sub(time.Now())
+	nowDiff := authToken_d1_1.Expiration.Sub(time.Now().UTC())
 	if time.Hour*24*14+time.Minute < nowDiff || nowDiff < time.Hour*24*14-time.Minute {
 		t.Fatalf("Expected SaveToken to set a token Expiration 2 weeks in the future.")
 	}
@@ -254,14 +255,50 @@ func TestStoreGetToken(t *testing.T) {
 	}
 }
 
+// TODO - New tests for each db method, checking for missing "NOT NULL" fields. Can do the loop thing, and always just check for null error or whatever
 func TestStoreSanitizeEmptyFields(t *testing.T) {
 	// Make sure expiration doesn't get set if sanitization fails
 	t.Fatalf("Test me")
 }
 
-func TestStoreTimeZones(t *testing.T) {
-	// Make sure the tz situation is as we prefer in the DB unless we just do UTC.
-	t.Fatalf("Test me")
+// Make sure we're saving in UTC. Make sure we have no weird timezone issues.
+func TestStoreTokenUTC(t *testing.T) {
+	s, sqliteTmpFile := StoreTestInit(t)
+	defer StoreTestCleanup(sqliteTmpFile)
+
+	authToken := auth.AuthToken{
+		Token:    "seekrit-1",
+		DeviceId: "dId",
+		Scope:    "*",
+		UserId:   123,
+	}
+
+	if err := s.SaveToken(&authToken); err != nil {
+		t.Fatalf("Unexpected error in SaveToken: %+v", err)
+	}
+
+	rows, err := s.db.Query("SELECT expiration FROM auth_tokens LIMIT 1")
+	defer rows.Close()
+
+	if err != nil {
+		t.Fatalf("Unexpected error getting expiration from db: %+v", err)
+	}
+
+	var expirationString string
+	for rows.Next() {
+
+		err := rows.Scan(
+			&expirationString,
+		)
+
+		if err != nil {
+			t.Fatalf("Unexpected error parsing expiration from db: %+v", err)
+		}
+	}
+
+	if !strings.HasSuffix(expirationString, "Z") {
+		t.Fatalf("Expected expiration timezone to be UTC (+00:00). Got %s", expirationString)
+	}
 }
 
 func expectWalletExists(
