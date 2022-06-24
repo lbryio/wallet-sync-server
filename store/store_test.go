@@ -264,27 +264,6 @@ func TestStoreTimeZones(t *testing.T) {
 	t.Fatalf("Test me")
 }
 
-func TestStoreSetWalletSuccess(t *testing.T) {
-	/*
-	  Sequence 1 - works via insert
-	  Sequence 2 - works via update
-	  Sequence 3 - works via update
-	*/
-	t.Fatalf("Test me: Wallet Set successes")
-}
-
-func TestStoreSetWalletFail(t *testing.T) {
-	/*
-	  Sequence 1 - fails via insert - fail by having something there already
-	  Sequence 2 - fails via update - fail by not having something there already
-	  Sequence 3 - fails via update - fail by having something with wrong sequence number
-	  Sequence 4 - fails via update - fail by having something with non-matching device sequence history
-
-	  Maybe some of the above gets put off to wallet util
-	*/
-	t.Fatalf("Test me: Wallet Set failures")
-}
-
 func expectWalletExists(
 	t *testing.T,
 	s *Store,
@@ -306,7 +285,7 @@ func expectWalletNotExists(t *testing.T, s *Store, userId auth.UserId) {
 	}
 }
 
-func setupWalletTest() auth.UserId {
+func setupWalletTest(s *Store) auth.UserId {
 	email, password := auth.Email("abc@example.com"), auth.Password("123")
 	_ = s.CreateAccount(email, password)
 	userId, _ := s.GetUserId(email, password)
@@ -320,7 +299,7 @@ func TestStoreInsertWallet(t *testing.T) {
 	defer StoreTestCleanup(sqliteTmpFile)
 
 	// Get a valid userId
-	userId = setupWalletTest()
+	userId := setupWalletTest(&s)
 
 	// Get a wallet, come back empty
 	expectWalletNotExists(t, &s, userId)
@@ -352,7 +331,7 @@ func TestStoreUpdateWallet(t *testing.T) {
 	defer StoreTestCleanup(sqliteTmpFile)
 
 	// Get a valid userId
-	userId = setupWalletTest()
+	userId := setupWalletTest(&s)
 
 	// Try to update a wallet, fail for nothing to update
 	if err := s.updateWalletToSequence(userId, wallet.EncryptedWallet("my-enc-wallet-a"), wallet.Sequence(1), wallet.WalletHmac("my-hmac-a")); err != ErrNoWallet {
@@ -389,6 +368,63 @@ func TestStoreUpdateWallet(t *testing.T) {
 	}
 
 	// Get a wallet, have the values we put in
+	expectWalletExists(t, &s, userId, wallet.EncryptedWallet("my-enc-wallet-c"), wallet.Sequence(3), wallet.WalletHmac("my-hmac-c"))
+}
+
+// NOTE - the "behind the scenes" comments give a view of what we're expecting
+// to happen, and why we're testing what we are. Sometimes it should insert,
+// sometimes it should update. It depends on whether it's the first wallet
+// submitted, and that's easily determined by sequence=1. However, if we switch
+// to a database with "upserts" and take advantage of it, what happens behind
+// the scenes will change a little, so the comments should be updated. Though,
+// we'd probably best test the same cases.
+//
+// TODO when we have lastSynced again: test fail via update for having
+// non-matching device sequence history. Though, maybe this goes into wallet
+// util
+func TestStoreSetWallet(t *testing.T) {
+	s, sqliteTmpFile := StoreTestInit(t)
+	defer StoreTestCleanup(sqliteTmpFile)
+
+	// Get a valid userId
+	userId := setupWalletTest(&s)
+
+	// Sequence 2 - fails - out of sequence (behind the scenes, tries to update but there's nothing there yet)
+	if err := s.SetWallet(userId, wallet.EncryptedWallet("my-enc-wallet-a"), wallet.Sequence(2), wallet.WalletHmac("my-hmac-a")); err != ErrWrongSequence {
+		t.Fatalf(`SetWallet err: wanted "%+v", got "%+v"`, ErrWrongSequence, err)
+	}
+	expectWalletNotExists(t, &s, userId)
+
+	// Sequence 1 - succeeds - out of sequence (behind the scenes, does an insert)
+	if err := s.SetWallet(userId, wallet.EncryptedWallet("my-enc-wallet-a"), wallet.Sequence(1), wallet.WalletHmac("my-hmac-a")); err != nil {
+		t.Fatalf("Unexpected error in SetWallet: %+v", err)
+	}
+	expectWalletExists(t, &s, userId, wallet.EncryptedWallet("my-enc-wallet-a"), wallet.Sequence(1), wallet.WalletHmac("my-hmac-a"))
+
+	// Sequence 1 - fails - out of sequence (behind the scenes, tries to insert but there's something there already)
+	if err := s.SetWallet(userId, wallet.EncryptedWallet("my-enc-wallet-b"), wallet.Sequence(1), wallet.WalletHmac("my-hmac-b")); err != ErrWrongSequence {
+		t.Fatalf(`SetWallet err: wanted "%+v", got "%+v"`, ErrWrongSequence, err)
+	}
+	// Expect the *first* wallet to still be there
+	expectWalletExists(t, &s, userId, wallet.EncryptedWallet("my-enc-wallet-a"), wallet.Sequence(1), wallet.WalletHmac("my-hmac-a"))
+
+	// Sequence 3 - fails - out of sequence (behind the scenes: tries via update, which is appropriate here)
+	if err := s.SetWallet(userId, wallet.EncryptedWallet("my-enc-wallet-b"), wallet.Sequence(3), wallet.WalletHmac("my-hmac-b")); err != ErrWrongSequence {
+		t.Fatalf(`SetWallet err: wanted "%+v", got "%+v"`, ErrWrongSequence, err)
+	}
+	// Expect the *first* wallet to still be there
+	expectWalletExists(t, &s, userId, wallet.EncryptedWallet("my-enc-wallet-a"), wallet.Sequence(1), wallet.WalletHmac("my-hmac-a"))
+
+	// Sequence 2 - succeeds - (behind the scenes, does an update. Tests successful update-after-insert)
+	if err := s.SetWallet(userId, wallet.EncryptedWallet("my-enc-wallet-b"), wallet.Sequence(2), wallet.WalletHmac("my-hmac-b")); err != nil {
+		t.Fatalf("Unexpected error in SetWallet: %+v", err)
+	}
+	expectWalletExists(t, &s, userId, wallet.EncryptedWallet("my-enc-wallet-b"), wallet.Sequence(2), wallet.WalletHmac("my-hmac-b"))
+
+	// Sequence 3 - succeeds - (behind the scenes, does an update. Tests successful update-after-update. Maybe gratuitous?)
+	if err := s.SetWallet(userId, wallet.EncryptedWallet("my-enc-wallet-c"), wallet.Sequence(3), wallet.WalletHmac("my-hmac-c")); err != nil {
+		t.Fatalf("Unexpected error in SetWallet: %+v", err)
+	}
 	expectWalletExists(t, &s, userId, wallet.EncryptedWallet("my-enc-wallet-c"), wallet.Sequence(3), wallet.WalletHmac("my-hmac-c"))
 }
 
