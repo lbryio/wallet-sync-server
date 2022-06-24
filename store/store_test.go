@@ -374,12 +374,77 @@ func TestStoreInsertWallet(t *testing.T) {
 	}
 }
 
-func TestStoreUpdateWalletSuccess(t *testing.T) {
-	t.Fatalf("Test me: Wallet update successes")
-}
+// Test updateWalletToSequence, using GetWallet, CreateAccount, GetUserID, and insertFirstWallet as helpers
+// Try updateWalletToSequence with no existing wallet, err for lack of anything to update
+// Try updateWalletToSequence with a preexisting wallet but the wrong sequence, fail
+// Try updateWalletToSequence with a preexisting wallet and the correct sequence, succeed
+// Try updateWalletToSequence again, succeed
+func TestStoreUpdateWallet(t *testing.T) {
+	s, sqliteTmpFile := StoreTestInit(t)
+	defer StoreTestCleanup(sqliteTmpFile)
 
-func TestStoreUpdateWalletFail(t *testing.T) {
-	t.Fatalf("Test me: Wallet update failures")
+	// Get a valid userId
+	email, password := auth.Email("abc@example.com"), auth.Password("123")
+	_ = s.CreateAccount(email, password)
+	userId, _ := s.GetUserId(email, password)
+
+	// Try to update a wallet, fail for nothing to update
+	if err := s.updateWalletToSequence(userId, wallet.EncryptedWallet("my-encrypted-wallet-a"), wallet.Sequence(1), wallet.WalletHmac("my-hmac-a")); err != ErrNoWallet {
+		t.Fatalf(`updateWalletToSequence err: wanted "%+v", got "%+v"`, ErrNoWallet, err)
+	}
+
+	// Get a wallet, come back empty since it failed
+	encryptedWallet, sequence, hmac, err := s.GetWallet(userId)
+	if len(encryptedWallet) != 0 || sequence != 0 || len(hmac) != 0 || err != ErrNoWallet {
+		t.Fatalf("Expected ErrNoWallet. encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
+	}
+
+	// Put in a first wallet
+	if err := s.insertFirstWallet(userId, wallet.EncryptedWallet("my-encrypted-wallet-a"), wallet.WalletHmac("my-hmac-a")); err != nil {
+		t.Fatalf("Unexpected error in insertFirstWallet: %+v", err)
+	}
+
+	// Try to update the wallet, fail for having the wrong sequence
+	if err := s.updateWalletToSequence(userId, wallet.EncryptedWallet("my-encrypted-wallet-b"), wallet.Sequence(3), wallet.WalletHmac("my-hmac-b")); err != ErrNoWallet {
+		t.Fatalf(`updateWalletToSequence err: wanted "%+v", got "%+v"`, ErrNoWallet, err)
+	}
+
+	// Get the same wallet we initially *inserted*, since it didn't update
+	encryptedWallet, sequence, hmac, err = s.GetWallet(userId)
+	if encryptedWallet != wallet.EncryptedWallet("my-encrypted-wallet-a") ||
+		sequence != wallet.Sequence(1) ||
+		hmac != wallet.WalletHmac("my-hmac-a") ||
+		err != nil {
+		t.Fatalf("Expected values for wallet: encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
+	}
+
+	// Update the wallet successfully, with the right sequence
+	if err := s.updateWalletToSequence(userId, wallet.EncryptedWallet("my-encrypted-wallet-b"), wallet.Sequence(2), wallet.WalletHmac("my-hmac-b")); err != nil {
+		t.Fatalf("Unexpected error in updateWalletToSequence: %+v", err)
+	}
+
+	// Get a wallet, have the values we put in
+	encryptedWallet, sequence, hmac, err = s.GetWallet(userId)
+	if encryptedWallet != wallet.EncryptedWallet("my-encrypted-wallet-b") ||
+		sequence != wallet.Sequence(2) ||
+		hmac != wallet.WalletHmac("my-hmac-b") ||
+		err != nil {
+		t.Fatalf("Unexpected values for wallet: encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
+	}
+
+	// Update the wallet again successfully
+	if err := s.updateWalletToSequence(userId, wallet.EncryptedWallet("my-encrypted-wallet-c"), wallet.Sequence(3), wallet.WalletHmac("my-hmac-c")); err != nil {
+		t.Fatalf("Unexpected error in updateWalletToSequence: %+v", err)
+	}
+
+	// Get a wallet, have the values we put in
+	encryptedWallet, sequence, hmac, err = s.GetWallet(userId)
+	if encryptedWallet != wallet.EncryptedWallet("my-encrypted-wallet-c") ||
+		sequence != wallet.Sequence(3) ||
+		hmac != wallet.WalletHmac("my-hmac-c") ||
+		err != nil {
+		t.Fatalf("Unexpected values for wallet: encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
+	}
 }
 
 func TestStoreGetWalletSuccess(t *testing.T) {
