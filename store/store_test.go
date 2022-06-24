@@ -285,6 +285,27 @@ func TestStoreSetWalletFail(t *testing.T) {
 	t.Fatalf("Test me: Wallet Set failures")
 }
 
+func expectWalletExists(
+	t *testing.T,
+	s *Store,
+	userId auth.UserId,
+	expectedEncryptedWallet wallet.EncryptedWallet,
+	expectedSequence wallet.Sequence,
+	expectedHmac wallet.WalletHmac,
+) {
+	encryptedWallet, sequence, hmac, err := s.GetWallet(userId)
+	if encryptedWallet != expectedEncryptedWallet || sequence != expectedSequence || hmac != expectedHmac || err != nil {
+		t.Fatalf("Unexpected values for wallet: encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
+	}
+}
+
+func expectWalletNotExists(t *testing.T, s *Store, userId auth.UserId) {
+	encryptedWallet, sequence, hmac, err := s.GetWallet(userId)
+	if len(encryptedWallet) != 0 || sequence != 0 || len(hmac) != 0 || err != ErrNoWallet {
+		t.Fatalf("Expected ErrNoWallet, and no wallet values. Instead got: encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
+	}
+}
+
 // Test insertFirstWallet, using GetWallet, CreateAccount and GetUserID as a helpers
 // Try insertFirstWallet twice with the same user id, error the second time
 func TestStoreInsertWallet(t *testing.T) {
@@ -297,10 +318,7 @@ func TestStoreInsertWallet(t *testing.T) {
 	userId, _ := s.GetUserId(email, password)
 
 	// Get a wallet, come back empty
-	encryptedWallet, sequence, hmac, err := s.GetWallet(userId)
-	if len(encryptedWallet) != 0 || sequence != 0 || len(hmac) != 0 || err != ErrNoWallet {
-		t.Fatalf("Expected ErrNoWallet. encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
-	}
+	expectWalletNotExists(t, &s, userId)
 
 	// Put in a first wallet
 	if err := s.insertFirstWallet(userId, wallet.EncryptedWallet("my-encrypted-wallet"), wallet.WalletHmac("my-hmac")); err != nil {
@@ -308,13 +326,7 @@ func TestStoreInsertWallet(t *testing.T) {
 	}
 
 	// Get a wallet, have the values we put in with a sequence of 1
-	encryptedWallet, sequence, hmac, err = s.GetWallet(userId)
-	if encryptedWallet != wallet.EncryptedWallet("my-encrypted-wallet") ||
-		sequence != wallet.Sequence(1) ||
-		hmac != wallet.WalletHmac("my-hmac") ||
-		err != nil {
-		t.Fatalf("Unexpected values for wallet: encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
-	}
+	expectWalletExists(t, &s, userId, wallet.EncryptedWallet("my-encrypted-wallet"), wallet.Sequence(1), wallet.WalletHmac("my-hmac"))
 
 	// Put in a first wallet for a second time, have an error for trying
 	if err := s.insertFirstWallet(userId, wallet.EncryptedWallet("my-encrypted-wallet-2"), wallet.WalletHmac("my-hmac-2")); err != ErrDuplicateWallet {
@@ -322,13 +334,7 @@ func TestStoreInsertWallet(t *testing.T) {
 	}
 
 	// Get the same *first* wallet we successfully put in
-	encryptedWallet, sequence, hmac, err = s.GetWallet(userId)
-	if encryptedWallet != wallet.EncryptedWallet("my-encrypted-wallet") ||
-		sequence != wallet.Sequence(1) ||
-		hmac != wallet.WalletHmac("my-hmac") ||
-		err != nil {
-		t.Fatalf("Unexpected values for wallet: encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
-	}
+	expectWalletExists(t, &s, userId, wallet.EncryptedWallet("my-encrypted-wallet"), wallet.Sequence(1), wallet.WalletHmac("my-hmac"))
 }
 
 // Test updateWalletToSequence, using GetWallet, CreateAccount, GetUserID, and insertFirstWallet as helpers
@@ -351,10 +357,7 @@ func TestStoreUpdateWallet(t *testing.T) {
 	}
 
 	// Get a wallet, come back empty since it failed
-	encryptedWallet, sequence, hmac, err := s.GetWallet(userId)
-	if len(encryptedWallet) != 0 || sequence != 0 || len(hmac) != 0 || err != ErrNoWallet {
-		t.Fatalf("Expected ErrNoWallet. encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
-	}
+	expectWalletNotExists(t, &s, userId)
 
 	// Put in a first wallet
 	if err := s.insertFirstWallet(userId, wallet.EncryptedWallet("my-encrypted-wallet-a"), wallet.WalletHmac("my-hmac-a")); err != nil {
@@ -367,13 +370,7 @@ func TestStoreUpdateWallet(t *testing.T) {
 	}
 
 	// Get the same wallet we initially *inserted*, since it didn't update
-	encryptedWallet, sequence, hmac, err = s.GetWallet(userId)
-	if encryptedWallet != wallet.EncryptedWallet("my-encrypted-wallet-a") ||
-		sequence != wallet.Sequence(1) ||
-		hmac != wallet.WalletHmac("my-hmac-a") ||
-		err != nil {
-		t.Fatalf("Expected values for wallet: encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
-	}
+	expectWalletExists(t, &s, userId, wallet.EncryptedWallet("my-encrypted-wallet-a"), wallet.Sequence(1), wallet.WalletHmac("my-hmac-a"))
 
 	// Update the wallet successfully, with the right sequence
 	if err := s.updateWalletToSequence(userId, wallet.EncryptedWallet("my-encrypted-wallet-b"), wallet.Sequence(2), wallet.WalletHmac("my-hmac-b")); err != nil {
@@ -381,13 +378,7 @@ func TestStoreUpdateWallet(t *testing.T) {
 	}
 
 	// Get a wallet, have the values we put in
-	encryptedWallet, sequence, hmac, err = s.GetWallet(userId)
-	if encryptedWallet != wallet.EncryptedWallet("my-encrypted-wallet-b") ||
-		sequence != wallet.Sequence(2) ||
-		hmac != wallet.WalletHmac("my-hmac-b") ||
-		err != nil {
-		t.Fatalf("Unexpected values for wallet: encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
-	}
+	expectWalletExists(t, &s, userId, wallet.EncryptedWallet("my-encrypted-wallet-b"), wallet.Sequence(2), wallet.WalletHmac("my-hmac-b"))
 
 	// Update the wallet again successfully
 	if err := s.updateWalletToSequence(userId, wallet.EncryptedWallet("my-encrypted-wallet-c"), wallet.Sequence(3), wallet.WalletHmac("my-hmac-c")); err != nil {
@@ -395,13 +386,7 @@ func TestStoreUpdateWallet(t *testing.T) {
 	}
 
 	// Get a wallet, have the values we put in
-	encryptedWallet, sequence, hmac, err = s.GetWallet(userId)
-	if encryptedWallet != wallet.EncryptedWallet("my-encrypted-wallet-c") ||
-		sequence != wallet.Sequence(3) ||
-		hmac != wallet.WalletHmac("my-hmac-c") ||
-		err != nil {
-		t.Fatalf("Unexpected values for wallet: encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
-	}
+	expectWalletExists(t, &s, userId, wallet.EncryptedWallet("my-encrypted-wallet-c"), wallet.Sequence(3), wallet.WalletHmac("my-hmac-c"))
 }
 
 func TestStoreGetWalletSuccess(t *testing.T) {
