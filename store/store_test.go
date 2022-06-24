@@ -9,13 +9,13 @@ import (
 	"orblivion/lbry-id/wallet"
 )
 
-func expectTokenExists(t *testing.T, s *Store, token auth.TokenString, expected auth.AuthToken) {
+func expectTokenExists(t *testing.T, s *Store, token auth.TokenString, expectedToken auth.AuthToken) {
 	gotToken, err := s.GetToken(token)
 	if err != nil {
 		t.Fatalf("Unexpected error in GetToken: %+v", err)
 	}
-	if gotToken == nil || !reflect.DeepEqual(*gotToken, expected) {
-		t.Fatalf("token: \n  expected %+v\n  got:     %+v", expected, *gotToken)
+	if gotToken == nil || !reflect.DeepEqual(*gotToken, expectedToken) {
+		t.Fatalf("token: \n  expected %+v\n  got:     %+v", expectedToken, *gotToken)
 	}
 }
 
