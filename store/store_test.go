@@ -453,8 +453,50 @@ func TestStoreGetWallet(t *testing.T) {
 	}
 }
 
+func expectAccountExists(t *testing.T, s *Store, email auth.Email, password auth.Password) {
+	_, err := s.GetUserId(email, password)
+	if err != nil {
+		t.Fatalf("Unexpected error in GetUserId: %+v", err)
+	}
+}
+
+func expectAccountNotExists(t *testing.T, s *Store, email auth.Email, password auth.Password) {
+	_, err := s.GetUserId(email, password)
+	if err != ErrNoUId {
+		t.Fatalf("Expected ErrNoUId. err: %+v", err)
+	}
+}
+
+// Test CreateAccount, using GetUserId as a helper
+// Try CreateAccount twice with the same email and different password, error the second time
 func TestStoreCreateAccount(t *testing.T) {
-	t.Fatalf("Test me: Account create success and failures")
+	s, sqliteTmpFile := StoreTestInit(t)
+	defer StoreTestCleanup(sqliteTmpFile)
+
+	email, password := auth.Email("abc@example.com"), auth.Password("123")
+
+	// Get an account, come back empty
+	expectAccountNotExists(t, &s, email, password)
+
+	// Create an account
+	if err := s.CreateAccount(email, password); err != nil {
+		t.Fatalf("Unexpected error in CreateAccount: %+v", err)
+	}
+
+	// Get and confirm the account we just put in
+	expectAccountExists(t, &s, email, password)
+
+	newPassword := auth.Password("xyz")
+
+	// Try to create a new account with the same email and different password,
+	// fail because email already exists
+	if err := s.CreateAccount(email, newPassword); err != ErrDuplicateAccount {
+		t.Fatalf(`CreateAccount err: wanted "%+v", got "%+v"`, ErrDuplicateAccount, err)
+	}
+
+	// Get the email and same *first* password we successfully put in, but not the second
+	expectAccountExists(t, &s, email, password)
+	expectAccountNotExists(t, &s, email, newPassword)
 }
 
 func TestStoreGetUserId(t *testing.T) {

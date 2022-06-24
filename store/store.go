@@ -342,14 +342,6 @@ func (s *Store) CreateAccount(email auth.Email, password auth.Password) (err err
 
 	var sqliteErr sqlite3.Error
 	if errors.As(err, &sqliteErr) {
-		// I initially expected to need to check for ErrConstraintUnique.
-		// Maybe for psql it will be?
-		// TODO - is this right? Does the above comment explain that it's backwards
-		// from what I would have expected? Or did I do this backwards?
-		// Or is this a holdover from when an account was attached to a walletstate?
-		if errors.Is(sqliteErr.ExtendedCode, sqlite3.ErrConstraintPrimaryKey) {
-			err = ErrDuplicateEmail
-		}
 		if errors.Is(sqliteErr.ExtendedCode, sqlite3.ErrConstraintUnique) {
 			err = ErrDuplicateAccount
 		}
