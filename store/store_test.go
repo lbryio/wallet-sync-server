@@ -499,6 +499,24 @@ func TestStoreCreateAccount(t *testing.T) {
 	expectAccountNotExists(t, &s, email, newPassword)
 }
 
+// Test GetUserId, using CreateAccount as a helper
+// Try GetUserId before creating an account (fail), and after (succeed)
 func TestStoreGetUserId(t *testing.T) {
-	t.Fatalf("Test me: User ID get success and failures")
+	s, sqliteTmpFile := StoreTestInit(t)
+	defer StoreTestCleanup(sqliteTmpFile)
+
+	email, password := auth.Email("abc@example.com"), auth.Password("123")
+
+	// Check that there's no user id for email and password first
+	if userId, err := s.GetUserId(email, password); err != ErrNoUId || userId != 0 {
+		t.Fatalf(`CreateAccount err: wanted "%+v", got "%+v. userId: %v"`, ErrNoUId, err, userId)
+	}
+
+	// Create the account
+	_ = s.CreateAccount(email, password)
+
+	// Check that there's now a user id for the email and password
+	if userId, err := s.GetUserId(email, password); err != nil || userId == 0 {
+		t.Fatalf("Unexpected error in GetUserId: err: %+v userId: %v", err, userId)
+	}
 }
