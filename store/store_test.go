@@ -306,6 +306,13 @@ func expectWalletNotExists(t *testing.T, s *Store, userId auth.UserId) {
 	}
 }
 
+func setupWalletTest() auth.UserId {
+	email, password := auth.Email("abc@example.com"), auth.Password("123")
+	_ = s.CreateAccount(email, password)
+	userId, _ := s.GetUserId(email, password)
+	return userId
+}
+
 // Test insertFirstWallet, using GetWallet, CreateAccount and GetUserID as a helpers
 // Try insertFirstWallet twice with the same user id, error the second time
 func TestStoreInsertWallet(t *testing.T) {
@@ -313,9 +320,7 @@ func TestStoreInsertWallet(t *testing.T) {
 	defer StoreTestCleanup(sqliteTmpFile)
 
 	// Get a valid userId
-	email, password := auth.Email("abc@example.com"), auth.Password("123")
-	_ = s.CreateAccount(email, password)
-	userId, _ := s.GetUserId(email, password)
+	userId = setupWalletTest()
 
 	// Get a wallet, come back empty
 	expectWalletNotExists(t, &s, userId)
@@ -347,9 +352,7 @@ func TestStoreUpdateWallet(t *testing.T) {
 	defer StoreTestCleanup(sqliteTmpFile)
 
 	// Get a valid userId
-	email, password := auth.Email("abc@example.com"), auth.Password("123")
-	_ = s.CreateAccount(email, password)
-	userId, _ := s.GetUserId(email, password)
+	userId = setupWalletTest()
 
 	// Try to update a wallet, fail for nothing to update
 	if err := s.updateWalletToSequence(userId, wallet.EncryptedWallet("my-encrypted-wallet-a"), wallet.Sequence(1), wallet.WalletHmac("my-hmac-a")); err != ErrNoWallet {
