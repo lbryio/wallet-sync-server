@@ -15,17 +15,65 @@ func expectWalletExists(
 	expectedSequence wallet.Sequence,
 	expectedHmac wallet.WalletHmac,
 ) {
-	encryptedWallet, sequence, hmac, err := s.GetWallet(userId)
-	if encryptedWallet != expectedEncryptedWallet || sequence != expectedSequence || hmac != expectedHmac || err != nil {
-		t.Fatalf("Unexpected values for wallet: encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
+	rows, err := s.db.Query(
+		"SELECT encrypted_wallet, sequence, hmac FROM wallets WHERE user_id=?", userId)
+	if err != nil {
+		t.Fatalf("Error finding wallet for user_id=%d: %+v", userId, err)
 	}
+	defer rows.Close()
+
+	var encryptedWallet wallet.EncryptedWallet
+	var sequence wallet.Sequence
+	var hmac wallet.WalletHmac
+
+	for rows.Next() {
+
+		err := rows.Scan(
+			&encryptedWallet,
+			&sequence,
+			&hmac,
+		)
+
+		if err != nil {
+			t.Fatalf("Error finding wallet for user_id=%d: %+v", userId, err)
+		}
+
+		if encryptedWallet != expectedEncryptedWallet || sequence != expectedSequence || hmac != expectedHmac || err != nil {
+			t.Fatalf("Unexpected values for wallet: encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
+		}
+
+		return // found a match, we're good
+	}
+	t.Fatalf("Expected wallet for user_id=%d: %+v", userId, err)
 }
 
 func expectWalletNotExists(t *testing.T, s *Store, userId auth.UserId) {
-	encryptedWallet, sequence, hmac, err := s.GetWallet(userId)
-	if len(encryptedWallet) != 0 || sequence != 0 || len(hmac) != 0 || err != ErrNoWallet {
-		t.Fatalf("Expected ErrNoWallet, and no wallet values. Instead got: encrypted wallet: %+v sequence: %+v hmac: %+v err: %+v", encryptedWallet, sequence, hmac, err)
+	rows, err := s.db.Query(
+		"SELECT encrypted_wallet, sequence, hmac FROM wallets WHERE user_id=?", userId)
+	if err != nil {
+		t.Fatalf("Error finding (lack of) wallet for user_id=%d: %+v", userId, err)
 	}
+	defer rows.Close()
+
+	var encryptedWallet wallet.EncryptedWallet
+	var sequence wallet.Sequence
+	var hmac wallet.WalletHmac
+
+	for rows.Next() {
+
+		err := rows.Scan(
+			&encryptedWallet,
+			&sequence,
+			&hmac,
+		)
+
+		if err != nil {
+			t.Fatalf("Error finding (lack of) wallet for user_id=%d: %+v", userId, err)
+		}
+
+		t.Fatalf("Expected no wallet. Got: encrypted wallet: %+v sequence: %+v hmac: %+v", encryptedWallet, sequence, hmac)
+	}
+	return // found nothing, we're good
 }
 
 func setupWalletTest(s *Store) auth.UserId {

@@ -4,14 +4,15 @@ package store
 
 import (
 	"database/sql"
-
 	"errors"
 	"fmt"
-	"github.com/mattn/go-sqlite3"
 	"log"
+	"time"
+
+	"github.com/mattn/go-sqlite3"
+
 	"orblivion/lbry-id/auth"
 	"orblivion/lbry-id/wallet"
-	"time"
 )
 
 var (
@@ -133,7 +134,7 @@ func (s *Store) GetToken(token auth.TokenString) (*auth.AuthToken, error) {
 		}
 		return &authToken, nil
 	}
-	return nil, ErrNoToken // TODO - will need to test
+	return nil, ErrNoToken
 }
 
 func (s *Store) insertToken(authToken *auth.AuthToken, expiration time.Time) (err error) {

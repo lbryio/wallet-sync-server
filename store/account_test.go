@@ -7,17 +7,37 @@ import (
 )
 
 func expectAccountExists(t *testing.T, s *Store, email auth.Email, password auth.Password) {
-	_, err := s.GetUserId(email, password)
+	rows, err := s.db.Query(
+		`SELECT 1 from accounts WHERE email=? AND password=?`,
+		email, password.Obfuscate(),
+	)
 	if err != nil {
-		t.Fatalf("Unexpected error in GetUserId: %+v", err)
+		t.Fatalf("Error finding account for: %s %s - %+v", email, password, err)
 	}
+	defer rows.Close()
+
+	for rows.Next() {
+		return // found something, we're good
+	}
+
+	t.Fatalf("Expected account for: %s %s", email, password)
 }
 
 func expectAccountNotExists(t *testing.T, s *Store, email auth.Email, password auth.Password) {
-	_, err := s.GetUserId(email, password)
-	if err != ErrNoUId {
-		t.Fatalf("Expected ErrNoUId. err: %+v", err)
+	rows, err := s.db.Query(
+		`SELECT 1 from accounts WHERE email=? AND password=?`,
+		email, password.Obfuscate(),
+	)
+	if err != nil {
+		t.Fatalf("Error finding account for: %s %s - %+v", email, password, err)
 	}
+	defer rows.Close()
+
+	for rows.Next() {
+		t.Fatalf("Expected no account for: %s %s", email, password)
+	}
+
+	// found nothing, we're good
 }
 
 // Test CreateAccount, using GetUserId as a helper
