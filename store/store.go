@@ -111,7 +111,7 @@ func (s *Store) GetToken(token auth.TokenString) (*auth.AuthToken, error) {
 	expirationCutoff := time.Now().UTC()
 
 	rows, err := s.db.Query(
-		"SELECT * FROM auth_tokens WHERE token=? AND expiration>?", token, expirationCutoff,
+		"SELECT user_id, device_id, scope, expiration FROM auth_tokens WHERE token=? AND expiration>?", token, expirationCutoff,
 	)
 	if err != nil {
 		return nil, err
@@ -122,12 +122,13 @@ func (s *Store) GetToken(token auth.TokenString) (*auth.AuthToken, error) {
 	for rows.Next() {
 
 		err := rows.Scan(
-			&authToken.Token,
 			&authToken.UserId,
 			&authToken.DeviceId,
 			&authToken.Scope,
 			&authToken.Expiration,
 		)
+
+		authToken.Token = token
 
 		if err != nil {
 			return nil, err
