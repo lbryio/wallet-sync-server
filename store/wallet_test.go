@@ -76,11 +76,27 @@ func expectWalletNotExists(t *testing.T, s *Store, userId auth.UserId) {
 	return // found nothing, we're good
 }
 
-func setupWalletTest(s *Store) auth.UserId {
+func setupWalletTest(t *testing.T, s *Store) auth.UserId {
 	email, password := auth.Email("abc@example.com"), auth.Password("123")
-	_ = s.CreateAccount(email, password)
-	userId, _ := s.GetUserId(email, password)
-	return userId
+
+	rows, err := s.db.Query(
+		"INSERT INTO accounts (email, password) values(?,?) returning user_id",
+		email, password.Obfuscate(),
+	)
+	if err != nil {
+		t.Fatalf("Error setting up account")
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var userId auth.UserId
+		err := rows.Scan(&userId)
+		if err != nil {
+			t.Fatalf("Error setting up account")
+		}
+		return userId
+	}
+	t.Fatalf("Error setting up account")
+	return auth.UserId(0)
 }
 
 // Test insertFirstWallet, using GetWallet, CreateAccount and GetUserID as a helpers
@@ -90,7 +106,7 @@ func TestStoreInsertWallet(t *testing.T) {
 	defer StoreTestCleanup(sqliteTmpFile)
 
 	// Get a valid userId
-	userId := setupWalletTest(&s)
+	userId := setupWalletTest(t, &s)
 
 	// Get a wallet, come back empty
 	expectWalletNotExists(t, &s, userId)
@@ -122,7 +138,7 @@ func TestStoreUpdateWallet(t *testing.T) {
 	defer StoreTestCleanup(sqliteTmpFile)
 
 	// Get a valid userId
-	userId := setupWalletTest(&s)
+	userId := setupWalletTest(t, &s)
 
 	// Try to update a wallet, fail for nothing to update
 	if err := s.updateWalletToSequence(userId, wallet.EncryptedWallet("my-enc-wallet-a"), wallet.Sequence(1), wallet.WalletHmac("my-hmac-a")); err != ErrNoWallet {
@@ -178,7 +194,7 @@ func TestStoreSetWallet(t *testing.T) {
 	defer StoreTestCleanup(sqliteTmpFile)
 
 	// Get a valid userId
-	userId := setupWalletTest(&s)
+	userId := setupWalletTest(t, &s)
 
 	// Sequence 2 - fails - out of sequence (behind the scenes, tries to update but there's nothing there yet)
 	if err := s.SetWallet(userId, wallet.EncryptedWallet("my-enc-wallet-a"), wallet.Sequence(2), wallet.WalletHmac("my-hmac-a")); err != ErrWrongSequence {
@@ -225,7 +241,7 @@ func TestStoreGetWallet(t *testing.T) {
 	defer StoreTestCleanup(sqliteTmpFile)
 
 	// Get a valid userId
-	userId := setupWalletTest(&s)
+	userId := setupWalletTest(t, &s)
 
 	// GetWallet fails when there's no wallet
 	encryptedWallet, sequence, hmac, err := s.GetWallet(userId)
