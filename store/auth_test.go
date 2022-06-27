@@ -1,7 +1,6 @@
 package store
 
 import (
-	"strings"
 	"testing"
 
 	"orblivion/lbry-id/auth"
@@ -75,42 +74,8 @@ func TestStoreGetUserId(t *testing.T) {
 	}
 }
 
-// Make sure we're saving in UTC. Make sure we have no weird timezone issues.
-func TestStoreTokenUTC(t *testing.T) {
-	s, sqliteTmpFile := StoreTestInit(t)
-	defer StoreTestCleanup(sqliteTmpFile)
-
-	authToken := auth.AuthToken{
-		Token:    "seekrit-1",
-		DeviceId: "dId",
-		Scope:    "*",
-		UserId:   123,
-	}
-
-	if err := s.SaveToken(&authToken); err != nil {
-		t.Fatalf("Unexpected error in SaveToken: %+v", err)
-	}
-
-	rows, err := s.db.Query("SELECT expiration FROM auth_tokens LIMIT 1")
-	defer rows.Close()
-
-	if err != nil {
-		t.Fatalf("Unexpected error getting expiration from db: %+v", err)
-	}
-
-	var expirationString string
-	for rows.Next() {
-
-		err := rows.Scan(
-			&expirationString,
-		)
-
-		if err != nil {
-			t.Fatalf("Unexpected error parsing expiration from db: %+v", err)
-		}
-	}
-
-	if !strings.HasSuffix(expirationString, "Z") {
-		t.Fatalf("Expected expiration timezone to be UTC (+00:00). Got %s", expirationString)
-	}
+// TODO - Tests each db method. Check for missing "NOT NULL" fields. Do the loop thing, and always just check for null error.
+func TestStoreAccountEmptyFields(t *testing.T) {
+	// Make sure expiration doesn't get set if sanitization fails
+	t.Fatalf("Test me")
 }

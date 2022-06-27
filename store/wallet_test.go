@@ -196,4 +196,8 @@ func TestStoreGetWallet(t *testing.T) {
 	}
 }
 
-
+// TODO - Tests each db method. Check for missing "NOT NULL" fields. Do the loop thing, and always just check for null error.
+func TestStoreWalletEmptyFields(t *testing.T) {
+	// Make sure expiration doesn't get set if sanitization fails
+	t.Fatalf("Test me")
+}
