@@ -69,8 +69,6 @@ func (s *Store) Migrate() error {
 	// security in case we screw up the random generator). However the primary
 	// key should still be (user_id, device_id) so that a device's row can be
 	// updated with a new token.
-
-	// TODO does it actually fail with empty "NOT NULL" fields?
 	query := `
 		CREATE TABLE IF NOT EXISTS auth_tokens(
 			token TEXT NOT NULL UNIQUE,
