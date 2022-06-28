@@ -1,10 +1,13 @@
 package store
 
 import (
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/mattn/go-sqlite3"
 
 	"orblivion/lbry-id/auth"
 )
@@ -339,8 +342,50 @@ func TestStoreTokenUTC(t *testing.T) {
 	}
 }
 
-// TODO - Tests each db method. Check for missing "NOT NULL" fields. Do the loop thing, and always just check for null error.
 func TestStoreTokenEmptyFields(t *testing.T) {
 	// Make sure expiration doesn't get set if sanitization fails
-	t.Fatalf("Test me")
+	tt := []struct {
+		name       string
+		authToken  auth.AuthToken
+		expiration time.Time
+	}{
+		{
+			name:       "missing token",
+			authToken:  auth.AuthToken{Token: "", DeviceId: "dId", Scope: "*", UserId: 123},
+			expiration: time.Now().Add(time.Hour * 24 * 14).UTC(),
+		}, {
+			name:       "missing device id",
+			authToken:  auth.AuthToken{Token: "seekrit-1", DeviceId: "", Scope: "*", UserId: 123},
+			expiration: time.Now().Add(time.Hour * 24 * 14).UTC(),
+		}, {
+			name:       "missing scope",
+			authToken:  auth.AuthToken{Token: "seekrit-1", DeviceId: "dId", Scope: "", UserId: 123},
+			expiration: time.Now().Add(time.Hour * 24 * 14).UTC(),
+		}, {
+			name:       "missing user id",
+			authToken:  auth.AuthToken{Token: "seekrit-1", DeviceId: "dId", Scope: "*", UserId: 0},
+			expiration: time.Now().Add(time.Hour * 24 * 14).UTC(),
+		}, {
+			name:       "missing expiration",
+			authToken:  auth.AuthToken{Token: "seekrit-1", DeviceId: "dId", Scope: "*", UserId: 123},
+			expiration: time.Time{},
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			s, sqliteTmpFile := StoreTestInit(t)
+			defer StoreTestCleanup(sqliteTmpFile)
+
+			var sqliteErr sqlite3.Error
+
+			err := s.insertToken(&tc.authToken, tc.expiration)
+			if errors.As(err, &sqliteErr) {
+				if errors.Is(sqliteErr.ExtendedCode, sqlite3.ErrConstraintCheck) {
+					return // We got the error we expected
+				}
+			}
+			t.Errorf("Expected check constraint error for empty field. Got %+v", err)
+		})
+	}
 }

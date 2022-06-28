@@ -77,6 +77,19 @@ func (s *Store) Migrate() error {
 			device_id TEXT NOT NULL,
 			scope TEXT NOT NULL,
 			expiration DATETIME NOT NULL,
+			CHECK (
+			  -- should eventually fail for foreign key constraint instead
+			  user_id <> 0 AND
+
+			  token <> '' AND
+			  device_id <> '' AND
+			  scope <> '' AND
+
+			  -- Don't know when it uses either format to denote UTC
+			  expiration <> "0001-01-01 00:00:00+00:00" AND
+			  expiration <> "0001-01-01 00:00:00Z"
+
+			),
 			PRIMARY KEY (user_id, device_id)
 		);
 		CREATE TABLE IF NOT EXISTS wallets(
