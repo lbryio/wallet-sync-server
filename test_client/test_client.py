@@ -180,11 +180,11 @@ def derive_secrets(root_password, salt):
       kdf_output[key_length * 2:],
     )
 
-    wallet_sync_password = base64.b64encode(parts[0]).decode('utf-8')
-    sdk_password = base64.b64encode(parts[1]).decode('utf-8')
+    lbry_id_password = base64.b64encode(parts[0]).decode('utf-8')
+    sync_password = base64.b64encode(parts[1]).decode('utf-8')
     hmac_key = parts[2]
 
-    return wallet_sync_password, sdk_password, hmac_key
+    return lbry_id_password, sync_password, hmac_key
 
 def create_hmac(wallet_state, hmac_key):
     input_str = str(wallet_state.sequence) + ':' + wallet_state.encrypted_wallet
@@ -226,7 +226,7 @@ class Client():
     self.salt = b'I AM A SALT'
 
     # TODO - is UTF-8 appropriate for root_password? based on characters used etc.
-    self.wallet_sync_password, self.sdk_password, self.hmac_key = derive_secrets(root_password, self.salt)
+    self.lbry_id_password, self.sync_password, self.hmac_key = derive_secrets(root_password, self.salt)
 
     self.wallet_id = wallet_id
 
@@ -269,7 +269,7 @@ class Client():
   def register(self):
     success = self.wallet_sync_api.register(
       self.email,
-      self.wallet_sync_password,
+      self.lbry_id_password,
     )
     if success:
       print ("Registered")
@@ -277,7 +277,7 @@ class Client():
   def get_auth_token(self):
     token = self.wallet_sync_api.get_auth_token(
       self.email,
-      self.wallet_sync_password,
+      self.lbry_id_password,
       self.device_id,
     )
     if not token:
@@ -385,8 +385,8 @@ class Client():
 
   def update_local_encrypted_wallet(self, encrypted_wallet):
     # TODO - error checking
-    return LBRYSDK.update_wallet(self.wallet_id, self.sdk_password, encrypted_wallet)
+    return LBRYSDK.update_wallet(self.wallet_id, self.sync_password, encrypted_wallet)
 
   def get_local_encrypted_wallet(self):
     # TODO - error checking
-    return LBRYSDK.get_wallet(self.wallet_id, self.sdk_password)
+    return LBRYSDK.get_wallet(self.wallet_id, self.sync_password)
