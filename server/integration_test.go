@@ -7,16 +7,44 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"reflect"
+	"testing"
+
 	"orblivion/lbry-id/auth"
 	"orblivion/lbry-id/store"
 	"orblivion/lbry-id/wallet"
-	"reflect"
-	"testing"
 )
 
 // Whereas sever_test.go stubs out auth store and wallet, these will use the real thing, but test fewer paths.
 
 // TODO - test some unhappy paths? Don't want to retest all the unit tests though.
+
+// Integration test requires a real sqlite database
+func storeTestInit(t *testing.T) (s store.Store, tmpFile *os.File) {
+	s = store.Store{}
+
+	tmpFile, err := ioutil.TempFile(os.TempDir(), "sqlite-test-")
+	if err != nil {
+		t.Fatalf("DB setup failure: %+v", err)
+		return
+	}
+
+	s.Init(tmpFile.Name())
+
+	err = s.Migrate()
+	if err != nil {
+		t.Fatalf("DB setup failure: %+v", err)
+	}
+
+	return
+}
+
+func storeTestCleanup(tmpFile *os.File) {
+	if tmpFile != nil {
+		os.Remove(tmpFile.Name())
+	}
+}
 
 func checkStatusCode(t *testing.T, statusCode int, responseBody []byte, expectedStatusCodeSlice ...int) {
 	var expectedStatusCode int
@@ -59,8 +87,8 @@ func request(t *testing.T, method string, handler func(http.ResponseWriter, *htt
 
 // Test some flows with syncing two devices that have the wallet locally.
 func TestIntegrationWalletUpdates(t *testing.T) {
-	st, tmpFile := store.StoreTestInit(t)
-	defer store.StoreTestCleanup(tmpFile)
+	st, tmpFile := storeTestInit(t)
+	defer storeTestCleanup(tmpFile)
 
 	s := Init(&auth.Auth{}, &st)
 
