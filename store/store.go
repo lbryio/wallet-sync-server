@@ -45,7 +45,7 @@ type Store struct {
 }
 
 func (s *Store) Init(fileName string) {
-	db, err := sql.Open("sqlite3", fileName)
+	db, err := sql.Open("sqlite3", "file:"+fileName+"?_foreign_keys=on")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -80,9 +80,9 @@ func (s *Store) Migrate() error {
 			CHECK (
 			  -- should eventually fail for foreign key constraint instead
 			  user_id <> 0 AND
+			  device_id <> '' AND
 
 			  token <> '' AND
-			  device_id <> '' AND
 			  scope <> '' AND
 
 			  -- Don't know when it uses either format to denote UTC
@@ -91,6 +91,7 @@ func (s *Store) Migrate() error {
 
 			),
 			PRIMARY KEY (user_id, device_id)
+			FOREIGN KEY (user_id) REFERENCES accounts(user_id)
 		);
 		CREATE TABLE IF NOT EXISTS wallets(
 			user_id INTEGER NOT NULL,
@@ -99,11 +100,21 @@ func (s *Store) Migrate() error {
 			hmac TEXT NOT NULL,
 			PRIMARY KEY (user_id)
 			FOREIGN KEY (user_id) REFERENCES accounts(user_id)
+			CHECK (
+			  user_id <> 0 AND
+			  encrypted_wallet <> '' AND
+			  hmac <> '' AND
+			  sequence <> 0
+			)
 		);
 		CREATE TABLE IF NOT EXISTS accounts(
 			email TEXT NOT NULL UNIQUE,
+			password TEXT NOT NULL,
 			user_id INTEGER PRIMARY KEY AUTOINCREMENT,
-			password TEXT NOT NULL
+			CHECK (
+			  email <> '' AND
+			  password <> ''
+			)
 		);
 	`
 

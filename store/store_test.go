@@ -4,6 +4,8 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
+
+	"orblivion/lbry-id/auth"
 )
 
 func StoreTestInit(t *testing.T) (s Store, tmpFile *os.File) {
@@ -29,4 +31,27 @@ func StoreTestCleanup(tmpFile *os.File) {
 	if tmpFile != nil {
 		os.Remove(tmpFile.Name())
 	}
+}
+
+func makeTestUserId(t *testing.T, s *Store) auth.UserId {
+	email, password := auth.Email("abc@example.com"), auth.Password("123")
+
+	rows, err := s.db.Query(
+		"INSERT INTO accounts (email, password) values(?,?) returning user_id",
+		email, password.Obfuscate(),
+	)
+	if err != nil {
+		t.Fatalf("Error setting up account")
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var userId auth.UserId
+		err := rows.Scan(&userId)
+		if err != nil {
+			t.Fatalf("Error setting up account")
+		}
+		return userId
+	}
+	t.Fatalf("Error setting up account")
+	return auth.UserId(0)
 }

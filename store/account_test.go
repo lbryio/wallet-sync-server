@@ -1,7 +1,10 @@
 package store
 
 import (
+	"errors"
 	"testing"
+
+	"github.com/mattn/go-sqlite3"
 
 	"orblivion/lbry-id/auth"
 )
@@ -94,8 +97,36 @@ func TestStoreGetUserId(t *testing.T) {
 	}
 }
 
-// TODO - Tests each db method. Check for missing "NOT NULL" fields. Do the loop thing, and always just check for null error.
 func TestStoreAccountEmptyFields(t *testing.T) {
 	// Make sure expiration doesn't get set if sanitization fails
-	t.Fatalf("Test me")
+	tt := []struct {
+		name     string
+		email    auth.Email
+		password auth.Password
+	}{
+		{
+			name:     "missing email",
+			email:    "",
+			password: "xyz",
+		},
+		// Not testing empty password because it gets obfuscated to something
+		// non-empty in the method
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			s, sqliteTmpFile := StoreTestInit(t)
+			defer StoreTestCleanup(sqliteTmpFile)
+
+			var sqliteErr sqlite3.Error
+
+			err := s.CreateAccount(tc.email, tc.password)
+			if errors.As(err, &sqliteErr) {
+				if errors.Is(sqliteErr.ExtendedCode, sqlite3.ErrConstraintCheck) {
+					return // We got the error we expected
+				}
+			}
+			t.Errorf("Expected check constraint error for empty field. Got %+v", err)
+		})
+	}
 }

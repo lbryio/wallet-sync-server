@@ -77,12 +77,14 @@ func TestStoreInsertToken(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
+	userId := makeTestUserId(t, &s)
+
 	// created for addition to the DB (no expiration attached)
 	authToken1 := auth.AuthToken{
 		Token:    "seekrit-1",
 		DeviceId: "dId",
 		Scope:    "*",
-		UserId:   123,
+		UserId:   userId,
 	}
 	expiration := time.Now().Add(time.Hour * 24 * 14).UTC()
 
@@ -121,12 +123,14 @@ func TestStoreUpdateToken(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
+	userId := makeTestUserId(t, &s)
+
 	// created for addition to the DB (no expiration attached)
 	authTokenUpdate := auth.AuthToken{
 		Token:    "seekrit-update",
 		DeviceId: "dId",
 		Scope:    "*",
-		UserId:   123,
+		UserId:   userId,
 	}
 	expiration := time.Now().Add(time.Hour * 24 * 14).UTC()
 
@@ -177,13 +181,15 @@ func TestStoreSaveToken(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
+	userId := makeTestUserId(t, &s)
+
 	// Version 1 of the token for both devices
 	// created for addition to the DB (no expiration attached)
 	authToken_d1_1 := auth.AuthToken{
 		Token:    "seekrit-d1-1",
 		DeviceId: "dId-1",
 		Scope:    "*",
-		UserId:   123,
+		UserId:   userId,
 	}
 
 	authToken_d2_1 := authToken_d1_1
@@ -256,12 +262,14 @@ func TestStoreGetToken(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
+	userId := makeTestUserId(t, &s)
+
 	// created for addition to the DB (no expiration attached)
 	authToken := auth.AuthToken{
 		Token:    "seekrit-d1",
 		DeviceId: "dId",
 		Scope:    "*",
-		UserId:   123,
+		UserId:   userId,
 	}
 	expiration := time.Time(time.Now().UTC().Add(time.Hour * 24 * 14))
 
@@ -307,11 +315,13 @@ func TestStoreTokenUTC(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
+	userId := makeTestUserId(t, &s)
+
 	authToken := auth.AuthToken{
 		Token:    "seekrit-1",
 		DeviceId: "dId",
 		Scope:    "*",
-		UserId:   123,
+		UserId:   userId,
 	}
 
 	if err := s.SaveToken(&authToken); err != nil {

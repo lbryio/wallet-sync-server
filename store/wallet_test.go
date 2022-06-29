@@ -1,7 +1,10 @@
 package store
 
 import (
+	"errors"
 	"testing"
+
+	"github.com/mattn/go-sqlite3"
 
 	"orblivion/lbry-id/auth"
 	"orblivion/lbry-id/wallet"
@@ -76,29 +79,6 @@ func expectWalletNotExists(t *testing.T, s *Store, userId auth.UserId) {
 	return // found nothing, we're good
 }
 
-func setupWalletTest(t *testing.T, s *Store) auth.UserId {
-	email, password := auth.Email("abc@example.com"), auth.Password("123")
-
-	rows, err := s.db.Query(
-		"INSERT INTO accounts (email, password) values(?,?) returning user_id",
-		email, password.Obfuscate(),
-	)
-	if err != nil {
-		t.Fatalf("Error setting up account")
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var userId auth.UserId
-		err := rows.Scan(&userId)
-		if err != nil {
-			t.Fatalf("Error setting up account")
-		}
-		return userId
-	}
-	t.Fatalf("Error setting up account")
-	return auth.UserId(0)
-}
-
 // Test insertFirstWallet, using GetWallet, CreateAccount and GetUserID as a helpers
 // Try insertFirstWallet twice with the same user id, error the second time
 func TestStoreInsertWallet(t *testing.T) {
@@ -106,7 +86,7 @@ func TestStoreInsertWallet(t *testing.T) {
 	defer StoreTestCleanup(sqliteTmpFile)
 
 	// Get a valid userId
-	userId := setupWalletTest(t, &s)
+	userId := makeTestUserId(t, &s)
 
 	// Get a wallet, come back empty
 	expectWalletNotExists(t, &s, userId)
@@ -138,7 +118,7 @@ func TestStoreUpdateWallet(t *testing.T) {
 	defer StoreTestCleanup(sqliteTmpFile)
 
 	// Get a valid userId
-	userId := setupWalletTest(t, &s)
+	userId := makeTestUserId(t, &s)
 
 	// Try to update a wallet, fail for nothing to update
 	if err := s.updateWalletToSequence(userId, wallet.EncryptedWallet("my-enc-wallet-a"), wallet.Sequence(1), wallet.WalletHmac("my-hmac-a")); err != ErrNoWallet {
@@ -194,7 +174,7 @@ func TestStoreSetWallet(t *testing.T) {
 	defer StoreTestCleanup(sqliteTmpFile)
 
 	// Get a valid userId
-	userId := setupWalletTest(t, &s)
+	userId := makeTestUserId(t, &s)
 
 	// Sequence 2 - fails - out of sequence (behind the scenes, tries to update but there's nothing there yet)
 	if err := s.SetWallet(userId, wallet.EncryptedWallet("my-enc-wallet-a"), wallet.Sequence(2), wallet.WalletHmac("my-hmac-a")); err != ErrWrongSequence {
@@ -241,7 +221,7 @@ func TestStoreGetWallet(t *testing.T) {
 	defer StoreTestCleanup(sqliteTmpFile)
 
 	// Get a valid userId
-	userId := setupWalletTest(t, &s)
+	userId := makeTestUserId(t, &s)
 
 	// GetWallet fails when there's no wallet
 	encryptedWallet, sequence, hmac, err := s.GetWallet(userId)
@@ -260,8 +240,47 @@ func TestStoreGetWallet(t *testing.T) {
 	}
 }
 
-// TODO - Tests each db method. Check for missing "NOT NULL" fields. Do the loop thing, and always just check for null error.
 func TestStoreWalletEmptyFields(t *testing.T) {
 	// Make sure expiration doesn't get set if sanitization fails
-	t.Fatalf("Test me")
+	tt := []struct {
+		name            string
+		userId          auth.UserId
+		encryptedWallet wallet.EncryptedWallet
+		hmac            wallet.WalletHmac
+	}{
+		{
+			name:            "missing user id",
+			userId:          auth.UserId(0),
+			encryptedWallet: wallet.EncryptedWallet("my-enc-wallet"),
+			hmac:            wallet.WalletHmac("my-hmac"),
+		}, {
+			name:            "missing encrypted wallet",
+			userId:          auth.UserId(1),
+			encryptedWallet: wallet.EncryptedWallet(""),
+			hmac:            wallet.WalletHmac("my-hmac"),
+		}, {
+			name:            "missing hmac",
+			userId:          auth.UserId(1),
+			encryptedWallet: wallet.EncryptedWallet("my-enc-wallet"),
+			hmac:            wallet.WalletHmac(""),
+		},
+		// Not testing 0 sequence because the method basically doesn't allow for it.
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			s, sqliteTmpFile := StoreTestInit(t)
+			defer StoreTestCleanup(sqliteTmpFile)
+
+			var sqliteErr sqlite3.Error
+
+			err := s.insertFirstWallet(tc.userId, tc.encryptedWallet, tc.hmac)
+			if errors.As(err, &sqliteErr) {
+				if errors.Is(sqliteErr.ExtendedCode, sqlite3.ErrConstraintCheck) {
+					return // We got the error we expected
+				}
+			}
+			t.Errorf("Expected check constraint error for empty field. Got %+v", err)
+		})
+	}
 }
