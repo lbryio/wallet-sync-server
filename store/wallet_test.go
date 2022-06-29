@@ -244,23 +244,15 @@ func TestStoreWalletEmptyFields(t *testing.T) {
 	// Make sure expiration doesn't get set if sanitization fails
 	tt := []struct {
 		name            string
-		userId          auth.UserId
 		encryptedWallet wallet.EncryptedWallet
 		hmac            wallet.WalletHmac
 	}{
 		{
-			name:            "missing user id",
-			userId:          auth.UserId(0),
-			encryptedWallet: wallet.EncryptedWallet("my-enc-wallet"),
-			hmac:            wallet.WalletHmac("my-hmac"),
-		}, {
 			name:            "missing encrypted wallet",
-			userId:          auth.UserId(1),
 			encryptedWallet: wallet.EncryptedWallet(""),
 			hmac:            wallet.WalletHmac("my-hmac"),
 		}, {
 			name:            "missing hmac",
-			userId:          auth.UserId(1),
 			encryptedWallet: wallet.EncryptedWallet("my-enc-wallet"),
 			hmac:            wallet.WalletHmac(""),
 		},
@@ -272,9 +264,11 @@ func TestStoreWalletEmptyFields(t *testing.T) {
 			s, sqliteTmpFile := StoreTestInit(t)
 			defer StoreTestCleanup(sqliteTmpFile)
 
+			userId := makeTestUserId(t, &s)
+
 			var sqliteErr sqlite3.Error
 
-			err := s.insertFirstWallet(tc.userId, tc.encryptedWallet, tc.hmac)
+			err := s.insertFirstWallet(userId, tc.encryptedWallet, tc.hmac)
 			if errors.As(err, &sqliteErr) {
 				if errors.Is(sqliteErr.ExtendedCode, sqlite3.ErrConstraintCheck) {
 					return // We got the error we expected

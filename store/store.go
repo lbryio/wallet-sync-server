@@ -79,7 +79,6 @@ func (s *Store) Migrate() error {
 			expiration DATETIME NOT NULL,
 			CHECK (
 			  -- should eventually fail for foreign key constraint instead
-			  user_id <> 0 AND
 			  device_id <> '' AND
 
 			  token <> '' AND
@@ -101,7 +100,6 @@ func (s *Store) Migrate() error {
 			PRIMARY KEY (user_id)
 			FOREIGN KEY (user_id) REFERENCES accounts(user_id)
 			CHECK (
-			  user_id <> 0 AND
 			  encrypted_wallet <> '' AND
 			  hmac <> '' AND
 			  sequence <> 0

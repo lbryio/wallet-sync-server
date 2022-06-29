@@ -361,23 +361,19 @@ func TestStoreTokenEmptyFields(t *testing.T) {
 	}{
 		{
 			name:       "missing token",
-			authToken:  auth.AuthToken{Token: "", DeviceId: "dId", Scope: "*", UserId: 123},
+			authToken:  auth.AuthToken{Token: "", DeviceId: "dId", Scope: "*"},
 			expiration: time.Now().Add(time.Hour * 24 * 14).UTC(),
 		}, {
 			name:       "missing device id",
-			authToken:  auth.AuthToken{Token: "seekrit-1", DeviceId: "", Scope: "*", UserId: 123},
+			authToken:  auth.AuthToken{Token: "seekrit-1", DeviceId: "", Scope: "*"},
 			expiration: time.Now().Add(time.Hour * 24 * 14).UTC(),
 		}, {
 			name:       "missing scope",
-			authToken:  auth.AuthToken{Token: "seekrit-1", DeviceId: "dId", Scope: "", UserId: 123},
-			expiration: time.Now().Add(time.Hour * 24 * 14).UTC(),
-		}, {
-			name:       "missing user id",
-			authToken:  auth.AuthToken{Token: "seekrit-1", DeviceId: "dId", Scope: "*", UserId: 0},
+			authToken:  auth.AuthToken{Token: "seekrit-1", DeviceId: "dId", Scope: ""},
 			expiration: time.Now().Add(time.Hour * 24 * 14).UTC(),
 		}, {
 			name:       "missing expiration",
-			authToken:  auth.AuthToken{Token: "seekrit-1", DeviceId: "dId", Scope: "*", UserId: 123},
+			authToken:  auth.AuthToken{Token: "seekrit-1", DeviceId: "dId", Scope: "*"},
 			expiration: time.Time{},
 		},
 	}
@@ -386,6 +382,8 @@ func TestStoreTokenEmptyFields(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			s, sqliteTmpFile := StoreTestInit(t)
 			defer StoreTestCleanup(sqliteTmpFile)
+
+			tc.authToken.UserId = makeTestUserId(t, &s)
 
 			var sqliteErr sqlite3.Error
 
