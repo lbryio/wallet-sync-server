@@ -66,6 +66,8 @@ func checkStatusCode(t *testing.T, statusCode int, responseBody []byte, expected
 	}
 }
 
+// TODO - make this a real request some day. For now it still passes in the
+// handler. Probably close enough for now.
 func request(t *testing.T, method string, handler func(http.ResponseWriter, *http.Request), path string, jsonResult interface{}, requestBody string) ([]byte, int) {
 	req := httptest.NewRequest(
 		method,
