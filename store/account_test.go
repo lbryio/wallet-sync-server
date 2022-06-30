@@ -9,7 +9,7 @@ import (
 	"orblivion/lbry-id/auth"
 )
 
-func expectAccountExists(t *testing.T, s *Store, email auth.Email, password auth.Password) {
+func expectAccountMatch(t *testing.T, s *Store, email auth.Email, password auth.Password) {
 	rows, err := s.db.Query(
 		`SELECT 1 from accounts WHERE email=? AND password=?`,
 		email, password.Obfuscate(),
@@ -26,7 +26,7 @@ func expectAccountExists(t *testing.T, s *Store, email auth.Email, password auth
 	t.Fatalf("Expected account for: %s %s", email, password)
 }
 
-func expectAccountNotExists(t *testing.T, s *Store, email auth.Email, password auth.Password) {
+func expectAccountNotMatch(t *testing.T, s *Store, email auth.Email, password auth.Password) {
 	rows, err := s.db.Query(
 		`SELECT 1 from accounts WHERE email=? AND password=?`,
 		email, password.Obfuscate(),
@@ -52,7 +52,7 @@ func TestStoreCreateAccount(t *testing.T) {
 	email, password := auth.Email("abc@example.com"), auth.Password("123")
 
 	// Get an account, come back empty
-	expectAccountNotExists(t, &s, email, password)
+	expectAccountNotMatch(t, &s, email, password)
 
 	// Create an account
 	if err := s.CreateAccount(email, password); err != nil {
@@ -60,7 +60,7 @@ func TestStoreCreateAccount(t *testing.T) {
 	}
 
 	// Get and confirm the account we just put in
-	expectAccountExists(t, &s, email, password)
+	expectAccountMatch(t, &s, email, password)
 
 	newPassword := auth.Password("xyz")
 
@@ -71,8 +71,8 @@ func TestStoreCreateAccount(t *testing.T) {
 	}
 
 	// Get the email and same *first* password we successfully put in, but not the second
-	expectAccountExists(t, &s, email, password)
-	expectAccountNotExists(t, &s, email, newPassword)
+	expectAccountMatch(t, &s, email, password)
+	expectAccountNotMatch(t, &s, email, newPassword)
 }
 
 // Test GetUserId, using CreateAccount as a helper
@@ -84,8 +84,8 @@ func TestStoreGetUserId(t *testing.T) {
 	email, password := auth.Email("abc@example.com"), auth.Password("123")
 
 	// Check that there's no user id for email and password first
-	if userId, err := s.GetUserId(email, password); err != ErrNoUId || userId != 0 {
-		t.Fatalf(`CreateAccount err: wanted "%+v", got "%+v. userId: %v"`, ErrNoUId, err, userId)
+	if userId, err := s.GetUserId(email, password); err != ErrWrongCredentials || userId != 0 {
+		t.Fatalf(`CreateAccount err: wanted "%+v", got "%+v. userId: %v"`, ErrWrongCredentials, err, userId)
 	}
 
 	// Create the account

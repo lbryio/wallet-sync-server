@@ -77,7 +77,7 @@ func TestStoreInsertToken(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	userId := makeTestUserId(t, &s)
+	userId, _, _ := makeTestUser(t, &s)
 
 	// created for addition to the DB (no expiration attached)
 	authToken1 := auth.AuthToken{
@@ -123,7 +123,7 @@ func TestStoreUpdateToken(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	userId := makeTestUserId(t, &s)
+	userId, _, _ := makeTestUser(t, &s)
 
 	// created for addition to the DB (no expiration attached)
 	authTokenUpdate := auth.AuthToken{
@@ -181,7 +181,7 @@ func TestStoreSaveToken(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	userId := makeTestUserId(t, &s)
+	userId, _, _ := makeTestUser(t, &s)
 
 	// Version 1 of the token for both devices
 	// created for addition to the DB (no expiration attached)
@@ -262,7 +262,7 @@ func TestStoreGetToken(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	userId := makeTestUserId(t, &s)
+	userId, _, _ := makeTestUser(t, &s)
 
 	// created for addition to the DB (no expiration attached)
 	authToken := auth.AuthToken{
@@ -315,7 +315,7 @@ func TestStoreTokenUTC(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	userId := makeTestUserId(t, &s)
+	userId, _, _ := makeTestUser(t, &s)
 
 	authToken := auth.AuthToken{
 		Token:    "seekrit-1",
@@ -353,7 +353,6 @@ func TestStoreTokenUTC(t *testing.T) {
 }
 
 func TestStoreTokenEmptyFields(t *testing.T) {
-	// Make sure expiration doesn't get set if sanitization fails
 	tt := []struct {
 		name       string
 		authToken  auth.AuthToken
@@ -383,7 +382,7 @@ func TestStoreTokenEmptyFields(t *testing.T) {
 			s, sqliteTmpFile := StoreTestInit(t)
 			defer StoreTestCleanup(sqliteTmpFile)
 
-			tc.authToken.UserId = makeTestUserId(t, &s)
+			tc.authToken.UserId, _, _ = makeTestUser(t, &s)
 
 			var sqliteErr sqlite3.Error
 

@@ -20,14 +20,18 @@ var (
 	ErrNoToken        = fmt.Errorf("Token does not exist for this user and device")
 
 	ErrDuplicateWallet = fmt.Errorf("Wallet already exists for this user")
-	ErrNoWallet        = fmt.Errorf("Wallet does not exist for this user at this sequence")
+
+	// TODO - the use of this error message is a bit confusing. The phrasing is
+	// not correct for GetWallet. And maybe the other uses probably should just
+	// return ErrWrongSequence to begin with. But think about it.
+	ErrNoWallet = fmt.Errorf("Wallet does not exist for this user at this sequence")
 
 	ErrWrongSequence = fmt.Errorf("Wallet could not be updated to this sequence")
 
 	ErrDuplicateEmail   = fmt.Errorf("Email already exists for this user")
 	ErrDuplicateAccount = fmt.Errorf("User already has an account")
 
-	ErrNoUId = fmt.Errorf("User Id not found with these credentials")
+	ErrWrongCredentials = fmt.Errorf("No match for email and password")
 )
 
 // For test stubs
@@ -162,7 +166,7 @@ func (s *Store) GetToken(token auth.TokenString) (*auth.AuthToken, error) {
 
 func (s *Store) insertToken(authToken *auth.AuthToken, expiration time.Time) (err error) {
 	_, err = s.db.Exec(
-		"INSERT INTO auth_tokens (token, user_id, device_id, scope, expiration) values(?,?,?,?,?)",
+		"INSERT INTO auth_tokens (token, user_id, device_id, scope, expiration) VALUES(?,?,?,?,?)",
 		authToken.Token, authToken.UserId, authToken.DeviceId, authToken.Scope, expiration,
 	)
 
@@ -199,6 +203,7 @@ func (s *Store) updateToken(authToken *auth.AuthToken, experation time.Time) (er
 
 func (s *Store) SaveToken(token *auth.AuthToken) (err error) {
 	// TODO: For psql, do upsert here instead of separate insertToken and updateToken functions
+	//       Actually it may even be available for SQLite?
 
 	// TODO - Should we auto-delete expired tokens?
 
@@ -261,7 +266,7 @@ func (s *Store) insertFirstWallet(
 	//   The database will enforce that this will not be set if this user already
 	//   has a wallet.
 	_, err = s.db.Exec(
-		"INSERT INTO wallets (user_id, encrypted_wallet, sequence, hmac) values(?,?,?,?)",
+		"INSERT INTO wallets (user_id, encrypted_wallet, sequence, hmac) VALUES(?,?,?,?)",
 		userId, encryptedWallet, 1, hmac,
 	)
 
@@ -347,7 +352,7 @@ func (s *Store) GetUserId(email auth.Email, password auth.Password) (userId auth
 		err = rows.Scan(&userId)
 		return
 	}
-	err = ErrNoUId
+	err = ErrWrongCredentials
 	return
 }
 
@@ -358,7 +363,7 @@ func (s *Store) GetUserId(email auth.Email, password auth.Password) (userId auth
 func (s *Store) CreateAccount(email auth.Email, password auth.Password) (err error) {
 	// userId auto-increments
 	_, err = s.db.Exec(
-		"INSERT INTO accounts (email, password) values(?,?)",
+		"INSERT INTO accounts (email, password) VALUES(?,?)",
 		email, password.Obfuscate(),
 	)
 
@@ -369,5 +374,92 @@ func (s *Store) CreateAccount(email auth.Email, password auth.Password) (err err
 		}
 	}
 
+	return
+}
+
+// Change password. For the user, this requires changing their root password,
+// which changes the encryption key for the wallet as well. Thus, we should
+// update the wallet at the same time to avoid ever having a situation where
+// these two don't match.
+//
+// Also delete all auth tokens to force clients to update their root password
+// to get a new token. This prevents other clients from posting a wallet
+// encrypted with the old key.
+func (s *Store) ChangePassword(
+	email auth.Email,
+	oldPassword auth.Password,
+	newPassword auth.Password,
+	encryptedWallet wallet.EncryptedWallet,
+	sequence wallet.Sequence,
+	hmac wallet.WalletHmac,
+) (err error) {
+	var userId auth.UserId
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return
+	}
+
+	// Lots of error conditions. Just defer this. However, we need to make sure to
+	// make sure the variable `err` is set to the error before we return, instead
+	// of doing `return <error>`.
+	endTxn := func() {
+		if err != nil {
+			tx.Rollback()
+		} else {
+			tx.Commit()
+		}
+	}
+	defer endTxn()
+
+	err = tx.QueryRow(
+		"SELECT user_id from accounts WHERE email=? AND password=?",
+		email, oldPassword.Obfuscate(),
+	).Scan(&userId)
+	if err == sql.ErrNoRows {
+		err = ErrWrongCredentials
+		return
+	}
+	if err != nil {
+		return
+	}
+
+	res, err := tx.Exec(
+		"UPDATE accounts SET password=? WHERE user_id=?",
+		newPassword.Obfuscate(), userId,
+	)
+	if err != nil {
+		return
+	}
+	numRows, err := res.RowsAffected()
+	if err != nil {
+		return
+	}
+	if numRows != 1 {
+		// Very unexpected error!
+		err = fmt.Errorf("Password failed to update")
+		return
+	}
+
+	res, err = tx.Exec(
+		`UPDATE wallets SET encrypted_wallet=?, sequence=?, hmac=?
+	    WHERE user_id=? AND sequence=?`,
+		encryptedWallet, sequence, hmac, userId, sequence-1,
+	)
+	if err != nil {
+		return
+	}
+	numRows, err = res.RowsAffected()
+	if err != nil {
+		return
+	}
+	if numRows != 1 {
+		err = ErrWrongSequence
+		return
+	}
+
+	// Don't care how many I delete here. Might even be zero. No login token while
+	// changing password seems plausible.
+	_, err = tx.Exec("DELETE FROM auth_tokens WHERE user_id=?", userId)
 	return
 }

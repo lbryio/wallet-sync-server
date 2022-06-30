@@ -33,8 +33,8 @@ func StoreTestCleanup(tmpFile *os.File) {
 	}
 }
 
-func makeTestUserId(t *testing.T, s *Store) auth.UserId {
-	email, password := auth.Email("abc@example.com"), auth.Password("123")
+func makeTestUser(t *testing.T, s *Store) (userId auth.UserId, email auth.Email, password auth.Password) {
+	email, password = auth.Email("abc@example.com"), auth.Password("123")
 
 	rows, err := s.db.Query(
 		"INSERT INTO accounts (email, password) values(?,?) returning user_id",
@@ -45,13 +45,12 @@ func makeTestUserId(t *testing.T, s *Store) auth.UserId {
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var userId auth.UserId
 		err := rows.Scan(&userId)
 		if err != nil {
 			t.Fatalf("Error setting up account")
 		}
-		return userId
+		return
 	}
 	t.Fatalf("Error setting up account")
-	return auth.UserId(0)
+	return
 }
