@@ -185,16 +185,28 @@ func TestStoreSaveToken(t *testing.T) {
 
 	// Version 1 of the token for both devices
 	// created for addition to the DB (no expiration attached)
+	// Omit Device ID to induce an error.
 	authToken_d1_1 := auth.AuthToken{
-		Token:    "seekrit-d1-1",
-		DeviceId: "dId-1",
-		Scope:    "*",
-		UserId:   userId,
+		Token:  "seekrit-d1-1",
+		Scope:  "*",
+		UserId: userId,
 	}
 
 	authToken_d2_1 := authToken_d1_1
-	authToken_d2_1.DeviceId = "dId-2"
 	authToken_d2_1.Token = "seekrit-d2-1"
+
+	// Save, have error for lack of device ID. We don't care what kind of error,
+	// we just want to make sure Expiration doesn't get set.
+	if err := s.SaveToken(&authToken_d1_1); err == nil {
+		t.Fatalf("Expected SaveToken to have err")
+	}
+	if authToken_d1_1.Expiration != nil {
+		t.Fatalf("Expected SaveToken to not set expiration on error")
+	}
+
+	// Add the required device IDs to make the tokens valid
+	authToken_d1_1.DeviceId = "dId-1"
+	authToken_d2_1.DeviceId = "dId-2"
 
 	// Try to get the tokens, come back empty because we're just starting out
 	expectTokenNotExists(t, &s, authToken_d1_1.Token)
