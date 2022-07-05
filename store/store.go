@@ -26,7 +26,8 @@ var (
 	// return ErrWrongSequence to begin with. But think about it.
 	ErrNoWallet = fmt.Errorf("Wallet does not exist for this user at this sequence")
 
-	ErrWrongSequence = fmt.Errorf("Wallet could not be updated to this sequence")
+	ErrUnexpectedWallet = fmt.Errorf("Wallet unexpectedly exist for this user")
+	ErrWrongSequence    = fmt.Errorf("Wallet could not be updated to this sequence")
 
 	ErrDuplicateEmail   = fmt.Errorf("Email already exists for this user")
 	ErrDuplicateAccount = fmt.Errorf("User already has an account")
@@ -385,7 +386,7 @@ func (s *Store) CreateAccount(email auth.Email, password auth.Password) (err err
 // Also delete all auth tokens to force clients to update their root password
 // to get a new token. This prevents other clients from posting a wallet
 // encrypted with the old key.
-func (s *Store) ChangePassword(
+func (s *Store) ChangePasswordWithWallet(
 	email auth.Email,
 	oldPassword auth.Password,
 	newPassword auth.Password,
@@ -455,6 +456,84 @@ func (s *Store) ChangePassword(
 	}
 	if numRows != 1 {
 		err = ErrWrongSequence
+		return
+	}
+
+	// Don't care how many I delete here. Might even be zero. No login token while
+	// changing password seems plausible.
+	_, err = tx.Exec("DELETE FROM auth_tokens WHERE user_id=?", userId)
+	return
+}
+
+// Change password, but with no wallet currently saved. Since there's no
+// wallet saved, there's no wallet to update. The encryption key is moot.
+//
+// Also delete all auth tokens to force clients to update their root password
+// to get a new token. This prevents other clients from posting a wallet
+// encrypted with the old key.
+func (s *Store) ChangePasswordNoWallet(
+	email auth.Email,
+	oldPassword auth.Password,
+	newPassword auth.Password,
+) (err error) {
+	var userId auth.UserId
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return
+	}
+
+	// Lots of error conditions. Just defer this. However, we need to make sure to
+	// make sure the variable `err` is set to the error before we return, instead
+	// of doing `return <error>`.
+	endTxn := func() {
+		if err != nil {
+			tx.Rollback()
+		} else {
+			tx.Commit()
+		}
+	}
+	defer endTxn()
+
+	err = tx.QueryRow(
+		"SELECT user_id from accounts WHERE email=? AND password=?",
+		email, oldPassword.Obfuscate(),
+	).Scan(&userId)
+	if err == sql.ErrNoRows {
+		err = ErrWrongCredentials
+		return
+	}
+	if err != nil {
+		return
+	}
+
+	res, err := tx.Exec(
+		"UPDATE accounts SET password=? WHERE user_id=?",
+		newPassword.Obfuscate(), userId,
+	)
+	if err != nil {
+		return
+	}
+	numRows, err := res.RowsAffected()
+	if err != nil {
+		return
+	}
+	if numRows != 1 {
+		// Very unexpected error!
+		err = fmt.Errorf("Password failed to update")
+		return
+	}
+
+	// Assert we have no wallet for this version of the password change function.
+	var dummy string
+	err = tx.QueryRow("SELECT 1 FROM wallets WHERE user_id=?", userId).Scan(&dummy)
+	if err != sql.ErrNoRows {
+		if err == nil {
+			// We expected no rows
+			err = ErrUnexpectedWallet
+			return
+		}
+		// Some other error
 		return
 	}
 
