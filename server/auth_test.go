@@ -65,7 +65,7 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 			expectedStatusCode:  http.StatusUnauthorized,
 			expectedErrorString: http.StatusText(http.StatusUnauthorized) + ": No match for email and password",
 
-			storeErrors: TestStoreFunctionsErrors{GetUserId: store.ErrNoUId},
+			storeErrors: TestStoreFunctionsErrors{GetUserId: store.ErrWrongCredentials},
 		},
 		{
 			name:                "generate token fail",
