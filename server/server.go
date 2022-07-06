@@ -17,6 +17,7 @@ const PathPrefix = "/api/" + ApiVersion
 
 const PathAuthToken = PathPrefix + "/auth/full"
 const PathRegister = PathPrefix + "/signup"
+const PathPassword = PathPrefix + "/password"
 const PathWallet = PathPrefix + "/wallet"
 
 type Server struct {
@@ -178,6 +179,7 @@ func (s *Server) Serve() {
 	http.HandleFunc(PathAuthToken, s.getAuthToken)
 	http.HandleFunc(PathWallet, s.handleWallet)
 	http.HandleFunc(PathRegister, s.register)
+	http.HandleFunc(PathPassword, s.changePassword)
 
 	fmt.Println("Serving at localhost:8090")
 	http.ListenAndServe("localhost:8090", nil)

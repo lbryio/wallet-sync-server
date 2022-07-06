@@ -42,7 +42,9 @@ type StoreInterface interface {
 	SetWallet(auth.UserId, wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac) error
 	GetWallet(auth.UserId) (wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac, error)
 	GetUserId(auth.Email, auth.Password) (auth.UserId, error)
-	CreateAccount(auth.Email, auth.Password) (err error)
+	CreateAccount(auth.Email, auth.Password) error
+	ChangePasswordWithWallet(auth.Email, auth.Password, auth.Password, wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac) error
+	ChangePasswordNoWallet(auth.Email, auth.Password, auth.Password) error
 }
 
 type Store struct {

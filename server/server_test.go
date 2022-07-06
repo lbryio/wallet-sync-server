@@ -35,23 +35,42 @@ type SetWalletCall struct {
 	Hmac            wallet.WalletHmac
 }
 
+type ChangePasswordNoWalletCall struct {
+	Email       auth.Email
+	OldPassword auth.Password
+	NewPassword auth.Password
+}
+
+type ChangePasswordWithWalletCall struct {
+	EncryptedWallet wallet.EncryptedWallet
+	Sequence        wallet.Sequence
+	Hmac            wallet.WalletHmac
+	Email           auth.Email
+	OldPassword     auth.Password
+	NewPassword     auth.Password
+}
+
 // Whether functions are called, and sometimes what they're called with
 type TestStoreFunctionsCalled struct {
-	SaveToken     auth.TokenString
-	GetToken      auth.TokenString
-	GetUserId     bool
-	CreateAccount bool
-	SetWallet     SetWalletCall
-	GetWallet     bool
+	SaveToken                auth.TokenString
+	GetToken                 auth.TokenString
+	GetUserId                bool
+	CreateAccount            bool
+	SetWallet                SetWalletCall
+	GetWallet                bool
+	ChangePasswordWithWallet ChangePasswordWithWalletCall
+	ChangePasswordNoWallet   ChangePasswordNoWalletCall
 }
 
 type TestStoreFunctionsErrors struct {
-	SaveToken     error
-	GetToken      error
-	GetUserId     error
-	CreateAccount error
-	SetWallet     error
-	GetWallet     error
+	SaveToken                error
+	GetToken                 error
+	GetUserId                error
+	CreateAccount            error
+	SetWallet                error
+	GetWallet                error
+	ChangePasswordWithWallet error
+	ChangePasswordNoWallet   error
 }
 
 type TestStore struct {
@@ -108,6 +127,38 @@ func (s *TestStore) GetWallet(userId auth.UserId) (encryptedWallet wallet.Encryp
 		hmac = s.TestHmac
 	}
 	return
+}
+
+func (s *TestStore) ChangePasswordWithWallet(
+	email auth.Email,
+	oldPassword auth.Password,
+	newPassword auth.Password,
+	encryptedWallet wallet.EncryptedWallet,
+	sequence wallet.Sequence,
+	hmac wallet.WalletHmac,
+) (err error) {
+	s.Called.ChangePasswordWithWallet = ChangePasswordWithWalletCall{
+		EncryptedWallet: encryptedWallet,
+		Sequence:        sequence,
+		Hmac:            hmac,
+		Email:           email,
+		OldPassword:     oldPassword,
+		NewPassword:     newPassword,
+	}
+	return s.Errors.ChangePasswordWithWallet
+}
+
+func (s *TestStore) ChangePasswordNoWallet(
+	email auth.Email,
+	oldPassword auth.Password,
+	newPassword auth.Password,
+) (err error) {
+	s.Called.ChangePasswordNoWallet = ChangePasswordNoWalletCall{
+		Email:       email,
+		OldPassword: oldPassword,
+		NewPassword: newPassword,
+	}
+	return s.Errors.ChangePasswordNoWallet
 }
 
 // expectStatusCode: A helper to call in functions that test that request
