@@ -95,7 +95,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	s := Init(&auth.Auth{}, &st)
 
 	////////////////////
-	// Register email address - any device
+	t.Log("Request: Register email address - any device")
 	////////////////////
 
 	var registerResponse struct{}
@@ -111,7 +111,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	checkStatusCode(t, statusCode, responseBody, http.StatusCreated)
 
 	////////////////////
-	// Get auth token - device 1
+	t.Log("Request: Get auth token - device 1")
 	////////////////////
 
 	var authToken1 auth.AuthToken
@@ -139,7 +139,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	}
 
 	////////////////////
-	// Get auth token - device 2
+	t.Log("Request: Get auth token - device 2")
 	////////////////////
 
 	var authToken2 auth.AuthToken
@@ -159,7 +159,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	}
 
 	////////////////////
-	// Put first wallet - device 1
+	t.Log("Request: Put first wallet - device 1")
 	////////////////////
 
 	var walletPostResponse struct{}
@@ -180,7 +180,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	checkStatusCode(t, statusCode, responseBody)
 
 	////////////////////
-	// Get wallet - device 2
+	t.Log("Request: Get wallet - device 2")
 	////////////////////
 
 	var walletGetResponse WalletResponse
@@ -206,7 +206,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	}
 
 	////////////////////
-	// Put second wallet - device 2
+	t.Log("Request: Put second wallet - device 2")
 	////////////////////
 
 	responseBody, statusCode = request(
@@ -226,7 +226,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	checkStatusCode(t, statusCode, responseBody)
 
 	////////////////////
-	// Get wallet - device 1
+	t.Log("Request: Get wallet - device 1")
 	////////////////////
 
 	responseBody, statusCode = request(
@@ -247,6 +247,233 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	}
 
 	// Expect the same response getting from device 2 as when posting from device 1
+	if !reflect.DeepEqual(walletGetResponse, expectedResponse) {
+		t.Fatalf("Unexpected response values. want: %+v got: %+v", expectedResponse, walletGetResponse)
+	}
+}
+
+// Test one device that registers and changes password. Check that wallet
+// updates and that tokens get deleted.
+func TestIntegrationChangePassword(t *testing.T) {
+	st, tmpFile := storeTestInit(t)
+	defer storeTestCleanup(tmpFile)
+
+	s := Init(&auth.Auth{}, &st)
+
+	////////////////////
+	t.Log("Request: Register email address")
+	////////////////////
+
+	var registerResponse struct{}
+	responseBody, statusCode := request(
+		t,
+		http.MethodPost,
+		s.register,
+		PathRegister,
+		&registerResponse,
+		`{"email": "abc@example.com", "password": "123"}`,
+	)
+
+	checkStatusCode(t, statusCode, responseBody, http.StatusCreated)
+
+	////////////////////
+	t.Log("Request: Get auth token")
+	////////////////////
+
+	var authToken auth.AuthToken
+	responseBody, statusCode = request(
+		t,
+		http.MethodPost,
+		s.getAuthToken,
+		PathAuthToken,
+		&authToken,
+		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`,
+	)
+
+	checkStatusCode(t, statusCode, responseBody)
+
+	// result.Token is in hex, auth.AuthTokenLength is bytes in the original
+	expectedTokenLength := auth.AuthTokenLength * 2
+	if len(authToken.Token) != expectedTokenLength {
+		t.Fatalf("Expected auth response to contain token length 32: result: %+v", string(responseBody))
+	}
+	if authToken.DeviceId != "dev-1" {
+		t.Fatalf("Unexpected response DeviceId. want: %+v got: %+v", "dev-1", authToken.DeviceId)
+	}
+	if authToken.Scope != auth.ScopeFull {
+		t.Fatalf("Unexpected response Scope. want: %+v got: %+v", auth.ScopeFull, authToken.Scope)
+	}
+
+	////////////////////
+	t.Log("Request: Change password")
+	////////////////////
+
+	var changePasswordResponse struct{}
+	responseBody, statusCode = request(
+		t,
+		http.MethodPost,
+		s.changePassword,
+		PathPassword,
+		&changePasswordResponse,
+		`{"email": "abc@example.com", "oldPassword": "123", "newPassword": "456"}`,
+	)
+
+	checkStatusCode(t, statusCode, responseBody)
+
+	////////////////////
+	t.Log("Request: Put first wallet - fail because token invalidated on password change")
+	////////////////////
+
+	var walletPostResponse struct{}
+	responseBody, statusCode = request(
+		t,
+		http.MethodPost,
+		s.postWallet,
+		PathWallet,
+		&walletPostResponse,
+		fmt.Sprintf(`{
+      "token": "%s",
+      "encryptedWallet": "my-encrypted-wallet-1",
+      "sequence": 1,
+      "hmac": "my-hmac-1"
+    }`, authToken.Token),
+	)
+
+	checkStatusCode(t, statusCode, responseBody, http.StatusUnauthorized)
+
+	////////////////////
+	t.Log("Request: Get another auth token")
+	////////////////////
+
+	responseBody, statusCode = request(
+		t,
+		http.MethodPost,
+		s.getAuthToken,
+		PathAuthToken,
+		&authToken,
+		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "456"}`,
+	)
+
+	checkStatusCode(t, statusCode, responseBody)
+
+	// result.Token is in hex, auth.AuthTokenLength is bytes in the original
+	expectedTokenLength = auth.AuthTokenLength * 2
+	if len(authToken.Token) != expectedTokenLength {
+		t.Fatalf("Expected auth response to contain token length 32: result: %+v", string(responseBody))
+	}
+	if authToken.DeviceId != "dev-1" {
+		t.Fatalf("Unexpected response DeviceId. want: %+v got: %+v", "dev-1", authToken.DeviceId)
+	}
+	if authToken.Scope != auth.ScopeFull {
+		t.Fatalf("Unexpected response Scope. want: %+v got: %+v", auth.ScopeFull, authToken.Scope)
+	}
+
+	////////////////////
+	t.Log("Request: Put first wallet - success")
+	////////////////////
+
+	responseBody, statusCode = request(
+		t,
+		http.MethodPost,
+		s.postWallet,
+		PathWallet,
+		&walletPostResponse,
+		fmt.Sprintf(`{
+      "token": "%s",
+      "encryptedWallet": "my-encrypted-wallet-1",
+      "sequence": 1,
+      "hmac": "my-hmac-1"
+    }`, authToken.Token),
+	)
+
+	checkStatusCode(t, statusCode, responseBody)
+
+	////////////////////
+	t.Log("Request: Change password again, this time including a wallet (since there is a wallet to update)")
+	////////////////////
+
+	responseBody, statusCode = request(
+		t,
+		http.MethodPost,
+		s.changePassword,
+		PathPassword,
+		&changePasswordResponse,
+		fmt.Sprintf(`{
+      "encryptedWallet": "my-encrypted-wallet-2",
+      "sequence": 2,
+      "hmac": "my-hmac-2",
+      "email": "abc@example.com",
+      "oldPassword": "456",
+      "newPassword": "789"
+    }`),
+	)
+
+	checkStatusCode(t, statusCode, responseBody)
+
+	////////////////////
+	t.Log("Request: Get wallet - fail because token invalidated on password change")
+	////////////////////
+
+	var walletGetResponse WalletResponse
+	responseBody, statusCode = request(
+		t,
+		http.MethodGet,
+		s.getWallet,
+		fmt.Sprintf("%s?token=%s", PathWallet, authToken.Token),
+		&walletGetResponse,
+		"",
+	)
+
+	checkStatusCode(t, statusCode, responseBody, http.StatusUnauthorized)
+
+	////////////////////
+	t.Log("Request: Get another auth token")
+	////////////////////
+
+	responseBody, statusCode = request(
+		t,
+		http.MethodPost,
+		s.getAuthToken,
+		PathAuthToken,
+		&authToken,
+		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "789"}`,
+	)
+
+	checkStatusCode(t, statusCode, responseBody)
+
+	// result.Token is in hex, auth.AuthTokenLength is bytes in the original
+	expectedTokenLength = auth.AuthTokenLength * 2
+	if len(authToken.Token) != expectedTokenLength {
+		t.Fatalf("Expected auth response to contain token length 32: result: %+v", string(responseBody))
+	}
+	if authToken.DeviceId != "dev-1" {
+		t.Fatalf("Unexpected response DeviceId. want: %+v got: %+v", "dev-1", authToken.DeviceId)
+	}
+	if authToken.Scope != auth.ScopeFull {
+		t.Fatalf("Unexpected response Scope. want: %+v got: %+v", auth.ScopeFull, authToken.Scope)
+	}
+
+	////////////////////
+	t.Log("Request: Get wallet")
+	////////////////////
+
+	responseBody, statusCode = request(
+		t,
+		http.MethodGet,
+		s.getWallet,
+		fmt.Sprintf("%s?token=%s", PathWallet, authToken.Token),
+		&walletGetResponse,
+		"",
+	)
+
+	checkStatusCode(t, statusCode, responseBody)
+
+	expectedResponse := WalletResponse{
+		EncryptedWallet: wallet.EncryptedWallet("my-encrypted-wallet-2"),
+		Sequence:        wallet.Sequence(2),
+		Hmac:            wallet.WalletHmac("my-hmac-2"),
+	}
+
 	if !reflect.DeepEqual(walletGetResponse, expectedResponse) {
 		t.Fatalf("Unexpected response values. want: %+v got: %+v", expectedResponse, walletGetResponse)
 	}
