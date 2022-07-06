@@ -136,35 +136,27 @@ func (s *Store) Migrate() error {
 // (which I did previously)?
 //
 // TODO Put the timestamp in the token to avoid duplicates over time. And/or just use a library! Someone solved this already.
-func (s *Store) GetToken(token auth.TokenString) (*auth.AuthToken, error) {
+func (s *Store) GetToken(token auth.TokenString) (authToken *auth.AuthToken, err error) {
 	expirationCutoff := time.Now().UTC()
 
-	rows, err := s.db.Query(
-		"SELECT user_id, device_id, scope, expiration FROM auth_tokens WHERE token=? AND expiration>?", token, expirationCutoff,
+	authToken = &(auth.AuthToken{})
+
+	err = s.db.QueryRow(
+		"SELECT token, user_id, device_id, scope, expiration FROM auth_tokens WHERE token=? AND expiration>?", token, expirationCutoff,
+	).Scan(
+		&authToken.Token,
+		&authToken.UserId,
+		&authToken.DeviceId,
+		&authToken.Scope,
+		&authToken.Expiration,
 	)
+	if err == sql.ErrNoRows {
+		err = ErrNoToken
+	}
 	if err != nil {
-		return nil, err
+		authToken = nil
 	}
-	defer rows.Close()
-
-	var authToken auth.AuthToken
-	for rows.Next() {
-
-		err := rows.Scan(
-			&authToken.UserId,
-			&authToken.DeviceId,
-			&authToken.Scope,
-			&authToken.Expiration,
-		)
-
-		authToken.Token = token
-
-		if err != nil {
-			return nil, err
-		}
-		return &authToken, nil
-	}
-	return nil, ErrNoToken
+	return
 }
 
 func (s *Store) insertToken(authToken *auth.AuthToken, expiration time.Time) (err error) {
@@ -239,24 +231,17 @@ func (s *Store) SaveToken(token *auth.AuthToken) (err error) {
 ////////////
 
 func (s *Store) GetWallet(userId auth.UserId) (encryptedWallet wallet.EncryptedWallet, sequence wallet.Sequence, hmac wallet.WalletHmac, err error) {
-	rows, err := s.db.Query(
+	err = s.db.QueryRow(
 		"SELECT encrypted_wallet, sequence, hmac FROM wallets WHERE user_id=?",
 		userId,
+	).Scan(
+		&encryptedWallet,
+		&sequence,
+		&hmac,
 	)
-	if err != nil {
-		return
+	if err == sql.ErrNoRows {
+		err = ErrNoWallet
 	}
-	defer rows.Close()
-
-	for rows.Next() {
-		err = rows.Scan(
-			&encryptedWallet,
-			&sequence,
-			&hmac,
-		)
-		return
-	}
-	err = ErrNoWallet
 	return
 }
 
@@ -342,20 +327,13 @@ func (s *Store) SetWallet(userId auth.UserId, encryptedWallet wallet.EncryptedWa
 }
 
 func (s *Store) GetUserId(email auth.Email, password auth.Password) (userId auth.UserId, err error) {
-	rows, err := s.db.Query(
+	err = s.db.QueryRow(
 		`SELECT user_id from accounts WHERE email=? AND password=?`,
 		email, password.Obfuscate(),
-	)
-	if err != nil {
-		return
+	).Scan(&userId)
+	if err == sql.ErrNoRows {
+		err = ErrWrongCredentials
 	}
-	defer rows.Close()
-
-	for rows.Next() {
-		err = rows.Scan(&userId)
-		return
-	}
-	err = ErrWrongCredentials
 	return
 }
 
