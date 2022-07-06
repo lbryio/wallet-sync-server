@@ -140,7 +140,8 @@ func TestServerPostWallet(t *testing.T) {
 		skipAuthCheck bool
 
 		// `new...` refers to what is being passed into the via POST request (and
-		//   what gets passed into SetWallet for the *non-error* cases below)
+		//   what we expect to get passed into SetWallet for the *non-error* cases
+		//   below)
 		newEncryptedWallet wallet.EncryptedWallet
 		newSequence        wallet.Sequence
 		newHmac            wallet.WalletHmac

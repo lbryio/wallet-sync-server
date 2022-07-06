@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"orblivion/lbry-id/auth"
 	"orblivion/lbry-id/store"
@@ -34,7 +33,6 @@ func (s *Server) register(w http.ResponseWriter, req *http.Request) {
 		} else {
 			internalServiceErrorJson(w, err, "Error registering")
 		}
-		log.Print(err)
 		return
 	}
 

@@ -130,7 +130,7 @@ func (s *Server) postWallet(w http.ResponseWriter, req *http.Request) {
 	}
 
 	var response []byte
-	var walletResponse struct{}
+	var walletResponse struct{} // no data to respond with, but keep it JSON
 	response, err = json.Marshal(walletResponse)
 
 	if err != nil {
