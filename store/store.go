@@ -416,7 +416,7 @@ func (s *Store) ChangePasswordWithWallet(
 	if err != nil {
 		return
 	}
-	if numRows != 1 {
+	if numRows == 0 {
 		// Very unexpected error!
 		err = fmt.Errorf("Password failed to update")
 		return
@@ -434,7 +434,7 @@ func (s *Store) ChangePasswordWithWallet(
 	if err != nil {
 		return
 	}
-	if numRows != 1 {
+	if numRows == 0 {
 		err = ErrWrongSequence
 		return
 	}
@@ -498,7 +498,7 @@ func (s *Store) ChangePasswordNoWallet(
 	if err != nil {
 		return
 	}
-	if numRows != 1 {
+	if numRows == 0 {
 		// Very unexpected error!
 		err = fmt.Errorf("Password failed to update")
 		return
