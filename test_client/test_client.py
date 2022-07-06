@@ -68,6 +68,7 @@ class WalletSync():
 
     self.AUTH_URL = API_URL + '/auth/full'
     self.REGISTER_URL = API_URL + '/signup'
+    self.PASSWORD_URL = API_URL + '/password'
     self.WALLET_URL = API_URL + '/wallet'
 
   def register(self, email, password):
@@ -122,7 +123,7 @@ class WalletSync():
 
   def update_wallet(self, wallet_state, hmac, token):
     body = json.dumps({
-      'token': token,
+      "token": token,
       "encryptedWallet": wallet_state.encrypted_wallet,
       "sequence": wallet_state.sequence,
       "hmac": hmac,
@@ -135,6 +136,49 @@ class WalletSync():
       return True
     elif response.status_code == 409:
       print ('Submitted wallet is out of date.')
+      return False
+    else:
+      print ('Error', response.status_code)
+      print (response.content)
+      raise Exception("Unexpected status code")
+
+  def change_password_with_wallet(self, wallet_state, hmac, email, old_password, new_password):
+    body = json.dumps({
+      "encryptedWallet": wallet_state.encrypted_wallet,
+      "sequence": wallet_state.sequence,
+      "hmac": hmac,
+      "email": email,
+      "oldPassword": old_password,
+      "newPassword": new_password,
+    })
+
+    response = requests.post(self.PASSWORD_URL, body)
+
+    if response.status_code == 200:
+      print ('Successfully updated password and wallet state on server')
+      return True
+    elif response.status_code == 409:
+      print ('Either submitted wallet is out of date, or there was no wallet on the server to update in the first place.')
+      return False
+    else:
+      print ('Error', response.status_code)
+      print (response.content)
+      raise Exception("Unexpected status code")
+
+  def change_password_no_wallet(self, email, old_password, new_password):
+    body = json.dumps({
+      "email": email,
+      "oldPassword": old_password,
+      "newPassword": new_password,
+    })
+
+    response = requests.post(self.PASSWORD_URL, body)
+
+    if response.status_code == 200:
+      print ('Successfully updated password on server')
+      return True
+    elif response.status_code == 409:
+      print ('There is a wallet on the server that needs to be updated with password change.')
       return False
     else:
       print ('Error', response.status_code)
@@ -163,6 +207,7 @@ def derive_secrets(root_password, salt):
     key_length = 32
     num_keys = 3
 
+    print ("Generating keys...")
     kdf_output = scrypt(
       bytes(root_password, 'utf-8'),
       salt=salt,
@@ -172,6 +217,7 @@ def derive_secrets(root_password, salt):
       p=scrypt_p,
       maxmem=1100000000, # TODO - is this a lot?
     )
+    print ("Done generating keys")
 
     # Split the output in three
     parts = (
@@ -347,16 +393,15 @@ class Client():
 
   # Returns: status
   def update_remote_wallet(self):
-    # Create a *new* wallet state, indicating that it was last updated by this
-    # device, with the updated sequence, and include our local encrypted wallet changes.
-    # Don't set self.synced_wallet_state to this until we know that it's accepted by
-    # the server.
+    # Create a *new* wallet state, with the updated sequence, and include our
+    # local encrypted wallet changes. Don't set self.synced_wallet_state to
+    # this until we know that it's accepted by the server.
     if not self.synced_wallet_state:
       print ("No wallet state to post.")
       return "Error"
 
     submitted_wallet_state = WalletState(
-      encrypted_wallet=self.get_local_encrypted_wallet(),
+      encrypted_wallet=self.get_local_encrypted_wallet(self.sync_password),
       sequence=self.synced_wallet_state.sequence + 1
     )
     hmac = create_hmac(submitted_wallet_state, self.hmac_key)
@@ -375,6 +420,50 @@ class Client():
     print ("Could not update. Need to get new wallet and merge")
     return "Failure"
 
+  # Returns: status
+  def change_password(self, new_root_password):
+    # Change the password on the server. If a wallet exists on the server,
+    # update that as well so that the sync password and hmac key are derived
+    # from the same root password as the lbry id password.
+
+    new_lbry_id_password, new_sync_password, new_hmac_key = derive_secrets(new_root_password, self.salt)
+
+    if self.synced_wallet_state and self.synced_wallet_state.sequence > 0:
+      # Create a *new* wallet state (with our new sync password), with the
+      # updated sequence, and include our local encrypted wallet changes.
+      # Don't set self.synced_wallet_state to this until we know that it's
+      # accepted by the server.
+
+      submitted_wallet_state = WalletState(
+        encrypted_wallet=self.get_local_encrypted_wallet(new_sync_password),
+        sequence=self.synced_wallet_state.sequence + 1
+      )
+      hmac = create_hmac(submitted_wallet_state, new_hmac_key)
+
+      # Update our password and submit our wallet.
+      updated = self.wallet_sync_api.change_password_with_wallet(submitted_wallet_state, hmac, self.email, self.lbry_id_password, new_lbry_id_password)
+
+      if updated:
+        # We updated it. Now it's synced and we mark it as such. Update everything in one command to keep local changes in sync!
+        self.synced_wallet_state, self.lbry_id_password, self.sync_password, self.hmac_key = (
+          submitted_wallet_state, new_lbry_id_password, new_sync_password, new_hmac_key)
+
+        print ("Synced walletState:")
+        pprint(self.synced_wallet_state)
+        return "Success"
+    else:
+      # Update our password.
+      updated = self.wallet_sync_api.change_password_no_wallet(self.email, self.lbry_id_password, new_lbry_id_password)
+
+      if updated:
+        # We updated it. Now we mark it as such. Update everything in one command to keep local changes in sync!
+        self.lbry_id_password, self.sync_password, self.hmac_key = (
+          new_lbry_id_password, new_sync_password, new_hmac_key)
+        return "Success"
+
+    print ("Could not update. Need to get new wallet and merge")
+    return "Failure"
+
   def set_preference(self, key, value):
     # TODO - error checking
     return LBRYSDK.set_preference(self.wallet_id, key, value)
@@ -387,6 +476,6 @@ class Client():
     # TODO - error checking
     return LBRYSDK.update_wallet(self.wallet_id, self.sync_password, encrypted_wallet)
 
-  def get_local_encrypted_wallet(self):
+  def get_local_encrypted_wallet(self, sync_password):
     # TODO - error checking
-    return LBRYSDK.get_wallet(self.wallet_id, self.sync_password)
+    return LBRYSDK.get_wallet(self.wallet_id, sync_password)
