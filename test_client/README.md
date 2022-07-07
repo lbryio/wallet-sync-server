@@ -11,7 +11,11 @@ For this example we will be working with a locally running server so that we don
 ```
 >>> from test_client import Client
 >>> c1 = Client("joe2@example.com", "123abc2", 'test_wallet_1', local=True)
+Generating keys...
+Done generating keys
 >>> c2 = Client("joe2@example.com", "123abc2", 'test_wallet_2', local=True)
+Generating keys...
+Done generating keys
 ```
 
 Register the account on the server with one of the clients.
@@ -25,9 +29,9 @@ Now that the account exists, grab an auth token with both clients.
 
 ```
 >>> c1.get_auth_token()
-Got auth token:  4a3d9b8569c3b06079ff26d60ebc56db6254305217602c19b0af6e02db6d95d7
+Got auth token:  d7159a5a84d97cdb02c642ad5d866ebfb5f69e390c873591a5620e3614d0bdeb
 >>> c2.get_auth_token()
-Got auth token:  33fd77031ccaec966018867e960446bf39d51a3c492c3d997d5f1aa13c75298d
+Got auth token:  9170ffc5ec3a581623bb3b17efcce3d261cb6ab480be1b295c25921fdfd8bd3c
 ```
 
 ## Syncing
@@ -39,7 +43,7 @@ Create a new wallet + metadata (we'll wrap it in a struct we'll call `WalletStat
 >>> c1.update_remote_wallet()
 Successfully updated wallet state on server
 Synced walletState:
-WalletState(sequence=1, encrypted_wallet='czo4MTkyOjE2OjE6/MNVSMrjIqPzrD/oaub++J3lc5qW+baxD0EI6n5/XqGgRsUND3G7fqRsn/riULM4zap+jI8XgW6l1rieJWGZXPQvIZJP8B7gQvBDfzlY0BxUgECeX38I5EtRFNWU3sTwmAaAaDuBpaBXvnf2hu4SEp5xl/OQVg9h+BluTZBdLSU=')
+WalletState(sequence=1, encrypted_wallet='czo4MTkyOjE2OjE6EMrhL3U4HXiCJZbTyV3fAgA5XFG3C0Qwak7t/g1QBQHjpztK98587mSN5e+MNJ3+a9ydQi9q+piyLqA79WjsnyOsUKJTlGbrsVXqEzJo/mvUdb4HtDa0MaK2arvl8RD+hqsiqP/G5PVOO0JIfl3A15QHbA5/GsY8zG3xqQK95Zg=')
 'Success'
 ```
 
@@ -51,7 +55,7 @@ Now, call `init_wallet_state` with the other client. Then, we call `get_remote_w
 >>> c2.init_wallet_state()
 >>> c2.get_remote_wallet()
 Got (and maybe merged in) latest walletState:
-WalletState(sequence=1, encrypted_wallet='czo4MTkyOjE2OjE6/MNVSMrjIqPzrD/oaub++J3lc5qW+baxD0EI6n5/XqGgRsUND3G7fqRsn/riULM4zap+jI8XgW6l1rieJWGZXPQvIZJP8B7gQvBDfzlY0BxUgECeX38I5EtRFNWU3sTwmAaAaDuBpaBXvnf2hu4SEp5xl/OQVg9h+BluTZBdLSU=')
+WalletState(sequence=1, encrypted_wallet='czo4MTkyOjE2OjE6EMrhL3U4HXiCJZbTyV3fAgA5XFG3C0Qwak7t/g1QBQHjpztK98587mSN5e+MNJ3+a9ydQi9q+piyLqA79WjsnyOsUKJTlGbrsVXqEzJo/mvUdb4HtDa0MaK2arvl8RD+hqsiqP/G5PVOO0JIfl3A15QHbA5/GsY8zG3xqQK95Zg=')
 'Success'
 ```
 
@@ -63,11 +67,11 @@ Push a new version, GET it with the other client. Even though we haven't edited 
 >>> c2.update_remote_wallet()
 Successfully updated wallet state on server
 Synced walletState:
-WalletState(sequence=2, encrypted_wallet='czo4MTkyOjE2OjE6MIPxgbxNGbaZWboH6ci6wBT3izdpb/B3JYdl3nJdQn6EV54W4QaYUvuUxMa5XngiXlNLcLbmFRqeYj/mgAbEVXRKLyLQxjB7rIhGcRxsHbzGR8YDMVvP+m5dWaxevlZc7cEZkpRQKfFyuc+pnjPEk9SUvEgioN1Hxir6DonMqlA=')
+WalletState(sequence=2, encrypted_wallet='czo4MTkyOjE2OjE6hb2Qt8BCiLujMT0ykatcAvuVhW7uMuVbhSONFhQkLQwhZ+qBlYyTxmLc+tGzwmRLPYWCbfWY+oDcHE90h9wEKwGjNyDdjybkBRPvt4ufyIyYV/a3UPCvVYgdvktBRUF8fBagTQR2V/FQwXEeNYAAx53YSQQfy7FTYnjT2wVlbww=')
 'Success'
 >>> c1.get_remote_wallet()
 Got (and maybe merged in) latest walletState:
-WalletState(sequence=2, encrypted_wallet='czo4MTkyOjE2OjE6MIPxgbxNGbaZWboH6ci6wBT3izdpb/B3JYdl3nJdQn6EV54W4QaYUvuUxMa5XngiXlNLcLbmFRqeYj/mgAbEVXRKLyLQxjB7rIhGcRxsHbzGR8YDMVvP+m5dWaxevlZc7cEZkpRQKfFyuc+pnjPEk9SUvEgioN1Hxir6DonMqlA=')
+WalletState(sequence=2, encrypted_wallet='czo4MTkyOjE2OjE6hb2Qt8BCiLujMT0ykatcAvuVhW7uMuVbhSONFhQkLQwhZ+qBlYyTxmLc+tGzwmRLPYWCbfWY+oDcHE90h9wEKwGjNyDdjybkBRPvt4ufyIyYV/a3UPCvVYgdvktBRUF8fBagTQR2V/FQwXEeNYAAx53YSQQfy7FTYnjT2wVlbww=')
 'Success'
 ```
 
@@ -93,11 +97,11 @@ The wallet is synced between the clients. The client with the changed preference
 >>> c1.update_remote_wallet()
 Successfully updated wallet state on server
 Synced walletState:
-WalletState(sequence=3, encrypted_wallet='czo4MTkyOjE2OjE6YUEKfjxhUXeHrNbPuWpMt5o/6H5fSSKFZAMkb8YugMGEHzVAZDfGMdowwdycXkyTZtPRiMSs+kgOX8BLomcz/I+de8b1EsXribYR05sgySRJiPoW8VBRlmgbRapZ9iGaxvgJJWmVAO42beNWtnuE3bdpDtWtZjgcXWq6lnhNlETmKEEPthezGB8svHPHt/rJ')
+WalletState(sequence=3, encrypted_wallet='czo4MTkyOjE2OjE6Boe8tNSgXWgoCDHDdCaLWauz6UEF2NqgjvdszFkFEOEgRIg3TYSIM2IncYG6JzeY/jjcSVAdARZ2mhW2qu2w42O2KUR53B7272YCohRUQjTG2VGj3r8idt6RF3gdJz4kPTvj9Mb2hHgxLLEsmpGrH5sAoVtnctP4kkbw4tt9yTMenzxBf330eN0kBikHMRDS')
 'Success'
 >>> c2.get_remote_wallet()
 Got (and maybe merged in) latest walletState:
-WalletState(sequence=3, encrypted_wallet='czo4MTkyOjE2OjE6YUEKfjxhUXeHrNbPuWpMt5o/6H5fSSKFZAMkb8YugMGEHzVAZDfGMdowwdycXkyTZtPRiMSs+kgOX8BLomcz/I+de8b1EsXribYR05sgySRJiPoW8VBRlmgbRapZ9iGaxvgJJWmVAO42beNWtnuE3bdpDtWtZjgcXWq6lnhNlETmKEEPthezGB8svHPHt/rJ')
+WalletState(sequence=3, encrypted_wallet='czo4MTkyOjE2OjE6Boe8tNSgXWgoCDHDdCaLWauz6UEF2NqgjvdszFkFEOEgRIg3TYSIM2IncYG6JzeY/jjcSVAdARZ2mhW2qu2w42O2KUR53B7272YCohRUQjTG2VGj3r8idt6RF3gdJz4kPTvj9Mb2hHgxLLEsmpGrH5sAoVtnctP4kkbw4tt9yTMenzxBf330eN0kBikHMRDS')
 'Success'
 >>> c2.get_preferences()
 {'animal': 'cow', 'car': ''}
@@ -124,7 +128,7 @@ One client POSTs its change first.
 >>> c1.update_remote_wallet()
 Successfully updated wallet state on server
 Synced walletState:
-WalletState(sequence=4, encrypted_wallet='czo4MTkyOjE2OjE6ZAO02VSfc0UTNcKJosuTzdpB1GCRw+f1bCrR/1aFDGoK5Iq/OyKXygp3p2trj2EU1SUfp6m/FiWYdN920uzpaQnIbOlEs6anPpd3alNQmNfuT1s8bKnliO6so657VjZf0QdadDrCVa8WZMiuHY+wP2H5LpzDIrRYrzNyyUuhffbh8yk8cQhgRScFKczpAnu+')
+WalletState(sequence=4, encrypted_wallet='czo4MTkyOjE2OjE62nX6KIGR6GewHaJNGyA4hgu8Ce4mX6RTTjEHZE1NJ+ABlxz88639N/56ybBHIN8Ztcb33kLcsz+YWxn5esLVkjoEl49It6VK5mIFkUtL9QVGvMaFExUD3+l7v6USq3U92Aulu/l20WB2ZV0IqXZ7KX+GN54Yez/Vv9diQwyUujZa5n5+yoU7sY45rQ0xwmTS')
 'Success'
 ```
 
@@ -135,7 +139,7 @@ Eventually, the client will be responsible (or at least more responsible) for me
 ```
 >>> c2.get_remote_wallet()
 Got (and maybe merged in) latest walletState:
-WalletState(sequence=4, encrypted_wallet='czo4MTkyOjE2OjE6ZAO02VSfc0UTNcKJosuTzdpB1GCRw+f1bCrR/1aFDGoK5Iq/OyKXygp3p2trj2EU1SUfp6m/FiWYdN920uzpaQnIbOlEs6anPpd3alNQmNfuT1s8bKnliO6so657VjZf0QdadDrCVa8WZMiuHY+wP2H5LpzDIrRYrzNyyUuhffbh8yk8cQhgRScFKczpAnu+')
+WalletState(sequence=4, encrypted_wallet='czo4MTkyOjE2OjE62nX6KIGR6GewHaJNGyA4hgu8Ce4mX6RTTjEHZE1NJ+ABlxz88639N/56ybBHIN8Ztcb33kLcsz+YWxn5esLVkjoEl49It6VK5mIFkUtL9QVGvMaFExUD3+l7v6USq3U92Aulu/l20WB2ZV0IqXZ7KX+GN54Yez/Vv9diQwyUujZa5n5+yoU7sY45rQ0xwmTS')
 'Success'
 >>> c2.get_preferences()
 {'animal': 'horse', 'car': 'Audi'}
@@ -147,11 +151,11 @@ Finally, the client with the merged wallet pushes it to the server, and the othe
 >>> c2.update_remote_wallet()
 Successfully updated wallet state on server
 Synced walletState:
-WalletState(sequence=5, encrypted_wallet='czo4MTkyOjE2OjE6cat6gX80ib+t6bX9QlBw3jspj4jJ6U8AGULRDPNa8PbL4CX6ohZoXkt+duNYPxWDdyl8xqhwisWXTXkuGUBwP2zrVmZC3TNt5A9Pk/y/tNgMz50CY3JmNYcbCeZyoY+uV+cMfdO+n3p3hYriNKgn539NC6ug80U/2heevVax4NgMAF0lWEBM2E886+KkvfHG')
+WalletState(sequence=5, encrypted_wallet='czo4MTkyOjE2OjE6yRz92fRLp8UCOZ0jfNwkY2ZnCS5DSdzt06++co48MSWvKLhflrjpqBbwup4QWHB9O+1VAKoi2KPB0fbIHrnTeXLzHXkN6lPWUyOsVg61JP37FsPQBdOf7smdeImzh6bj5AT7N6qltsdYa6OdGsA2+K7syS/NJsnAE2pXLuNZWGJkDgkThH6zMiBayX2HpDeh')
 'Success'
 >>> c1.get_remote_wallet()
 Got (and maybe merged in) latest walletState:
-WalletState(sequence=5, encrypted_wallet='czo4MTkyOjE2OjE6cat6gX80ib+t6bX9QlBw3jspj4jJ6U8AGULRDPNa8PbL4CX6ohZoXkt+duNYPxWDdyl8xqhwisWXTXkuGUBwP2zrVmZC3TNt5A9Pk/y/tNgMz50CY3JmNYcbCeZyoY+uV+cMfdO+n3p3hYriNKgn539NC6ug80U/2heevVax4NgMAF0lWEBM2E886+KkvfHG')
+WalletState(sequence=5, encrypted_wallet='czo4MTkyOjE2OjE6yRz92fRLp8UCOZ0jfNwkY2ZnCS5DSdzt06++co48MSWvKLhflrjpqBbwup4QWHB9O+1VAKoi2KPB0fbIHrnTeXLzHXkN6lPWUyOsVg61JP37FsPQBdOf7smdeImzh6bj5AT7N6qltsdYa6OdGsA2+K7syS/NJsnAE2pXLuNZWGJkDgkThH6zMiBayX2HpDeh')
 'Success'
 >>> c1.get_preferences()
 {'animal': 'horse', 'car': 'Audi'}
@@ -182,7 +186,7 @@ We try to POST both of them to the server. The second one fails because of the c
 >>> c2.update_remote_wallet()
 Successfully updated wallet state on server
 Synced walletState:
-WalletState(sequence=6, encrypted_wallet='czo4MTkyOjE2OjE6IQ+uyjKiGAIEjoNliOsANoq2h/exQpwordUQFVbbHVhj27UbJS7ykMV4or5avEwNo+aCYC8j7HEqqaPnhvNYeeyPbmpfZS0lU7MXBehoqvIPR3GyTLM002t7SUrB+KxdvUX8RAamjiahDI8OeTOBmYhgQLSZt/ZDtRL/3f5l1JgLCjEbVKJY6Pim0hk7AlpK')
+WalletState(sequence=6, encrypted_wallet='czo4MTkyOjE2OjE67VjoKcDba0+yJBoEasS8RKGHH8c7JbShgv+lf3CVnHXPFsA45Y3zmvyLEIsvpUxmg/jE5rw/jsh1ZCNt/yKOjRhyR8VFwR69hPl3n5j+2ya1tu4G++7REfriAkRw4kHP1im5NJ0WXPMIvdM2bV+nTFqLMdqxySyF1ljsXEdhtu9cw8A4Qs1DYOPPKfewtHNF')
 'Success'
 >>> c1.update_remote_wallet()
 Submitted wallet is out of date.
@@ -197,13 +201,59 @@ The client that is out of date will then call `get_remote_wallet`, which GETs an
 ```
 >>> c1.get_remote_wallet()
 Got (and maybe merged in) latest walletState:
-WalletState(sequence=6, encrypted_wallet='czo4MTkyOjE2OjE6IQ+uyjKiGAIEjoNliOsANoq2h/exQpwordUQFVbbHVhj27UbJS7ykMV4or5avEwNo+aCYC8j7HEqqaPnhvNYeeyPbmpfZS0lU7MXBehoqvIPR3GyTLM002t7SUrB+KxdvUX8RAamjiahDI8OeTOBmYhgQLSZt/ZDtRL/3f5l1JgLCjEbVKJY6Pim0hk7AlpK')
+WalletState(sequence=6, encrypted_wallet='czo4MTkyOjE2OjE67VjoKcDba0+yJBoEasS8RKGHH8c7JbShgv+lf3CVnHXPFsA45Y3zmvyLEIsvpUxmg/jE5rw/jsh1ZCNt/yKOjRhyR8VFwR69hPl3n5j+2ya1tu4G++7REfriAkRw4kHP1im5NJ0WXPMIvdM2bV+nTFqLMdqxySyF1ljsXEdhtu9cw8A4Qs1DYOPPKfewtHNF')
 'Success'
 >>> c1.get_preferences()
 {'animal': 'beaver', 'car': 'Toyota'}
 >>> c1.update_remote_wallet()
 Successfully updated wallet state on server
 Synced walletState:
-WalletState(sequence=7, encrypted_wallet='czo4MTkyOjE2OjE63OwBCfczOA+n0EMe0lHPwVvmrXsJwKJXGPYFSmdDseHbd3HRpOZ/Id5WeOuata5/dHJ4vdaaw8RNfpgR4KVzOkM5BUZNxzBaVf/BEYL8nJcbv7l5ZLs6Q15IqvlmZ3HBPVzxO/WYqm4aL9+CNeoYG2LzaIxsnzf31ZoG9I78B6wxK5JXCjDS+nuh/4NM+REE')
+WalletState(sequence=7, encrypted_wallet='czo4MTkyOjE2OjE6+PrieMsaswjsA5TXASYa2MwLHJEYHCAypDagR95NmAVI7/SefVs8aF1s7mA/CMTLiV3N1qwyzLMXpOxSbEiBLvjgOL00ajrHLw/ZPmOOToFIul4/9Jw5mTnqisdRWBaAF2yzXsflY2zQFllmSBJPRAiWAZ0xaErW+SJhKZzHK/aBg2PC9v1GFR7lZXpqx4CQ')
 'Success'
+```
+
+# Changing Password
+
+Changing the root password leads to generating a new lbry.id login password, sync password, and hmac key. To avoid complicated scenarios from partial updates, we will account for all three changes on the server by submitting a new password, wallet and hmac in one request (and the server, in turn, will commit all of the changes in one database transaction).
+
+This implies that the client needs to have its local wallet updated before updating their password, just like for a normal wallet update, to keep the sequence values properly incrementing.
+
+There is one exception: if there is no wallet yet saved on the server, the client should not submit a wallet to the server. It should omit the wallet-related fields in the request. (This is for situations where the user is just getting their account set up and needs to change their password. They should not be forced to create and sync a wallet first.). However, at this point in this example, we have a wallet saved so we will submit an update.
+
+```
+>>> c1.change_password("eggsandwich")
+Generating keys...
+Done generating keys
+Successfully updated password and wallet state on server
+Synced walletState:
+WalletState(sequence=8, encrypted_wallet='czo4MTkyOjE2OjE6/S99ffv8LCcu1Xk9jLjROv4tQ/nUJnxkazOfVg+eTCBOB0WiGvPKTPzo4QkmpDsNa4N3ZHHIFfwz+xG4Q+xMuWlBU38Ok6Igqtc/du6/IzQxRkUumm49s8xaFeFqQB+mqawq89RB9UDMjYlzvSDPD7ZAgxpCXkT5oIuIqkGqnc9XlIStDAlisIfNs67Orrja')
+'Success'
+```
+
+This operation invalidates all of the user's auth tokens. This prevents other clients from accidentally pushing a wallet encrypted with the old password.
+
+```
+>>> c1.get_remote_wallet()
+Error 401
+b'{"error":"Unauthorized: Token Not Found"}\n'
+'Failed to get remote wallet'
+>>> c2.get_remote_wallet()
+Error 401
+b'{"error":"Unauthorized: Token Not Found"}\n'
+'Failed to get remote wallet'
+```
+
+The client that changed its password can easily get a new token because it has the new password saved locally. The other client needs to update its local password first.
+
+```
+>>> c1.get_auth_token()
+Got auth token:  fc40aea0ba6193f0c1903c0c95ed27010a50cea5176c75813c90ff9eb56996f8
+>>> c2.get_auth_token()
+Error 401
+b'{"error":"Unauthorized: No match for email and password"}\n'
+>>> c2.set_local_password("eggsandwich")
+Generating keys...
+Done generating keys
+>>> c2.get_auth_token()
+Got auth token:  9230030eac6107b889e82d2abb0d4be189680d3882a44e055ac7a1c9db30e00b
 ```

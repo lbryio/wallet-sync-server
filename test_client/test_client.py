@@ -271,12 +271,14 @@ class Client():
     # do it. Since the same server sees one of the outputs of the KDF. Huh.
     self.salt = b'I AM A SALT'
 
-    # TODO - is UTF-8 appropriate for root_password? based on characters used etc.
-    self.lbry_id_password, self.sync_password, self.hmac_key = derive_secrets(root_password, self.salt)
-
+    self.set_local_password(root_password)
     self.wallet_id = wallet_id
 
     self.wallet_sync_api = WalletSync(local=local)
+
+  def set_local_password(self, root_password):
+    # TODO - is UTF-8 appropriate for root_password? based on characters used etc.
+    self.lbry_id_password, self.sync_password, self.hmac_key = derive_secrets(root_password, self.salt)
 
   # TODO - This does not deal with the question of tying accounts to wallets.
   # Does a new wallet state mean a we're creating a new account? What happens
@@ -363,7 +365,12 @@ class Client():
 
   # Returns: status
   def get_remote_wallet(self):
-    new_wallet_state, hmac = self.wallet_sync_api.get_wallet(self.auth_token)
+    # TODO - Do try/catch for other calls I guess. I needed it here in
+    # particular for the README
+    try:
+      new_wallet_state, hmac = self.wallet_sync_api.get_wallet(self.auth_token)
+    except Exception:
+      return "Failed to get remote wallet"
 
     if not new_wallet_state:
       # Wallet not found, but this is not an error
@@ -461,7 +468,7 @@ class Client():
           new_lbry_id_password, new_sync_password, new_hmac_key)
         return "Success"
 
-    print ("Could not update. Need to get new wallet and merge")
+    print ("Could not update wallet and password. Perhaps need to get new wallet and merge, perhaps something else.")
     return "Failure"
 
   def set_preference(self, key, value):

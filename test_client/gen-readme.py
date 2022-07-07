@@ -200,3 +200,37 @@ c1.get_remote_wallet()
 c1.get_preferences()
 c1.update_remote_wallet()
 """)
+
+print("""
+# Changing Password
+
+Changing the root password leads to generating a new lbry.id login password, sync password, and hmac key. To avoid complicated scenarios from partial updates, we will account for all three changes on the server by submitting a new password, wallet and hmac in one request (and the server, in turn, will commit all of the changes in one database transaction).
+
+This implies that the client needs to have its local wallet updated before updating their password, just like for a normal wallet update, to keep the sequence values properly incrementing.
+
+There is one exception: if there is no wallet yet saved on the server, the client should not submit a wallet to the server. It should omit the wallet-related fields in the request. (This is for situations where the user is just getting their account set up and needs to change their password. They should not be forced to create and sync a wallet first.). However, at this point in this example, we have a wallet saved so we will submit an update.
+""")
+
+code_block("""
+c1.change_password("eggsandwich")
+""")
+
+print("""
+This operation invalidates all of the user's auth tokens. This prevents other clients from accidentally pushing a wallet encrypted with the old password.
+""")
+
+code_block("""
+c1.get_remote_wallet()
+c2.get_remote_wallet()
+""")
+
+print("""
+The client that changed its password can easily get a new token because it has the new password saved locally. The other client needs to update its local password first.
+""")
+
+code_block("""
+c1.get_auth_token()
+c2.get_auth_token()
+c2.set_local_password("eggsandwich")
+c2.get_auth_token()
+""")
