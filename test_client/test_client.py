@@ -113,7 +113,6 @@ class WalletSync():
     }
     response = requests.get(self.WALLET_URL, params=params)
 
-    # TODO check response version on client side now
     if response.status_code == 404:
       print ('Wallet not found')
       # "No wallet" is not an error, so no exception raised
