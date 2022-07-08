@@ -234,3 +234,14 @@ c2.get_auth_token()
 c2.set_local_password("eggsandwich")
 c2.get_auth_token()
 """)
+
+print("""
+We don't allow password changes if we have pending wallet changes to push. This is to prevent a situation where the user has to merge local and remote changes in the middle of a password change.
+""")
+
+code_block("""
+c1.set_preference('animal', 'leemur')
+c1.change_password("starboard")
+c1.update_remote_wallet()
+c1.change_password("starboard")
+""")

@@ -19,6 +19,16 @@ class LBRYSDK():
     }))
     return response.json()['result']['data']
 
+  @staticmethod
+  def get_hash(wallet_id):
+    response = requests.post('http://localhost:5279', json.dumps({
+      "method": "sync_hash",
+      "params": {
+        "wallet_id": wallet_id,
+      },
+    }))
+    return response.json()['result']
+
   # TODO - error checking
   @staticmethod
   def update_wallet(wallet_id, password, data):
@@ -311,8 +321,18 @@ class Client():
     # won't lose any changes.
     self.synced_wallet_state = WalletState(
       sequence=0,
+
+      # TODO - This should be the encrypted form of the empty wallet. The very
+      # first baseline, which could be used for merges in weird cases where
+      # users make conflicting changes on two different clients before ever
+      # pushing to the sync server.
       encrypted_wallet="",
     )
+    # Initialize to the hash of the empty wallet. This way we will know if any
+    # changes to the wallet exist that haven't been pushed yet, even if the
+    # changes were made before the wallet state was initialized.
+    # TODO - actually set the right hash
+    self.mark_local_changes_synced_to_empty()
 
   def register(self):
     success = self.wallet_sync_api.register(
@@ -355,12 +375,16 @@ class Client():
     # not just a function.
 
     # For now, the SDK handles merging (in a way that we hope to improve with
-    # the above eventually) so we will just return `new_wallet_state`.
-    #
-    # It would be nice to have a little "we just merged in changes" log output
-    # if there are local changes, just for demo purpoes. Unfortunately, the SDK
-    # outputs a different encrypted blob each time we ask it for the encrypted
-    # wallet, so there's no easy way to check if it actually changed.
+    # the above eventually) so we will just return `new_wallet_state`. However,
+    # since we can at least compare hashes, we'll leave a little note for the
+    # user indicating that we're doing a merge. Caveat: We can't do it on
+    # sequence=0 because we can't get a sense of whether changes were made on a
+    # client before the first sync.
+    if self.synced_wallet_state.sequence > 0:
+      if self.has_unsynced_local_changes():
+        print ("Merging local changes with remote changes to create latest walletState.")
+      else:
+        print ("Nothing to merge. Taking remote walletState as latest walletState.")
     return new_wallet_state
 
   # Returns: status
@@ -394,7 +418,10 @@ class Client():
     self.synced_wallet_state = merged_wallet_state
     self.update_local_encrypted_wallet(merged_wallet_state.encrypted_wallet)
 
-    print ("Got (and maybe merged in) latest walletState:")
+    # We just took the value from the sync server, so local changes are synced
+    self.mark_local_changes_synced()
+
+    print ("Got latest walletState:")
     pprint(self.synced_wallet_state)
     return "Success"
 
@@ -420,6 +447,9 @@ class Client():
       # We updated it. Now it's synced and we mark it as such.
       self.synced_wallet_state = submitted_wallet_state
 
+      # We just pushed our local changes to the server, so local changes are synced
+      self.mark_local_changes_synced()
+
       print ("Synced walletState:")
       pprint(self.synced_wallet_state)
       return "Success"
@@ -436,6 +466,21 @@ class Client():
     new_lbry_id_password, new_sync_password, new_hmac_key = derive_secrets(new_root_password, self.salt)
 
     if self.synced_wallet_state and self.synced_wallet_state.sequence > 0:
+      # Don't allow it to change if we have local changes to push. This
+      # precludes the possibility of having a conflict with remote changes,
+      # followed by a merge with user interaction, when the user is already in
+      # the middle of a password change. This way, if there is a conflict, we
+      # can simply get the latest wallet and try again with the same password
+      # that the user just entered, guaranteeing that they won't need to do any
+      # more interactions.
+      #
+      # NOTE: If for whatever reason this is removed, make sure to add a call
+      # to mark_local_changes_synced as appropriate below, since we may be
+      # going from unsynced to synced.
+      if self.has_unsynced_local_changes():
+        print("Local changes found. Update remote wallet before changing password.")
+        return "Failure"
+
       # Create a *new* wallet state (with our new sync password), with the
       # updated sequence, and include our local encrypted wallet changes.
       # Don't set self.synced_wallet_state to this until we know that it's
@@ -478,6 +523,17 @@ class Client():
   def get_preferences(self):
     # TODO - error checking
     return LBRYSDK.get_preferences(self.wallet_id)
+
+  def has_unsynced_local_changes(self):
+    return self.lbry_sdk_last_synced_hash != LBRYSDK.get_hash(self.wallet_id)
+
+  def mark_local_changes_synced(self):
+    self.lbry_sdk_last_synced_hash = LBRYSDK.get_hash(self.wallet_id)
+
+  def mark_local_changes_synced_to_empty(self):
+    # TODO - this should be the hash of the empty wallet. See
+    # comment in init_wallet_state().
+    self.lbry_sdk_last_synced_hash = ""
 
   def update_local_encrypted_wallet(self, encrypted_wallet):
     # TODO - error checking
