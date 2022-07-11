@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"orblivion/lbry-id/auth"
@@ -176,7 +177,7 @@ func TestServerPostWallet(t *testing.T) {
 		}, {
 			name:                "validation error",
 			expectedStatusCode:  http.StatusBadRequest,
-			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation",
+			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation: Missing 'encryptedWallet'",
 			skipAuthCheck:       true, // we can't get an auth token without the data we just failed to validate
 
 			// Just check one validation error (empty encrypted wallet) to make sure the
@@ -275,32 +276,37 @@ func TestServerPostWallet(t *testing.T) {
 
 func TestServerValidateWalletRequest(t *testing.T) {
 	walletRequest := WalletRequest{Token: "seekrit", EncryptedWallet: "my-encrypted-wallet", Hmac: "my-hmac", Sequence: 2}
-	if !walletRequest.validate() {
+	if walletRequest.validate() != nil {
 		t.Fatalf("Expected valid WalletRequest to successfully validate")
 	}
 
 	tt := []struct {
-		walletRequest      WalletRequest
-		failureDescription string
+		walletRequest       WalletRequest
+		expectedErrorSubstr string
+		failureDescription  string
 	}{
 		{
 			WalletRequest{EncryptedWallet: "my-encrypted-wallet", Hmac: "my-hmac", Sequence: 2},
+			"token",
 			"Expected WalletRequest with missing token to not successfully validate",
 		}, {
 			WalletRequest{Token: "seekrit", Hmac: "my-hmac", Sequence: 2},
+			"encryptedWallet",
 			"Expected WalletRequest with missing encrypted wallet to not successfully validate",
 		}, {
 			WalletRequest{Token: "seekrit", EncryptedWallet: "my-encrypted-wallet", Sequence: 2},
+			"hmac",
 			"Expected WalletRequest with missing hmac to not successfully validate",
 		}, {
 			WalletRequest{Token: "seekrit", EncryptedWallet: "my-encrypted-wallet", Hmac: "my-hmac", Sequence: 0},
+			"sequence",
 			"Expected WalletRequest with sequence < 1 to not successfully validate",
 		},
 	}
 	for _, tc := range tt {
-		if tc.walletRequest.validate() {
+		err := tc.walletRequest.validate()
+		if err == nil || !strings.Contains(err.Error(), tc.expectedErrorSubstr) {
 			t.Errorf(tc.failureDescription)
 		}
-
 	}
 }

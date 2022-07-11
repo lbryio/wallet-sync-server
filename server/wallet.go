@@ -16,11 +16,20 @@ type WalletRequest struct {
 	Hmac            wallet.WalletHmac      `json:"hmac"`
 }
 
-func (r *WalletRequest) validate() bool {
-	return (r.Token != auth.TokenString("") &&
-		r.EncryptedWallet != wallet.EncryptedWallet("") &&
-		r.Hmac != wallet.WalletHmac("") &&
-		r.Sequence >= wallet.Sequence(1))
+func (r *WalletRequest) validate() error {
+	if r.Token == "" {
+		return fmt.Errorf("Missing 'token'")
+	}
+	if r.EncryptedWallet == "" {
+		return fmt.Errorf("Missing 'encryptedWallet'")
+	}
+	if r.Hmac == "" {
+		return fmt.Errorf("Missing 'hmac'")
+	}
+	if r.Sequence < 1 {
+		return fmt.Errorf("Missing or zero-value 'sequence'")
+	}
+	return nil
 }
 
 type WalletResponse struct {

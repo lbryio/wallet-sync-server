@@ -19,16 +19,27 @@ type ChangePasswordRequest struct {
 	NewPassword     auth.Password          `json:"newPassword"`
 }
 
-func (r *ChangePasswordRequest) validate() bool {
+func (r *ChangePasswordRequest) validate() error {
 	// The wallet should be here or not. Not partially here.
 	walletPresent := (r.EncryptedWallet != "" && r.Hmac != "" && r.Sequence > 0)
 	walletAbsent := (r.EncryptedWallet == "" && r.Hmac == "" && r.Sequence == 0)
 
-	return (validateEmail(r.Email) &&
-		r.OldPassword != "" &&
-		r.NewPassword != "" &&
-		r.OldPassword != r.NewPassword &&
-		(walletPresent || walletAbsent))
+	if !validateEmail(r.Email) {
+		return fmt.Errorf("Invalid 'email'")
+	}
+	if r.OldPassword == "" {
+		return fmt.Errorf("Missing 'oldPassword'")
+	}
+	if r.NewPassword == "" {
+		return fmt.Errorf("Missing 'newPassword'")
+	}
+	if r.OldPassword == r.NewPassword {
+		return fmt.Errorf("'oldPassword' and 'newPassword' should not be the same")
+	}
+	if !walletPresent && !walletAbsent {
+		return fmt.Errorf("Fields 'encryptedWallet', 'sequence', and 'hmac' should be all non-empty and non-zero, or all omitted")
+	}
+	return nil
 }
 
 func (s *Server) changePassword(w http.ResponseWriter, req *http.Request) {

@@ -283,7 +283,13 @@ func TestServerHelperGetGetDataErrors(t *testing.T) {
 
 type TestReqStruct struct{ key string }
 
-func (t *TestReqStruct) validate() bool { return t.key != "" }
+func (t *TestReqStruct) validate() error {
+	if t.key == "" {
+		return fmt.Errorf("TestReq Error")
+	} else {
+		return nil
+	}
+}
 
 func TestServerHelperGetPostDataSuccess(t *testing.T) {
 	requestBody := []byte(`{}`)
@@ -330,7 +336,7 @@ func TestServerHelperGetPostDataErrors(t *testing.T) {
 			method:              http.MethodPost,
 			requestBody:         "{}",
 			expectedStatusCode:  http.StatusBadRequest,
-			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation",
+			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation: TestReq Error",
 		},
 	}
 	for _, tc := range tt {

@@ -87,8 +87,9 @@ func requestOverhead(w http.ResponseWriter, req *http.Request, method string) bo
 }
 
 // All structs representing incoming json request body should implement this
+// The contents of `error` should be safe for an API response (public-facing)
 type PostRequest interface {
-	validate() bool
+	validate() error
 }
 
 // TODO decoder.DisallowUnknownFields?
@@ -119,9 +120,9 @@ func getPostData(w http.ResponseWriter, req *http.Request, reqStruct PostRequest
 		return false
 	}
 
-	if !reqStruct.validate() {
-		// TODO validate() should return useful error messages instead of a bool.
-		errorJson(w, http.StatusBadRequest, "Request failed validation")
+	err = reqStruct.validate()
+	if err != nil {
+		errorJson(w, http.StatusBadRequest, "Request failed validation: "+err.Error())
 		return false
 	}
 

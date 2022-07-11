@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"orblivion/lbry-id/auth"
 	"orblivion/lbry-id/store"
+	"strings"
 	"testing"
 )
 
@@ -53,7 +54,7 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 			name:                "validation error", // missing email address
 			email:               "",
 			expectedStatusCode:  http.StatusBadRequest,
-			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation",
+			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation: Invalid 'email'",
 
 			// Just check one validation error (missing email address) to make sure the
 			// validate function is called. We'll check the rest of the validation
@@ -113,36 +114,43 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 
 func TestServerValidateAuthRequest(t *testing.T) {
 	authRequest := AuthRequest{DeviceId: "dId", Email: "joe@example.com", Password: "aoeu"}
-	if !authRequest.validate() {
+	if authRequest.validate() != nil {
 		t.Fatalf("Expected valid AuthRequest to successfully validate")
 	}
 
 	tt := []struct {
-		authRequest        AuthRequest
-		failureDescription string
+		authRequest         AuthRequest
+		expectedErrorSubstr string
+		failureDescription  string
 	}{
 		{
 			AuthRequest{Email: "joe@example.com", Password: "aoeu"},
+			"deviceId",
 			"Expected AuthRequest with missing device to not successfully validate",
 		}, {
 			AuthRequest{DeviceId: "dId", Email: "joe-example.com", Password: "aoeu"},
+			"email",
 			"Expected AuthRequest with invalid email to not successfully validate",
 		}, {
 			// Note that Golang's email address parser, which I use, will accept
 			// "Joe <joe@example.com>" so we need to make sure to avoid accepting it. See
 			// the implementation.
 			AuthRequest{DeviceId: "dId", Email: "Joe <joe@example.com>", Password: "aoeu"},
+			"email",
 			"Expected AuthRequest with email with unexpected formatting to not successfully validate",
 		}, {
 			AuthRequest{DeviceId: "dId", Password: "aoeu"},
+			"email",
 			"Expected AuthRequest with missing email to not successfully validate",
 		}, {
 			AuthRequest{DeviceId: "dId", Email: "joe@example.com"},
+			"password",
 			"Expected AuthRequest with missing password to not successfully validate",
 		},
 	}
 	for _, tc := range tt {
-		if tc.authRequest.validate() {
+		err := tc.authRequest.validate()
+		if !strings.Contains(err.Error(), tc.expectedErrorSubstr) {
 			t.Errorf(tc.failureDescription)
 		}
 	}

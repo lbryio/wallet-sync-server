@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"orblivion/lbry-id/store"
@@ -48,7 +49,7 @@ func TestServerRegisterErrors(t *testing.T) {
 			name:                "validation error", // missing email address
 			email:               "",
 			expectedStatusCode:  http.StatusBadRequest,
-			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation",
+			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation: Invalid 'email'",
 
 			// Just check one validation error (missing email address) to make sure the
 			// validate function is called. We'll check the rest of the validation
@@ -96,12 +97,13 @@ func TestServerRegisterErrors(t *testing.T) {
 
 func TestServerValidateRegisterRequest(t *testing.T) {
 	registerRequest := RegisterRequest{Email: "joe@example.com", Password: "aoeu"}
-	if !registerRequest.validate() {
+	if registerRequest.validate() != nil {
 		t.Fatalf("Expected valid RegisterRequest to successfully validate")
 	}
 
 	registerRequest = RegisterRequest{Email: "joe-example.com", Password: "aoeu"}
-	if registerRequest.validate() {
+	err := registerRequest.validate()
+	if !strings.Contains(err.Error(), "email") {
 		t.Fatalf("Expected RegisterRequest with invalid email to not successfully validate")
 	}
 
@@ -109,17 +111,20 @@ func TestServerValidateRegisterRequest(t *testing.T) {
 	// "Joe <joe@example.com>" so we need to make sure to avoid accepting it. See
 	// the implementation.
 	registerRequest = RegisterRequest{Email: "Joe <joe@example.com>", Password: "aoeu"}
-	if registerRequest.validate() {
+	err = registerRequest.validate()
+	if !strings.Contains(err.Error(), "email") {
 		t.Fatalf("Expected RegisterRequest with email with unexpected formatting to not successfully validate")
 	}
 
 	registerRequest = RegisterRequest{Password: "aoeu"}
-	if registerRequest.validate() {
+	err = registerRequest.validate()
+	if !strings.Contains(err.Error(), "email") {
 		t.Fatalf("Expected RegisterRequest with missing email to not successfully validate")
 	}
 
 	registerRequest = RegisterRequest{Email: "joe@example.com"}
-	if registerRequest.validate() {
+	err = registerRequest.validate()
+	if !strings.Contains(err.Error(), "password") {
 		t.Fatalf("Expected RegisterRequest with missing password to not successfully validate")
 	}
 }

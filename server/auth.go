@@ -18,8 +18,17 @@ type AuthRequest struct {
 
 // TODO - validate funcs probably should return error rather than bool for
 // idiomatic golang
-func (r *AuthRequest) validate() bool {
-	return r.DeviceId != "" && r.Password != auth.Password("") && validateEmail(r.Email)
+func (r *AuthRequest) validate() error {
+	if !validateEmail(r.Email) {
+		return fmt.Errorf("Invalid 'email'")
+	}
+	if r.Password == "" {
+		return fmt.Errorf("Missing 'password'")
+	}
+	if r.DeviceId == "" {
+		return fmt.Errorf("Missing 'deviceId'")
+	}
+	return nil
 }
 
 func (s *Server) getAuthToken(w http.ResponseWriter, req *http.Request) {

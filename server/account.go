@@ -15,8 +15,14 @@ type RegisterRequest struct {
 	Password auth.Password `json:"password"`
 }
 
-func (r *RegisterRequest) validate() bool {
-	return validateEmail(r.Email) && r.Password != ""
+func (r *RegisterRequest) validate() error {
+	if !validateEmail(r.Email) {
+		return fmt.Errorf("Invalid 'email'")
+	}
+	if r.Password == "" {
+		return fmt.Errorf("Missing 'password'")
+	}
+	return nil
 }
 
 func (s *Server) register(w http.ResponseWriter, req *http.Request) {

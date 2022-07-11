@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"orblivion/lbry-id/auth"
@@ -105,7 +106,7 @@ func TestServerChangePassword(t *testing.T) {
 		}, {
 			name:                "validation error",
 			expectedStatusCode:  http.StatusBadRequest,
-			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation",
+			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation: Invalid 'email'",
 
 			// Just check one validation error (missing email address) to make sure
 			// the validate function is called. We'll check the rest of the
@@ -234,7 +235,7 @@ func TestServerValidateChangePasswordRequest(t *testing.T) {
 		OldPassword:     "123",
 		NewPassword:     "456",
 	}
-	if !changePasswordRequest.validate() {
+	if changePasswordRequest.validate() != nil {
 		t.Errorf("Expected valid ChangePasswordRequest with wallet fields to successfully validate")
 	}
 
@@ -243,12 +244,13 @@ func TestServerValidateChangePasswordRequest(t *testing.T) {
 		OldPassword: "123",
 		NewPassword: "456",
 	}
-	if !changePasswordRequest.validate() {
+	if changePasswordRequest.validate() != nil {
 		t.Errorf("Expected valid ChangePasswordRequest without wallet fields to successfully validate")
 	}
 
 	tt := []struct {
 		changePasswordRequest ChangePasswordRequest
+		expectedErrorSubstr   string
 		failureDescription    string
 	}{
 		{
@@ -260,6 +262,7 @@ func TestServerValidateChangePasswordRequest(t *testing.T) {
 				OldPassword:     "123",
 				NewPassword:     "456",
 			},
+			"email",
 			"Expected WalletRequest with invalid email to not successfully validate",
 		}, {
 			// Note that Golang's email address parser, which I use, will accept
@@ -273,6 +276,7 @@ func TestServerValidateChangePasswordRequest(t *testing.T) {
 				OldPassword:     "123",
 				NewPassword:     "456",
 			},
+			"email",
 			"Expected WalletRequest with email with unexpected formatting to not successfully validate",
 		}, {
 			ChangePasswordRequest{
@@ -282,6 +286,7 @@ func TestServerValidateChangePasswordRequest(t *testing.T) {
 				OldPassword:     "123",
 				NewPassword:     "456",
 			},
+			"email",
 			"Expected WalletRequest with missing email to not successfully validate",
 		}, {
 			ChangePasswordRequest{
@@ -291,6 +296,7 @@ func TestServerValidateChangePasswordRequest(t *testing.T) {
 				Email:           "abc@example.com",
 				NewPassword:     "456",
 			},
+			"oldPassword",
 			"Expected WalletRequest with missing old password to not successfully validate",
 		}, {
 			ChangePasswordRequest{
@@ -300,6 +306,7 @@ func TestServerValidateChangePasswordRequest(t *testing.T) {
 				Email:           "abc@example.com",
 				OldPassword:     "123",
 			},
+			"newPassword",
 			"Expected WalletRequest with missing new password to not successfully validate",
 		}, {
 			ChangePasswordRequest{
@@ -309,6 +316,7 @@ func TestServerValidateChangePasswordRequest(t *testing.T) {
 				OldPassword: "123",
 				NewPassword: "456",
 			},
+			"'encryptedWallet', 'sequence', and 'hmac'", // More likely to fail when we change the error message but whatever
 			"Expected WalletRequest with missing encrypted wallet (but with other wallet fields present) to not successfully validate",
 		}, {
 			ChangePasswordRequest{
@@ -318,6 +326,7 @@ func TestServerValidateChangePasswordRequest(t *testing.T) {
 				OldPassword:     "123",
 				NewPassword:     "456",
 			},
+			"'encryptedWallet', 'sequence', and 'hmac'", // More likely to fail when we change the error message but whatever
 			"Expected WalletRequest with missing hmac (but with other wallet fields present) to not successfully validate",
 		}, {
 			ChangePasswordRequest{
@@ -328,6 +337,7 @@ func TestServerValidateChangePasswordRequest(t *testing.T) {
 				OldPassword:     "123",
 				NewPassword:     "456",
 			},
+			"'encryptedWallet', 'sequence', and 'hmac'", // More likely to fail when we change the error message but whatever
 			"Expected WalletRequest with sequence < 1 (but with other wallet fields present) to not successfully validate",
 		}, {
 			ChangePasswordRequest{
@@ -338,11 +348,13 @@ func TestServerValidateChangePasswordRequest(t *testing.T) {
 				OldPassword:     "123",
 				NewPassword:     "123",
 			},
+			"should not be the same",
 			"Expected WalletRequest with password that does not change to not successfully validate",
 		},
 	}
 	for _, tc := range tt {
-		if tc.changePasswordRequest.validate() {
+		err := tc.changePasswordRequest.validate()
+		if !strings.Contains(err.Error(), tc.expectedErrorSubstr) {
 			t.Errorf(tc.failureDescription)
 		}
 
