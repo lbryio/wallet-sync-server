@@ -85,7 +85,8 @@ func TestStoreChangePasswordErrors(t *testing.T) {
 			emailSuffix:       auth.Email(""),     // the email is correct
 			oldPasswordSuffix: auth.Password(""),  // the password is correct
 
-			// Maybe ErrNoWallet once we sort it out. See TODO item by its definition.
+			// Sequence=1 always ends up being wrong for this endpoint since we
+			// should never be creating a wallet here.
 			expectedError: ErrWrongSequence,
 		},
 	}

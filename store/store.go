@@ -21,10 +21,7 @@ var (
 
 	ErrDuplicateWallet = fmt.Errorf("Wallet already exists for this user")
 
-	// TODO - the use of this error message is a bit confusing. The phrasing is
-	// not correct for GetWallet. And maybe the other uses probably should just
-	// return ErrWrongSequence to begin with. But think about it.
-	ErrNoWallet = fmt.Errorf("Wallet does not exist for this user at this sequence")
+	ErrNoWallet = fmt.Errorf("Wallet does not exist for this user")
 
 	ErrUnexpectedWallet = fmt.Errorf("Wallet unexpectedly exist for this user")
 	ErrWrongSequence    = fmt.Errorf("Wallet could not be updated to this sequence")
@@ -263,6 +260,8 @@ func (s *Store) insertFirstWallet(
 		// I initially expected to need to check for ErrConstraintUnique.
 		// Maybe for psql it will be?
 		if errors.Is(sqliteErr.ExtendedCode, sqlite3.ErrConstraintPrimaryKey) {
+			// NOTE While ErrDuplicateWallet makes sense in the context of trying to insert,
+			// SetWallet, which also handles update, translates this to ErrWrongSequence
 			err = ErrDuplicateWallet
 		}
 	}
@@ -279,7 +278,7 @@ func (s *Store) updateWalletToSequence(
 	// This will be used for wallets with sequence > 1.
 	// Use the database to enforce that we only update if we are incrementing the sequence.
 	// This way, if two clients attempt to update at the same time, it will return
-	// ErrNoWallet for the second one.
+	// an error for the second one.
 	res, err := s.db.Exec(
 		"UPDATE wallets SET encrypted_wallet=?, sequence=?, hmac=? WHERE user_id=? AND sequence=?",
 		encryptedWallet, sequence, hmac, userId, sequence-1,
@@ -293,6 +292,8 @@ func (s *Store) updateWalletToSequence(
 		return
 	}
 	if numRows == 0 {
+		// NOTE While ErrNoWallet makes sense in the context of trying to update,
+		// SetWallet, which also handles insert, translates this to ErrWrongSequence
 		err = ErrNoWallet
 	}
 	return
