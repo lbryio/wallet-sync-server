@@ -16,8 +16,6 @@ type AuthRequest struct {
 	Password auth.Password `json:"password"`
 }
 
-// TODO - validate funcs probably should return error rather than bool for
-// idiomatic golang
 func (r *AuthRequest) validate() error {
 	if !validateEmail(r.Email) {
 		return fmt.Errorf("Invalid 'email'")
