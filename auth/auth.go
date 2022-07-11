@@ -8,11 +8,6 @@ import (
 	"time"
 )
 
-// TODO - Learn how to use https://github.com/golang/oauth2 instead
-// TODO - Look into jwt, etc.
-// For now I just want a process that's shaped like what I'm looking for.
-//   (email/password, encrypted wallets, hmac, sequence (eventually lastSynced), etc)
-
 type UserId int32
 type Email string
 type DeviceId string
