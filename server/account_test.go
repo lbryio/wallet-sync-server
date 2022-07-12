@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"orblivion/lbry-id/store"
+	"lbryio/lbry-id/store"
 )
 
 func TestServerRegisterSuccess(t *testing.T) {

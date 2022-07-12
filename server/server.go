@@ -6,8 +6,8 @@ import (
 	"log"
 	"net/http"
 	"net/mail"
-	"orblivion/lbry-id/auth"
-	"orblivion/lbry-id/store"
+	"lbryio/lbry-id/auth"
+	"lbryio/lbry-id/store"
 )
 
 // TODO proper doc comments!

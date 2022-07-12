@@ -11,9 +11,9 @@ import (
 	"reflect"
 	"testing"
 
-	"orblivion/lbry-id/auth"
-	"orblivion/lbry-id/store"
-	"orblivion/lbry-id/wallet"
+	"lbryio/lbry-id/auth"
+	"lbryio/lbry-id/store"
+	"lbryio/lbry-id/wallet"
 )
 
 // Whereas sever_test.go stubs out auth store and wallet, these will use the real thing, but test fewer paths.

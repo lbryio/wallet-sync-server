@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"orblivion/lbry-id/auth"
-	"orblivion/lbry-id/store"
+	"lbryio/lbry-id/auth"
+	"lbryio/lbry-id/store"
 )
 
 // DeviceId is decided by the device. UserId is decided by the server, and is

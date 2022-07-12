@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"orblivion/lbry-id/auth"
-	"orblivion/lbry-id/store"
-	"orblivion/lbry-id/wallet"
+	"lbryio/lbry-id/auth"
+	"lbryio/lbry-id/store"
+	"lbryio/lbry-id/wallet"
 )
 
 func TestServerGetWallet(t *testing.T) {

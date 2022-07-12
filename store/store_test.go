@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"orblivion/lbry-id/auth"
+	"lbryio/lbry-id/auth"
 )
 
 func StoreTestInit(t *testing.T) (s Store, tmpFile *os.File) {

@@ -7,8 +7,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"orblivion/lbry-id/auth"
-	"orblivion/lbry-id/store"
+	"lbryio/lbry-id/auth"
+	"lbryio/lbry-id/store"
 	"strings"
 	"testing"
 )

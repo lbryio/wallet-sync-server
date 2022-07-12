@@ -6,7 +6,7 @@ import (
 
 	"github.com/mattn/go-sqlite3"
 
-	"orblivion/lbry-id/auth"
+	"lbryio/lbry-id/auth"
 )
 
 func expectAccountMatch(t *testing.T, s *Store, email auth.Email, password auth.Password) {

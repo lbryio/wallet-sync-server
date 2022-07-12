@@ -2,9 +2,9 @@ package main
 
 import (
 	"log"
-	"orblivion/lbry-id/auth"
-	"orblivion/lbry-id/server"
-	"orblivion/lbry-id/store"
+	"lbryio/lbry-id/auth"
+	"lbryio/lbry-id/server"
+	"lbryio/lbry-id/store"
 )
 
 func storeInit() (s store.Store) {

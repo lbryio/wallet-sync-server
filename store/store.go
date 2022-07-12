@@ -11,8 +11,8 @@ import (
 
 	"github.com/mattn/go-sqlite3"
 
-	"orblivion/lbry-id/auth"
-	"orblivion/lbry-id/wallet"
+	"lbryio/lbry-id/auth"
+	"lbryio/lbry-id/wallet"
 )
 
 var (

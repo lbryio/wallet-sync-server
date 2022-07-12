@@ -1,4 +1,4 @@
-module orblivion/lbry-id
+module lbryio/lbry-id
 
 go 1.17
 

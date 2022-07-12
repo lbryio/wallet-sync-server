@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"orblivion/lbry-id/auth"
-	"orblivion/lbry-id/wallet"
+	"lbryio/lbry-id/auth"
+	"lbryio/lbry-id/wallet"
 )
 
 // It involves both wallet and account tables. Should it go in wallet_test.go
