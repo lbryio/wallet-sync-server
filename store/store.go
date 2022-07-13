@@ -111,11 +111,13 @@ func (s *Store) Migrate() error {
 		);
 		CREATE TABLE IF NOT EXISTS accounts(
 			email TEXT NOT NULL UNIQUE,
-			password TEXT NOT NULL,
+			key TEXT NOT NULL,
+			salt TEXT NOT NULL,
 			user_id INTEGER PRIMARY KEY AUTOINCREMENT,
 			CHECK (
 			  email <> '' AND
-			  password <> ''
+			  key <> '' AND
+			  salt <> ''
 			)
 		);
 	`
@@ -328,12 +330,22 @@ func (s *Store) SetWallet(userId auth.UserId, encryptedWallet wallet.EncryptedWa
 }
 
 func (s *Store) GetUserId(email auth.Email, password auth.Password) (userId auth.UserId, err error) {
+	var key auth.KDFKey
+	var salt auth.Salt
 	err = s.db.QueryRow(
-		`SELECT user_id from accounts WHERE email=? AND password=?`,
-		email, password.Obfuscate(),
-	).Scan(&userId)
+		`SELECT user_id, key, salt from accounts WHERE email=?`,
+		email,
+	).Scan(&userId, &key, &salt)
 	if err == sql.ErrNoRows {
 		err = ErrWrongCredentials
+	}
+	if err != nil {
+		return
+	}
+	match, err := password.Check(key, salt)
+	if err == nil && !match {
+		err = ErrWrongCredentials
+		userId = auth.UserId(0)
 	}
 	return
 }
@@ -343,10 +355,14 @@ func (s *Store) GetUserId(email auth.Email, password auth.Password) (userId auth
 /////////////
 
 func (s *Store) CreateAccount(email auth.Email, password auth.Password) (err error) {
+	key, salt, err := password.Create()
+	if err != nil {
+		return
+	}
 	// userId auto-increments
 	_, err = s.db.Exec(
-		"INSERT INTO accounts (email, password) VALUES(?,?)",
-		email, password.Obfuscate(),
+		"INSERT INTO accounts (email, key, salt) VALUES(?,?,?)",
+		email, key, salt,
 	)
 
 	var sqliteErr sqlite3.Error
@@ -375,75 +391,14 @@ func (s *Store) ChangePasswordWithWallet(
 	sequence wallet.Sequence,
 	hmac wallet.WalletHmac,
 ) (err error) {
-	var userId auth.UserId
-
-	tx, err := s.db.Begin()
-	if err != nil {
-		return
-	}
-
-	// Lots of error conditions. Just defer this. However, we need to make sure to
-	// make sure the variable `err` is set to the error before we return, instead
-	// of doing `return <error>`.
-	endTxn := func() {
-		if err != nil {
-			tx.Rollback()
-		} else {
-			tx.Commit()
-		}
-	}
-	defer endTxn()
-
-	err = tx.QueryRow(
-		"SELECT user_id from accounts WHERE email=? AND password=?",
-		email, oldPassword.Obfuscate(),
-	).Scan(&userId)
-	if err == sql.ErrNoRows {
-		err = ErrWrongCredentials
-		return
-	}
-	if err != nil {
-		return
-	}
-
-	res, err := tx.Exec(
-		"UPDATE accounts SET password=? WHERE user_id=?",
-		newPassword.Obfuscate(), userId,
+	return s.changePassword(
+		email,
+		oldPassword,
+		newPassword,
+		encryptedWallet,
+		sequence,
+		hmac,
 	)
-	if err != nil {
-		return
-	}
-	numRows, err := res.RowsAffected()
-	if err != nil {
-		return
-	}
-	if numRows == 0 {
-		// Very unexpected error!
-		err = fmt.Errorf("Password failed to update")
-		return
-	}
-
-	res, err = tx.Exec(
-		`UPDATE wallets SET encrypted_wallet=?, sequence=?, hmac=?
-	    WHERE user_id=? AND sequence=?`,
-		encryptedWallet, sequence, hmac, userId, sequence-1,
-	)
-	if err != nil {
-		return
-	}
-	numRows, err = res.RowsAffected()
-	if err != nil {
-		return
-	}
-	if numRows == 0 {
-		err = ErrWrongSequence
-		return
-	}
-
-	// Don't care how many I delete here. Might even be zero. No login token while
-	// changing password seems plausible.
-	_, err = tx.Exec("DELETE FROM auth_tokens WHERE user_id=?", userId)
-	return
 }
 
 // Change password, but with no wallet currently saved. Since there's no
@@ -456,6 +411,25 @@ func (s *Store) ChangePasswordNoWallet(
 	email auth.Email,
 	oldPassword auth.Password,
 	newPassword auth.Password,
+) (err error) {
+	return s.changePassword(
+		email,
+		oldPassword,
+		newPassword,
+		wallet.EncryptedWallet(""),
+		wallet.Sequence(0),
+		wallet.WalletHmac(""),
+	)
+}
+
+// Common code for for WithWallet and WithNoWallet password change functions
+func (s *Store) changePassword(
+	email auth.Email,
+	oldPassword auth.Password,
+	newPassword auth.Password,
+	encryptedWallet wallet.EncryptedWallet,
+	sequence wallet.Sequence,
+	hmac wallet.WalletHmac,
 ) (err error) {
 	var userId auth.UserId
 
@@ -476,21 +450,35 @@ func (s *Store) ChangePasswordNoWallet(
 	}
 	defer endTxn()
 
+	var oldKey auth.KDFKey
+	var oldSalt auth.Salt
+
 	err = tx.QueryRow(
-		"SELECT user_id from accounts WHERE email=? AND password=?",
-		email, oldPassword.Obfuscate(),
-	).Scan(&userId)
+		`SELECT user_id, key, salt from accounts WHERE email=?`,
+		email,
+	).Scan(&userId, &oldKey, &oldSalt)
 	if err == sql.ErrNoRows {
 		err = ErrWrongCredentials
+	}
+	if err != nil {
 		return
+	}
+	match, err := oldPassword.Check(oldKey, oldSalt)
+	if err == nil && !match {
+		err = ErrWrongCredentials
 	}
 	if err != nil {
 		return
 	}
 
+	newKey, newSalt, err := newPassword.Create()
+	if err != nil {
+		return
+	}
+
 	res, err := tx.Exec(
-		"UPDATE accounts SET password=? WHERE user_id=?",
-		newPassword.Obfuscate(), userId,
+		"UPDATE accounts SET key=?, salt=? WHERE user_id=?",
+		newKey, newSalt, userId,
 	)
 	if err != nil {
 		return
@@ -505,17 +493,39 @@ func (s *Store) ChangePasswordNoWallet(
 		return
 	}
 
-	// Assert we have no wallet for this version of the password change function.
-	var dummy string
-	err = tx.QueryRow("SELECT 1 FROM wallets WHERE user_id=?", userId).Scan(&dummy)
-	if err != sql.ErrNoRows {
-		if err == nil {
-			// We expected no rows
-			err = ErrUnexpectedWallet
+	if encryptedWallet != "" {
+		// With a wallet expected: update it.
+
+		res, err = tx.Exec(
+			`UPDATE wallets SET encrypted_wallet=?, sequence=?, hmac=?
+			 WHERE user_id=? AND sequence=?`,
+			encryptedWallet, sequence, hmac, userId, sequence-1,
+		)
+		if err != nil {
 			return
 		}
-		// Some other error
-		return
+		numRows, err = res.RowsAffected()
+		if err != nil {
+			return
+		}
+		if numRows == 0 {
+			err = ErrWrongSequence
+			return
+		}
+	} else {
+		// With no wallet expected: assert we have no wallet.
+
+		var dummy string
+		err = tx.QueryRow("SELECT 1 FROM wallets WHERE user_id=?", userId).Scan(&dummy)
+		if err != sql.ErrNoRows {
+			if err == nil {
+				// We expected no rows
+				err = ErrUnexpectedWallet
+				return
+			}
+			// Some other error
+			return
+		}
 	}
 
 	// Don't care how many I delete here. Might even be zero. No login token while

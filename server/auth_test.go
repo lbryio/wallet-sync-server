@@ -7,10 +7,11 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"lbryio/lbry-id/auth"
-	"lbryio/lbry-id/store"
 	"strings"
 	"testing"
+
+	"lbryio/lbry-id/auth"
+	"lbryio/lbry-id/store"
 )
 
 func TestServerAuthHandlerSuccess(t *testing.T) {

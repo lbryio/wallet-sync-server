@@ -10,40 +10,44 @@ import (
 )
 
 func expectAccountMatch(t *testing.T, s *Store, email auth.Email, password auth.Password) {
-	rows, err := s.db.Query(
-		`SELECT 1 from accounts WHERE email=? AND password=?`,
-		email, password.Obfuscate(),
-	)
+	var key auth.KDFKey
+	var salt auth.Salt
+
+	err := s.db.QueryRow(
+		`SELECT key, salt from accounts WHERE email=?`,
+		email,
+	).Scan(&key, &salt)
 	if err != nil {
 		t.Fatalf("Error finding account for: %s %s - %+v", email, password, err)
 	}
-	defer rows.Close()
 
-	for rows.Next() {
-		return // found something, we're good
+	match, err := password.Check(key, salt)
+	if err != nil {
+		t.Fatalf("Error checking password for: %s %s - %+v", email, password, err)
 	}
-
-	t.Fatalf("Expected account for: %s %s", email, password)
+	if !match {
+		t.Fatalf("Expected account for: %s %s", email, password)
+	}
 }
 
-func expectAccountNotMatch(t *testing.T, s *Store, email auth.Email, password auth.Password) {
+func expectAccountNotExists(t *testing.T, s *Store, email auth.Email) {
 	rows, err := s.db.Query(
-		`SELECT 1 from accounts WHERE email=? AND password=?`,
-		email, password.Obfuscate(),
+		`SELECT 1 from accounts WHERE email=?`,
+		email,
 	)
 	if err != nil {
-		t.Fatalf("Error finding account for: %s %s - %+v", email, password, err)
+		t.Fatalf("Error finding account for: %s - %+v", email, err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		t.Fatalf("Expected no account for: %s %s", email, password)
+		t.Fatalf("Expected no account for: %s", email)
 	}
 
 	// found nothing, we're good
 }
 
-// Test CreateAccount, using GetUserId as a helper
+// Test CreateAccount
 // Try CreateAccount twice with the same email and different password, error the second time
 func TestStoreCreateAccount(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
@@ -52,7 +56,7 @@ func TestStoreCreateAccount(t *testing.T) {
 	email, password := auth.Email("abc@example.com"), auth.Password("123")
 
 	// Get an account, come back empty
-	expectAccountNotMatch(t, &s, email, password)
+	expectAccountNotExists(t, &s, email)
 
 	// Create an account
 	if err := s.CreateAccount(email, password); err != nil {
@@ -70,14 +74,12 @@ func TestStoreCreateAccount(t *testing.T) {
 		t.Fatalf(`CreateAccount err: wanted "%+v", got "%+v"`, ErrDuplicateAccount, err)
 	}
 
-	// Get the email and same *first* password we successfully put in, but not the second
+	// Get the email and same *first* password we successfully put in
 	expectAccountMatch(t, &s, email, password)
-	expectAccountNotMatch(t, &s, email, newPassword)
 }
 
-// Test GetUserId, using CreateAccount as a helper
-// Try GetUserId before creating an account (fail), and after (succeed)
-func TestStoreGetUserId(t *testing.T) {
+// Test GetUserId for nonexisting email
+func TestStoreGetUserIdAccountNotExists(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
@@ -85,15 +87,25 @@ func TestStoreGetUserId(t *testing.T) {
 
 	// Check that there's no user id for email and password first
 	if userId, err := s.GetUserId(email, password); err != ErrWrongCredentials || userId != 0 {
-		t.Fatalf(`CreateAccount err: wanted "%+v", got "%+v. userId: %v"`, ErrWrongCredentials, err, userId)
+		t.Fatalf(`GetUserId error for nonexistant account: wanted "%+v", got "%+v. userId: %v"`, ErrWrongCredentials, err, userId)
 	}
+}
 
-	// Create the account
-	_ = s.CreateAccount(email, password)
+// Test GetUserId for existing account, with the correct and incorrect password
+func TestStoreGetUserIdAccountExists(t *testing.T) {
+	s, sqliteTmpFile := StoreTestInit(t)
+	defer StoreTestCleanup(sqliteTmpFile)
+
+	createdUserId, email, password := makeTestUser(t, &s)
 
 	// Check that there's now a user id for the email and password
-	if userId, err := s.GetUserId(email, password); err != nil || userId == 0 {
+	if userId, err := s.GetUserId(email, password); err != nil || userId != createdUserId {
 		t.Fatalf("Unexpected error in GetUserId: err: %+v userId: %v", err, userId)
+	}
+
+	// Check that it won't return if the wrong password is given
+	if userId, err := s.GetUserId(email, password+auth.Password("_wrong")); err != ErrWrongCredentials || userId != 0 {
+		t.Fatalf(`GetUserId error for wrong password: wanted "%+v", got "%+v. userId: %v"`, ErrWrongCredentials, err, userId)
 	}
 }
 
@@ -109,7 +121,7 @@ func TestStoreAccountEmptyFields(t *testing.T) {
 			email:    "",
 			password: "xyz",
 		},
-		// Not testing empty password because it gets obfuscated to something
+		// Not testing empty key and salt because they get generated to something
 		// non-empty in the method
 	}
 

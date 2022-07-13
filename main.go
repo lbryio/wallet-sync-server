@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+
 	"lbryio/lbry-id/auth"
 	"lbryio/lbry-id/server"
 	"lbryio/lbry-id/store"

@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/mail"
+
 	"lbryio/lbry-id/auth"
 	"lbryio/lbry-id/store"
 )

@@ -2,16 +2,19 @@ package auth
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"time"
+
+	"golang.org/x/crypto/scrypt"
 )
 
 type UserId int32
 type Email string
 type DeviceId string
 type Password string
+type KDFKey string // KDF output
+type Salt string
 type TokenString string
 type AuthScope string
 
@@ -62,8 +65,46 @@ func (at *AuthToken) ScopeValid(required AuthScope) bool {
 	return at.Scope == ScopeFull || at.Scope == required
 }
 
-func (p Password) Obfuscate() string {
-	// TODO KDF instead
-	hash := sha256.Sum256([]byte(p))
-	return hex.EncodeToString(hash[:])
+const SaltLength = 8
+
+// https://words.filippo.io/the-scrypt-parameters/
+func passwordScrypt(p Password, saltBytes []byte) ([]byte, error) {
+	scryptN := 32768
+	scryptR := 8
+	scryptP := 1
+	keyLen := 32
+	return scrypt.Key([]byte(p), saltBytes, scryptN, scryptR, scryptP, keyLen)
+}
+
+// Given a password (in the same format submitted via request), generate a
+// random salt, run the password and salt thorugh the KDF, and return the salt
+// and kdf output. The result generally goes into a database.
+func (p Password) Create() (key KDFKey, salt Salt, err error) {
+	saltBytes := make([]byte, SaltLength)
+	if _, err := rand.Read(saltBytes); err != nil {
+		return "", "", fmt.Errorf("Error generating salt: %+v", err)
+	}
+	keyBytes, err := passwordScrypt(p, saltBytes)
+	if err == nil {
+		key = KDFKey(hex.EncodeToString(keyBytes[:]))
+		salt = Salt(hex.EncodeToString(saltBytes[:]))
+	}
+	return
+}
+
+// Given a password (in the same format submitted via request), a salt, and an
+// expected kdf output, run the password and salt thorugh the KDF, and return
+// whether the result kdf output matches the kdf test output.
+// The salt and test kdf output generally come out of the database, and is used
+// to check a submitted password.
+func (p Password) Check(checkKey KDFKey, salt Salt) (match bool, err error) {
+	saltBytes, err := hex.DecodeString(string(salt))
+	if err != nil {
+		return false, fmt.Errorf("Error decoding salt from hex: %+v", err)
+	}
+	keyBytes, err := passwordScrypt(p, saltBytes)
+	if err == nil {
+		match = KDFKey(hex.EncodeToString(keyBytes[:])) == checkKey
+	}
+	return
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+
 	"lbryio/lbry-id/auth"
 	"lbryio/lbry-id/store"
 )

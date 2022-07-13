@@ -35,22 +35,26 @@ func StoreTestCleanup(tmpFile *os.File) {
 
 func makeTestUser(t *testing.T, s *Store) (userId auth.UserId, email auth.Email, password auth.Password) {
 	email, password = auth.Email("abc@example.com"), auth.Password("123")
+	key, salt, err := password.Create()
+	if err != nil {
+		t.Fatalf("Error creating password")
+	}
 
 	rows, err := s.db.Query(
-		"INSERT INTO accounts (email, password) values(?,?) returning user_id",
-		email, password.Obfuscate(),
+		"INSERT INTO accounts (email, key, salt) values(?,?,?) returning user_id",
+		email, key, salt,
 	)
 	if err != nil {
-		t.Fatalf("Error setting up account")
+		t.Fatalf("Error setting up account: %+v", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		err := rows.Scan(&userId)
 		if err != nil {
-			t.Fatalf("Error setting up account")
+			t.Fatalf("Error setting up account: %+v", err)
 		}
 		return
 	}
-	t.Fatalf("Error setting up account")
+	t.Fatalf("Error setting up account - no rows found")
 	return
 }
