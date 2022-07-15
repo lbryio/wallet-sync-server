@@ -39,9 +39,10 @@ type StoreInterface interface {
 	SetWallet(auth.UserId, wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac) error
 	GetWallet(auth.UserId) (wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac, error)
 	GetUserId(auth.Email, auth.Password) (auth.UserId, error)
-	CreateAccount(auth.Email, auth.Password) error
-	ChangePasswordWithWallet(auth.Email, auth.Password, auth.Password, wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac) error
-	ChangePasswordNoWallet(auth.Email, auth.Password, auth.Password) error
+	CreateAccount(auth.Email, auth.Password, auth.ClientSaltSeed) error
+	ChangePasswordWithWallet(auth.Email, auth.Password, auth.Password, auth.ClientSaltSeed, wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac) error
+	ChangePasswordNoWallet(auth.Email, auth.Password, auth.Password, auth.ClientSaltSeed) error
+	GetClientSaltSeed(auth.Email) (auth.ClientSaltSeed, error)
 }
 
 type Store struct {
@@ -112,12 +113,14 @@ func (s *Store) Migrate() error {
 		CREATE TABLE IF NOT EXISTS accounts(
 			email TEXT NOT NULL UNIQUE,
 			key TEXT NOT NULL,
-			salt TEXT NOT NULL,
+			client_salt_seed TEXT NOT NULL,
+			server_salt TEXT NOT NULL,
 			user_id INTEGER PRIMARY KEY AUTOINCREMENT,
 			CHECK (
 			  email <> '' AND
 			  key <> '' AND
-			  salt <> ''
+			  client_salt_seed <> '' AND
+			  server_salt <> ''
 			)
 		);
 	`
@@ -331,9 +334,9 @@ func (s *Store) SetWallet(userId auth.UserId, encryptedWallet wallet.EncryptedWa
 
 func (s *Store) GetUserId(email auth.Email, password auth.Password) (userId auth.UserId, err error) {
 	var key auth.KDFKey
-	var salt auth.Salt
+	var salt auth.ServerSalt
 	err = s.db.QueryRow(
-		`SELECT user_id, key, salt from accounts WHERE email=?`,
+		`SELECT user_id, key, server_salt from accounts WHERE email=?`,
 		email,
 	).Scan(&userId, &key, &salt)
 	if err == sql.ErrNoRows {
@@ -354,17 +357,16 @@ func (s *Store) GetUserId(email auth.Email, password auth.Password) (userId auth
 // Account //
 /////////////
 
-func (s *Store) CreateAccount(email auth.Email, password auth.Password) (err error) {
+func (s *Store) CreateAccount(email auth.Email, password auth.Password, seed auth.ClientSaltSeed) (err error) {
 	key, salt, err := password.Create()
 	if err != nil {
 		return
 	}
 	// userId auto-increments
 	_, err = s.db.Exec(
-		"INSERT INTO accounts (email, key, salt) VALUES(?,?,?)",
-		email, key, salt,
+		"INSERT INTO accounts (email, key, server_salt, client_salt_seed) VALUES(?,?,?,?)",
+		email, key, salt, seed,
 	)
-
 	var sqliteErr sqlite3.Error
 	if errors.As(err, &sqliteErr) {
 		if errors.Is(sqliteErr.ExtendedCode, sqlite3.ErrConstraintUnique) {
@@ -387,6 +389,7 @@ func (s *Store) ChangePasswordWithWallet(
 	email auth.Email,
 	oldPassword auth.Password,
 	newPassword auth.Password,
+	clientSaltSeed auth.ClientSaltSeed,
 	encryptedWallet wallet.EncryptedWallet,
 	sequence wallet.Sequence,
 	hmac wallet.WalletHmac,
@@ -395,6 +398,7 @@ func (s *Store) ChangePasswordWithWallet(
 		email,
 		oldPassword,
 		newPassword,
+		clientSaltSeed,
 		encryptedWallet,
 		sequence,
 		hmac,
@@ -411,11 +415,13 @@ func (s *Store) ChangePasswordNoWallet(
 	email auth.Email,
 	oldPassword auth.Password,
 	newPassword auth.Password,
+	clientSaltSeed auth.ClientSaltSeed,
 ) (err error) {
 	return s.changePassword(
 		email,
 		oldPassword,
 		newPassword,
+		clientSaltSeed,
 		wallet.EncryptedWallet(""),
 		wallet.Sequence(0),
 		wallet.WalletHmac(""),
@@ -427,6 +433,7 @@ func (s *Store) changePassword(
 	email auth.Email,
 	oldPassword auth.Password,
 	newPassword auth.Password,
+	clientSaltSeed auth.ClientSaltSeed,
 	encryptedWallet wallet.EncryptedWallet,
 	sequence wallet.Sequence,
 	hmac wallet.WalletHmac,
@@ -451,10 +458,10 @@ func (s *Store) changePassword(
 	defer endTxn()
 
 	var oldKey auth.KDFKey
-	var oldSalt auth.Salt
+	var oldSalt auth.ServerSalt
 
 	err = tx.QueryRow(
-		`SELECT user_id, key, salt from accounts WHERE email=?`,
+		`SELECT user_id, key, server_salt from accounts WHERE email=?`,
 		email,
 	).Scan(&userId, &oldKey, &oldSalt)
 	if err == sql.ErrNoRows {
@@ -477,8 +484,8 @@ func (s *Store) changePassword(
 	}
 
 	res, err := tx.Exec(
-		"UPDATE accounts SET key=?, salt=? WHERE user_id=?",
-		newKey, newSalt, userId,
+		"UPDATE accounts SET key=?, server_salt=?, client_salt_seed=? WHERE user_id=?",
+		newKey, newSalt, clientSaltSeed, userId,
 	)
 	if err != nil {
 		return
@@ -531,5 +538,16 @@ func (s *Store) changePassword(
 	// Don't care how many I delete here. Might even be zero. No login token while
 	// changing password seems plausible.
 	_, err = tx.Exec("DELETE FROM auth_tokens WHERE user_id=?", userId)
+	return
+}
+
+func (s *Store) GetClientSaltSeed(email auth.Email) (seed auth.ClientSaltSeed, err error) {
+	err = s.db.QueryRow(
+		`SELECT client_salt_seed from accounts WHERE email=?`,
+		email,
+	).Scan(&seed)
+	if err == sql.ErrNoRows {
+		err = ErrWrongCredentials
+	}
 	return
 }

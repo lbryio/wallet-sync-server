@@ -15,7 +15,7 @@ func TestStoreChangePasswordSuccess(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	userId, email, oldPassword := makeTestUser(t, &s)
+	userId, email, oldPassword, _ := makeTestUser(t, &s)
 	token := auth.TokenString("my-token")
 
 	_, err := s.db.Exec(
@@ -35,15 +35,16 @@ func TestStoreChangePasswordSuccess(t *testing.T) {
 	}
 
 	newPassword := oldPassword + auth.Password("_new")
+	newSeed := auth.ClientSaltSeed("edf98765edf98765edf98765edf98765edf98765edf98765edf98765edf98765")
 	encryptedWallet := wallet.EncryptedWallet("my-enc-wallet-2")
 	sequence := wallet.Sequence(2)
 	hmac := wallet.WalletHmac("my-hmac-2")
 
-	if err := s.ChangePasswordWithWallet(email, oldPassword, newPassword, encryptedWallet, sequence, hmac); err != nil {
+	if err := s.ChangePasswordWithWallet(email, oldPassword, newPassword, newSeed, encryptedWallet, sequence, hmac); err != nil {
 		t.Errorf("ChangePasswordWithWallet: unexpected error: %+v", err)
 	}
 
-	expectAccountMatch(t, &s, email, newPassword)
+	expectAccountMatch(t, &s, email, newPassword, newSeed)
 	expectWalletExists(t, &s, userId, encryptedWallet, sequence, hmac)
 	expectTokenNotExists(t, &s, token)
 }
@@ -96,7 +97,7 @@ func TestStoreChangePasswordErrors(t *testing.T) {
 			s, sqliteTmpFile := StoreTestInit(t)
 			defer StoreTestCleanup(sqliteTmpFile)
 
-			userId, email, oldPassword := makeTestUser(t, &s)
+			userId, email, oldPassword, oldSeed := makeTestUser(t, &s)
 			expiration := time.Now().UTC().Add(time.Hour * 24 * 14)
 			authToken := auth.AuthToken{
 				Token:      auth.TokenString("my-token"),
@@ -132,9 +133,10 @@ func TestStoreChangePasswordErrors(t *testing.T) {
 
 			submittedEmail := email + tc.emailSuffix                   // Possibly make it the wrong email
 			submittedOldPassword := oldPassword + tc.oldPasswordSuffix // Possibly make it the wrong password
-			newPassword := oldPassword + auth.Password("_new")         // Possibly make the new password different (as it should be)
+			newPassword := oldPassword + auth.Password("_new")         // Make the new password different (as it should be)
+			newSeed := auth.ClientSaltSeed("edf98765edf98765edf98765edf98765edf98765edf98765edf98765edf98765")
 
-			if err := s.ChangePasswordWithWallet(submittedEmail, submittedOldPassword, newPassword, newEncryptedWallet, tc.sequence, newHmac); err != tc.expectedError {
+			if err := s.ChangePasswordWithWallet(submittedEmail, submittedOldPassword, newPassword, newSeed, newEncryptedWallet, tc.sequence, newHmac); err != tc.expectedError {
 				t.Errorf("ChangePasswordWithWallet: unexpected value for err. want: %+v, got: %+v", tc.expectedError, err)
 			}
 
@@ -142,7 +144,7 @@ func TestStoreChangePasswordErrors(t *testing.T) {
 			// This tests the transaction rollbacks in particular, given the errors
 			// that are at a couple different stages of the txn, triggered by these
 			// tests.
-			expectAccountMatch(t, &s, email, oldPassword)
+			expectAccountMatch(t, &s, email, oldPassword, oldSeed)
 			if tc.hasWallet {
 				expectWalletExists(t, &s, userId, oldEncryptedWallet, oldSequence, oldHmac)
 			} else {
@@ -157,7 +159,7 @@ func TestStoreChangePasswordNoWalletSuccess(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	userId, email, oldPassword := makeTestUser(t, &s)
+	userId, email, oldPassword, _ := makeTestUser(t, &s)
 	token := auth.TokenString("my-token")
 
 	_, err := s.db.Exec(
@@ -169,12 +171,13 @@ func TestStoreChangePasswordNoWalletSuccess(t *testing.T) {
 	}
 
 	newPassword := oldPassword + auth.Password("_new")
+	newSeed := auth.ClientSaltSeed("edf98765edf98765edf98765edf98765edf98765edf98765edf98765edf98765")
 
-	if err := s.ChangePasswordNoWallet(email, oldPassword, newPassword); err != nil {
+	if err := s.ChangePasswordNoWallet(email, oldPassword, newPassword, newSeed); err != nil {
 		t.Errorf("ChangePasswordNoWallet: unexpected error: %+v", err)
 	}
 
-	expectAccountMatch(t, &s, email, newPassword)
+	expectAccountMatch(t, &s, email, newPassword, newSeed)
 	expectWalletNotExists(t, &s, userId)
 	expectTokenNotExists(t, &s, token)
 }
@@ -213,7 +216,7 @@ func TestStoreChangePasswordNoWalletErrors(t *testing.T) {
 			s, sqliteTmpFile := StoreTestInit(t)
 			defer StoreTestCleanup(sqliteTmpFile)
 
-			userId, email, oldPassword := makeTestUser(t, &s)
+			userId, email, oldPassword, oldSeed := makeTestUser(t, &s)
 			expiration := time.Now().UTC().Add(time.Hour * 24 * 14)
 			authToken := auth.AuthToken{
 				Token:      auth.TokenString("my-token"),
@@ -249,8 +252,9 @@ func TestStoreChangePasswordNoWalletErrors(t *testing.T) {
 			submittedEmail := email + tc.emailSuffix                   // Possibly make it the wrong email
 			submittedOldPassword := oldPassword + tc.oldPasswordSuffix // Possibly make it the wrong password
 			newPassword := oldPassword + auth.Password("_new")         // Possibly make the new password different (as it should be)
+			newSeed := auth.ClientSaltSeed("edf98765edf98765edf98765edf98765edf98765edf98765edf98765edf98765")
 
-			if err := s.ChangePasswordNoWallet(submittedEmail, submittedOldPassword, newPassword); err != tc.expectedError {
+			if err := s.ChangePasswordNoWallet(submittedEmail, submittedOldPassword, newPassword, newSeed); err != tc.expectedError {
 				t.Errorf("ChangePasswordNoWallet: unexpected value for err. want: %+v, got: %+v", tc.expectedError, err)
 			}
 
@@ -258,7 +262,7 @@ func TestStoreChangePasswordNoWalletErrors(t *testing.T) {
 			// deleted. This tests the transaction rollbacks in particular, given the
 			// errors that are at a couple different stages of the txn, triggered by
 			// these tests.
-			expectAccountMatch(t, &s, email, oldPassword)
+			expectAccountMatch(t, &s, email, oldPassword, oldSeed)
 			if tc.hasWallet {
 				expectWalletExists(t, &s, userId, encryptedWallet, sequence, hmac)
 			} else {

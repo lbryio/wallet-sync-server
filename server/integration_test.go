@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -105,7 +106,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 		s.register,
 		PathRegister,
 		&registerResponse,
-		`{"email": "abc@example.com", "password": "123"}`,
+		`{"email": "abc@example.com", "password": "123", "clientSaltSeed": "1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd"}`,
 	)
 
 	checkStatusCode(t, statusCode, responseBody, http.StatusCreated)
@@ -271,10 +272,32 @@ func TestIntegrationChangePassword(t *testing.T) {
 		s.register,
 		PathRegister,
 		&registerResponse,
-		`{"email": "abc@example.com", "password": "123"}`,
+		`{"email": "abc@example.com", "password": "123", "clientSaltSeed": "1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd"}`,
 	)
 
 	checkStatusCode(t, statusCode, responseBody, http.StatusCreated)
+
+	////////////////////
+	t.Log("Request: Get client salt seed")
+	////////////////////
+
+	var clientSaltSeedResponse ClientSaltSeedResponse
+	responseBody, statusCode = request(
+		t,
+		http.MethodGet,
+		s.getClientSaltSeed,
+		fmt.Sprintf("%s?email=%s", PathClientSaltSeed, base64.StdEncoding.EncodeToString([]byte("abc@example.com"))),
+		&clientSaltSeedResponse,
+		"",
+	)
+
+	checkStatusCode(t, statusCode, responseBody)
+
+	if clientSaltSeedResponse.ClientSaltSeed != "1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd" {
+		t.Fatalf("Unexpected client salt seed. want: %+v got: %+v",
+			"1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd",
+			clientSaltSeedResponse.ClientSaltSeed)
+	}
 
 	////////////////////
 	t.Log("Request: Get auth token")
@@ -315,10 +338,29 @@ func TestIntegrationChangePassword(t *testing.T) {
 		s.changePassword,
 		PathPassword,
 		&changePasswordResponse,
-		`{"email": "abc@example.com", "oldPassword": "123", "newPassword": "456"}`,
+		`{"email": "abc@example.com", "oldPassword": "123", "newPassword": "456", "clientSaltSeed": "8678def95678def98678def95678def98678def95678def98678def95678def9"}`,
 	)
 
 	checkStatusCode(t, statusCode, responseBody)
+
+	////////////////////
+	t.Log("Request: Get client salt seed")
+	////////////////////
+
+	responseBody, statusCode = request(
+		t,
+		http.MethodGet,
+		s.getClientSaltSeed,
+		fmt.Sprintf("%s?email=%s", PathClientSaltSeed, base64.StdEncoding.EncodeToString([]byte("abc@example.com"))),
+		&clientSaltSeedResponse,
+		"",
+	)
+
+	checkStatusCode(t, statusCode, responseBody)
+
+	if clientSaltSeedResponse.ClientSaltSeed != "8678def95678def98678def95678def98678def95678def98678def95678def9" {
+		t.Fatalf("Unexpected client salt seed. want: %+v got: %+v", "8678def95678def98678def95678def98678def95678def98678def95678def9", clientSaltSeedResponse.ClientSaltSeed)
+	}
 
 	////////////////////
 	t.Log("Request: Put first wallet - fail because token invalidated on password change")
@@ -404,11 +446,31 @@ func TestIntegrationChangePassword(t *testing.T) {
       "hmac": "my-hmac-2",
       "email": "abc@example.com",
       "oldPassword": "456",
-      "newPassword": "789"
+      "newPassword": "789",
+      "clientSaltSeed": "0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff"
     }`),
 	)
 
 	checkStatusCode(t, statusCode, responseBody)
+
+	////////////////////
+	t.Log("Request: Get client salt seed")
+	////////////////////
+
+	responseBody, statusCode = request(
+		t,
+		http.MethodGet,
+		s.getClientSaltSeed,
+		fmt.Sprintf("%s?email=%s", PathClientSaltSeed, base64.StdEncoding.EncodeToString([]byte("abc@example.com"))),
+		&clientSaltSeedResponse,
+		"",
+	)
+
+	checkStatusCode(t, statusCode, responseBody)
+
+	if clientSaltSeedResponse.ClientSaltSeed != "0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff" {
+		t.Fatalf("Unexpected client salt seed. want: %+v got: %+v", "0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff", clientSaltSeedResponse.ClientSaltSeed)
+	}
 
 	////////////////////
 	t.Log("Request: Get wallet - fail because token invalidated on password change")

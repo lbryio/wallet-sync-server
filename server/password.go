@@ -17,6 +17,7 @@ type ChangePasswordRequest struct {
 	Email           auth.Email             `json:"email"`
 	OldPassword     auth.Password          `json:"oldPassword"`
 	NewPassword     auth.Password          `json:"newPassword"`
+	ClientSaltSeed  auth.ClientSaltSeed    `json:"clientSaltSeed"`
 }
 
 func (r *ChangePasswordRequest) validate() error {
@@ -25,7 +26,7 @@ func (r *ChangePasswordRequest) validate() error {
 	walletAbsent := (r.EncryptedWallet == "" && r.Hmac == "" && r.Sequence == 0)
 
 	if !validateEmail(r.Email) {
-		return fmt.Errorf("Invalid 'email'")
+		return fmt.Errorf("Invalid or missing 'email'")
 	}
 	if r.OldPassword == "" {
 		return fmt.Errorf("Missing 'oldPassword'")
@@ -33,8 +34,12 @@ func (r *ChangePasswordRequest) validate() error {
 	if r.NewPassword == "" {
 		return fmt.Errorf("Missing 'newPassword'")
 	}
+	// Too bad we can't do this so easily with clientSaltSeed
 	if r.OldPassword == r.NewPassword {
 		return fmt.Errorf("'oldPassword' and 'newPassword' should not be the same")
+	}
+	if !validateClientSaltSeed(r.ClientSaltSeed) {
+		return fmt.Errorf("Invalid or missing 'clientSaltSeed'")
 	}
 	if !walletPresent && !walletAbsent {
 		return fmt.Errorf("Fields 'encryptedWallet', 'sequence', and 'hmac' should be all non-empty and non-zero, or all omitted")
@@ -54,6 +59,7 @@ func (s *Server) changePassword(w http.ResponseWriter, req *http.Request) {
 			changePasswordRequest.Email,
 			changePasswordRequest.OldPassword,
 			changePasswordRequest.NewPassword,
+			changePasswordRequest.ClientSaltSeed,
 			changePasswordRequest.EncryptedWallet,
 			changePasswordRequest.Sequence,
 			changePasswordRequest.Hmac)
@@ -66,6 +72,7 @@ func (s *Server) changePassword(w http.ResponseWriter, req *http.Request) {
 			changePasswordRequest.Email,
 			changePasswordRequest.OldPassword,
 			changePasswordRequest.NewPassword,
+			changePasswordRequest.ClientSaltSeed,
 		)
 		if err == store.ErrUnexpectedWallet {
 			errorJson(w, http.StatusConflict, "Wallet exists; need an updated wallet when changing password")

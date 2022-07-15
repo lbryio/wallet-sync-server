@@ -2,7 +2,8 @@
 from collections import namedtuple
 import base64, json, uuid, requests, hashlib, hmac
 from pprint import pprint
-from hashlib import scrypt # TODO - audit! Should I use hazmat `Scrypt` instead for some reason?
+from hashlib import scrypt, sha256 # TODO - audit! Should I use hazmat `Scrypt` instead for some reason?
+import secrets
 
 WalletState = namedtuple('WalletState', ['sequence', 'encrypted_wallet'])
 
@@ -68,23 +69,29 @@ class LBRYSDK():
 
 class WalletSync():
   def __init__(self, local):
-    self.API_VERSION = 2
+    self.API_VERSION = 3
 
     if local:
       BASE_URL = 'http://localhost:8090'
     else:
       BASE_URL = 'https://dev.lbry.id:8091'
+
+    # Avoid confusion. I sometimes forget, at any rate.
+    print ("Connecting to Wallet API at " + BASE_URL)
+
     API_URL = BASE_URL + '/api/%d' % self.API_VERSION
 
     self.AUTH_URL = API_URL + '/auth/full'
     self.REGISTER_URL = API_URL + '/signup'
     self.PASSWORD_URL = API_URL + '/password'
     self.WALLET_URL = API_URL + '/wallet'
+    self.CLIENT_SALT_SEED_URL = API_URL + '/client-salt-seed'
 
-  def register(self, email, password):
+  def register(self, email, password, salt_seed):
     body = json.dumps({
       'email': email,
       'password': password,
+      'clientSaltSeed': salt_seed,
     })
     response = requests.post(self.REGISTER_URL, body)
     if response.status_code != 201:
@@ -106,6 +113,23 @@ class WalletSync():
       return None
 
     return response.json()['token']
+
+  def get_salt_seed(self, email):
+    params = {
+      'email': base64.encodestring(bytes(email.encode('utf-8'))),
+    }
+    response = requests.get(self.CLIENT_SALT_SEED_URL, params=params)
+
+    if response.status_code == 404:
+      print ('Account not found')
+      raise Exception("Account not found")
+
+    if response.status_code != 200:
+      print ('Error', response.status_code)
+      print (response.content)
+      raise Exception("Unexpected status code")
+
+    return response.json()['clientSaltSeed']
 
   def get_wallet(self, token):
     params = {
@@ -151,7 +175,7 @@ class WalletSync():
       print (response.content)
       raise Exception("Unexpected status code")
 
-  def change_password_with_wallet(self, wallet_state, hmac, email, old_password, new_password):
+  def change_password_with_wallet(self, wallet_state, hmac, email, old_password, new_password, salt_seed):
     body = json.dumps({
       "encryptedWallet": wallet_state.encrypted_wallet,
       "sequence": wallet_state.sequence,
@@ -159,6 +183,7 @@ class WalletSync():
       "email": email,
       "oldPassword": old_password,
       "newPassword": new_password,
+      'clientSaltSeed': salt_seed,
     })
 
     response = requests.post(self.PASSWORD_URL, body)
@@ -174,11 +199,12 @@ class WalletSync():
       print (response.content)
       raise Exception("Unexpected status code")
 
-  def change_password_no_wallet(self, email, old_password, new_password):
+  def change_password_no_wallet(self, email, old_password, new_password, salt_seed):
     body = json.dumps({
       "email": email,
       "oldPassword": old_password,
       "newPassword": new_password,
+      'clientSaltSeed': salt_seed,
     })
 
     response = requests.post(self.PASSWORD_URL, body)
@@ -194,24 +220,37 @@ class WalletSync():
       print (response.content)
       raise Exception("Unexpected status code")
 
-def derive_secrets(root_password, salt):
-    # TODO - Audit me audit me audit me! I don't know if these values are
-    # optimal.
-    #
-    # TODO - wallet_id in the salt? (with domain etc if we go that way)
-    # But, we probably want random salt anyway for each domain, who cares
-    #
+# Thanks to Standard Notes. See:
+# https://docs.standardnotes.com/specification/encryption/
+
+# Sized in bytes
+SALT_SEED_LENGTH = 32
+SALT_LENGTH = 16
+
+def generate_salt_seed():
+  return secrets.token_hex(SALT_SEED_LENGTH)
+
+def generate_salt(email, seed):
+  hash_input = (email + ":" + seed).encode('utf-8')
+  hash_output = sha256(hash_input).hexdigest().encode('utf-8')
+  return bytes(hash_output[:(SALT_LENGTH * 2)])
+
+def derive_secrets(root_password, email, salt_seed):
     # 2017 Scrypt parameters: https://words.filippo.io/the-scrypt-parameters/
     #
     # There's recommendations for interactive use, and stronger recommendations
     # for sensitive storage. Going with the latter since we're storing
     # encrypted stuff on a server.
+    #
+    # Auditors double check.
     scrypt_n = 1<<20
     scrypt_r = 8
     scrypt_p = 1
 
     key_length = 32
     num_keys = 3
+
+    salt = generate_salt(email, salt_seed)
 
     print ("Generating keys...")
     kdf_output = scrypt(
@@ -264,27 +303,51 @@ class Client():
     return True
 
   def __init__(self, email, root_password, wallet_id='default_wallet', local=False):
+    self.wallet_sync_api = WalletSync(local=local)
+
     # Represents normal client behavior (though a real client will of course save device id)
     self.device_id = str(uuid.uuid4())
     self.auth_token = 'bad token'
     self.synced_wallet_state = None
 
     self.email = email
+    self.root_password = root_password
 
-    # TODO - generate randomly CLIENT SIDE and post to server with
-    # registration. And maybe get it to new clients along with the auth token.
-    # But is there an attack vector if we don't trust the salt? See how others
-    # do it. Since the same server sees one of the outputs of the KDF. Huh.
-    self.salt = b'I AM A SALT'
-
-    self.set_local_password(root_password)
     self.wallet_id = wallet_id
 
-    self.wallet_sync_api = WalletSync(local=local)
+  def register(self):
+    # Note that for each registration, i.e. for each domain, we generate a
+    # different salt seed.
+
+    self.salt_seed = generate_salt_seed()
+    self.lbry_id_password, self.sync_password, self.hmac_key = derive_secrets(
+      self.root_password, self.email, self.salt_seed)
+
+    success = self.wallet_sync_api.register(
+      self.email,
+      self.lbry_id_password,
+      self.salt_seed
+    )
+    if success:
+      print ("Registered")
 
   def set_local_password(self, root_password):
+    """
+    For clients to catch up to another client that just changed the password.
+    """
     # TODO - is UTF-8 appropriate for root_password? based on characters used etc.
-    self.lbry_id_password, self.sync_password, self.hmac_key = derive_secrets(root_password, self.salt)
+    self.root_password = root_password
+    self.update_secrets()
+
+  def update_secrets(self):
+    """
+    For clients other than the one that most recently registered or changed the
+    password, use this to get the salt seed from the server and generate keys
+    locally.
+    """
+    self.salt_seed = self.wallet_sync_api.get_salt_seed(self.email)
+    self.lbry_id_password, self.sync_password, self.hmac_key = derive_secrets(
+      self.root_password, self.email, self.salt_seed)
 
   # TODO - This does not deal with the question of tying accounts to wallets.
   # Does a new wallet state mean a we're creating a new account? What happens
@@ -329,14 +392,6 @@ class Client():
     # changes were made before the wallet state was initialized.
     # TODO - actually set the right hash
     self.mark_local_changes_synced_to_empty()
-
-  def register(self):
-    success = self.wallet_sync_api.register(
-      self.email,
-      self.lbry_id_password,
-    )
-    if success:
-      print ("Registered")
 
   def get_auth_token(self):
     token = self.wallet_sync_api.get_auth_token(
@@ -459,7 +514,12 @@ class Client():
     # update that as well so that the sync password and hmac key are derived
     # from the same root password as the lbry id password.
 
-    new_lbry_id_password, new_sync_password, new_hmac_key = derive_secrets(new_root_password, self.salt)
+    self.salt_seed = generate_salt_seed()
+    new_lbry_id_password, new_sync_password, new_hmac_key = derive_secrets(
+      new_root_password, self.email, self.salt_seed)
+    # TODO - Think of failure sequence in case of who knows what. We
+    # could just get the old salt seed back from the server?
+    # We can't lose it though. Keep the old one around? Kinda sucks.
 
     if self.synced_wallet_state and self.synced_wallet_state.sequence > 0:
       # Don't allow it to change if we have local changes to push. This
@@ -489,7 +549,7 @@ class Client():
       hmac = create_hmac(submitted_wallet_state, new_hmac_key)
 
       # Update our password and submit our wallet.
-      updated = self.wallet_sync_api.change_password_with_wallet(submitted_wallet_state, hmac, self.email, self.lbry_id_password, new_lbry_id_password)
+      updated = self.wallet_sync_api.change_password_with_wallet(submitted_wallet_state, hmac, self.email, self.lbry_id_password, new_lbry_id_password, self.salt_seed)
 
       if updated:
         # We updated it. Now it's synced and we mark it as such. Update everything in one command to keep local changes in sync!
@@ -501,7 +561,7 @@ class Client():
         return "Success"
     else:
       # Update our password.
-      updated = self.wallet_sync_api.change_password_no_wallet(self.email, self.lbry_id_password, new_lbry_id_password)
+      updated = self.wallet_sync_api.change_password_no_wallet(self.email, self.lbry_id_password, new_lbry_id_password, self.salt_seed)
 
       if updated:
         # We updated it. Now we mark it as such. Update everything in one command to keep local changes in sync!

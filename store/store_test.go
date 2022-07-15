@@ -33,16 +33,18 @@ func StoreTestCleanup(tmpFile *os.File) {
 	}
 }
 
-func makeTestUser(t *testing.T, s *Store) (userId auth.UserId, email auth.Email, password auth.Password) {
+func makeTestUser(t *testing.T, s *Store) (userId auth.UserId, email auth.Email, password auth.Password, seed auth.ClientSaltSeed) {
 	email, password = auth.Email("abc@example.com"), auth.Password("123")
 	key, salt, err := password.Create()
 	if err != nil {
 		t.Fatalf("Error creating password")
 	}
 
+	seed = auth.ClientSaltSeed("abcd1234abcd1234")
+
 	rows, err := s.db.Query(
-		"INSERT INTO accounts (email, key, salt) values(?,?,?) returning user_id",
-		email, key, salt,
+		"INSERT INTO accounts (email, key, server_salt, client_salt_seed) values(?,?,?,?) returning user_id",
+		email, key, salt, seed,
 	)
 	if err != nil {
 		t.Fatalf("Error setting up account: %+v", err)

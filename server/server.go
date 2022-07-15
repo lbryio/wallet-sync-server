@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -13,13 +14,14 @@ import (
 
 // TODO proper doc comments!
 
-const ApiVersion = "2"
+const ApiVersion = "3"
 const PathPrefix = "/api/" + ApiVersion
 
 const PathAuthToken = PathPrefix + "/auth/full"
 const PathRegister = PathPrefix + "/signup"
 const PathPassword = PathPrefix + "/password"
 const PathWallet = PathPrefix + "/wallet"
+const PathClientSaltSeed = PathPrefix + "/client-salt-seed"
 
 const PathUnknownEndpoint = PathPrefix + "/"
 const PathWrongApiVersion = "/api/"
@@ -177,6 +179,12 @@ func validateEmail(email auth.Email) bool {
 	return string(email) == e.Address
 }
 
+func validateClientSaltSeed(clientSaltSeed auth.ClientSaltSeed) bool {
+	_, err := hex.DecodeString(string(clientSaltSeed))
+	const seedHexLength = auth.ClientSaltSeedLength * 2
+	return len(clientSaltSeed) == seedHexLength && err == nil
+}
+
 // TODO - both wallet and token requests should be PUT, not POST.
 // PUT = "...creates a new resource or replaces a representation of the target resource with the request payload."
 
@@ -195,6 +203,7 @@ func (s *Server) Serve() {
 	http.HandleFunc(PathWallet, s.handleWallet)
 	http.HandleFunc(PathRegister, s.register)
 	http.HandleFunc(PathPassword, s.changePassword)
+	http.HandleFunc(PathClientSaltSeed, s.getClientSaltSeed)
 
 	http.HandleFunc(PathUnknownEndpoint, s.unknownEndpoint)
 	http.HandleFunc(PathWrongApiVersion, s.wrongApiVersion)

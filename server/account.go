@@ -9,19 +9,21 @@ import (
 	"lbryio/lbry-id/store"
 )
 
-// TODO email verification cycle
-
 type RegisterRequest struct {
-	Email    auth.Email    `json:"email"`
-	Password auth.Password `json:"password"`
+	Email          auth.Email          `json:"email"`
+	Password       auth.Password       `json:"password"`
+	ClientSaltSeed auth.ClientSaltSeed `json:"clientSaltSeed"`
 }
 
 func (r *RegisterRequest) validate() error {
 	if !validateEmail(r.Email) {
-		return fmt.Errorf("Invalid 'email'")
+		return fmt.Errorf("Invalid or missing 'email'")
 	}
 	if r.Password == "" {
 		return fmt.Errorf("Missing 'password'")
+	}
+	if !validateClientSaltSeed(r.ClientSaltSeed) {
+		return fmt.Errorf("Invalid or missing 'clientSaltSeed'")
 	}
 	return nil
 }
@@ -32,7 +34,7 @@ func (s *Server) register(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	err := s.store.CreateAccount(registerRequest.Email, registerRequest.Password)
+	err := s.store.CreateAccount(registerRequest.Email, registerRequest.Password, registerRequest.ClientSaltSeed)
 
 	if err != nil {
 		if err == store.ErrDuplicateEmail || err == store.ErrDuplicateAccount {

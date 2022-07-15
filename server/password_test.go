@@ -106,7 +106,7 @@ func TestServerChangePassword(t *testing.T) {
 		}, {
 			name:                "validation error",
 			expectedStatusCode:  http.StatusBadRequest,
-			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation: Invalid 'email'",
+			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation: Invalid or missing 'email'",
 
 			// Just check one validation error (missing email address) to make sure
 			// the validate function is called. We'll check the rest of the
@@ -155,16 +155,18 @@ func TestServerChangePassword(t *testing.T) {
 
 			const oldPassword = "old password"
 			const newPassword = "new password"
+			const clientSaltSeed = "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"
 
 			requestBody := []byte(
 				fmt.Sprintf(`{
           "encryptedWallet": "%s",
-          "sequence": %d,
-          "hmac": "%s",
-          "email": "%s",
-          "oldPassword": "%s",
-          "newPassword": "%s"
-        }`, tc.newEncryptedWallet, tc.newSequence, tc.newHmac, tc.email, oldPassword, newPassword),
+          "sequence":         %d ,
+          "hmac":            "%s",
+          "email":           "%s",
+          "oldPassword":     "%s",
+          "newPassword":     "%s",
+          "clientSaltSeed":  "%s"
+        }`, tc.newEncryptedWallet, tc.newSequence, tc.newHmac, tc.email, oldPassword, newPassword, clientSaltSeed),
 			)
 
 			req := httptest.NewRequest(http.MethodPost, PathPassword, bytes.NewBuffer(requestBody))
@@ -191,6 +193,7 @@ func TestServerChangePassword(t *testing.T) {
 						Email:           tc.email,
 						OldPassword:     oldPassword,
 						NewPassword:     newPassword,
+						ClientSaltSeed:  clientSaltSeed,
 					}), testStore.Called.ChangePasswordWithWallet; want != got {
 						t.Errorf("Store.ChangePasswordWithWallet called with: expected %+v, got %+v", want, got)
 					}
@@ -202,9 +205,10 @@ func TestServerChangePassword(t *testing.T) {
 				} else {
 					// Called ChangePasswordNoWallet with the expected parameters
 					if want, got := (ChangePasswordNoWalletCall{
-						Email:       tc.email,
-						OldPassword: oldPassword,
-						NewPassword: newPassword,
+						Email:          tc.email,
+						OldPassword:    oldPassword,
+						NewPassword:    newPassword,
+						ClientSaltSeed: clientSaltSeed,
 					}), testStore.Called.ChangePasswordNoWallet; want != got {
 						t.Errorf("Store.ChangePasswordNoWallet called with: expected %+v, got %+v", want, got)
 					}
@@ -234,15 +238,17 @@ func TestServerValidateChangePasswordRequest(t *testing.T) {
 		Email:           "abc@example.com",
 		OldPassword:     "123",
 		NewPassword:     "456",
+		ClientSaltSeed:  "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
 	}
 	if changePasswordRequest.validate() != nil {
 		t.Errorf("Expected valid ChangePasswordRequest with wallet fields to successfully validate")
 	}
 
 	changePasswordRequest = ChangePasswordRequest{
-		Email:       "abc@example.com",
-		OldPassword: "123",
-		NewPassword: "456",
+		Email:          "abc@example.com",
+		OldPassword:    "123",
+		NewPassword:    "456",
+		ClientSaltSeed: "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
 	}
 	if changePasswordRequest.validate() != nil {
 		t.Errorf("Expected valid ChangePasswordRequest without wallet fields to successfully validate")
@@ -261,9 +267,10 @@ func TestServerValidateChangePasswordRequest(t *testing.T) {
 				Email:           "abc-example.com",
 				OldPassword:     "123",
 				NewPassword:     "456",
+				ClientSaltSeed:  "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
 			},
 			"email",
-			"Expected WalletRequest with invalid email to not successfully validate",
+			"Expected ChangePasswordRequest with invalid email to return an appropriate error",
 		}, {
 			// Note that Golang's email address parser, which I use, will accept
 			// "Abc <abc@example.com>" so we need to make sure to avoid accepting it. See
@@ -275,9 +282,10 @@ func TestServerValidateChangePasswordRequest(t *testing.T) {
 				Email:           "Abc <abc@example.com>",
 				OldPassword:     "123",
 				NewPassword:     "456",
+				ClientSaltSeed:  "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
 			},
 			"email",
-			"Expected WalletRequest with email with unexpected formatting to not successfully validate",
+			"Expected ChangePasswordRequest with email with unexpected formatting to return an appropriate error",
 		}, {
 			ChangePasswordRequest{
 				EncryptedWallet: "my-encrypted-wallet",
@@ -285,9 +293,10 @@ func TestServerValidateChangePasswordRequest(t *testing.T) {
 				Sequence:        2,
 				OldPassword:     "123",
 				NewPassword:     "456",
+				ClientSaltSeed:  "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
 			},
 			"email",
-			"Expected WalletRequest with missing email to not successfully validate",
+			"Expected ChangePasswordRequest with missing email to return an appropriate error",
 		}, {
 			ChangePasswordRequest{
 				EncryptedWallet: "my-encrypted-wallet",
@@ -295,9 +304,10 @@ func TestServerValidateChangePasswordRequest(t *testing.T) {
 				Sequence:        2,
 				Email:           "abc@example.com",
 				NewPassword:     "456",
+				ClientSaltSeed:  "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
 			},
 			"oldPassword",
-			"Expected WalletRequest with missing old password to not successfully validate",
+			"Expected ChangePasswordRequest with missing old password to return an appropriate error",
 		}, {
 			ChangePasswordRequest{
 				EncryptedWallet: "my-encrypted-wallet",
@@ -305,19 +315,56 @@ func TestServerValidateChangePasswordRequest(t *testing.T) {
 				Sequence:        2,
 				Email:           "abc@example.com",
 				OldPassword:     "123",
+				ClientSaltSeed:  "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
 			},
 			"newPassword",
-			"Expected WalletRequest with missing new password to not successfully validate",
+			"Expected ChangePasswordRequest with missing new password to return an appropriate error",
 		}, {
 			ChangePasswordRequest{
-				Hmac:        "my-hmac",
-				Sequence:    2,
-				Email:       "abc@example.com",
-				OldPassword: "123",
-				NewPassword: "456",
+				EncryptedWallet: "my-encrypted-wallet",
+				Hmac:            "my-hmac",
+				Sequence:        2,
+				Email:           "abc@example.com",
+				OldPassword:     "123",
+				NewPassword:     "456",
+			},
+			"clientSaltSeed",
+			"Expected ChangePasswordRequest with missing clientSaltSeed to return an appropriate error",
+		}, {
+			ChangePasswordRequest{
+				EncryptedWallet: "my-encrypted-wallet",
+				Hmac:            "my-hmac",
+				Sequence:        2,
+				Email:           "abc@example.com",
+				OldPassword:     "123",
+				NewPassword:     "456",
+				ClientSaltSeed:  "abcd1234abcd1234abcd1234abcd1234",
+			},
+			"clientSaltSeed",
+			"Expected ChangePasswordRequest with clientSaltSeed of wrong length to return an appropriate error",
+		}, {
+			ChangePasswordRequest{
+				EncryptedWallet: "my-encrypted-wallet",
+				Hmac:            "my-hmac",
+				Sequence:        2,
+				Email:           "abc@example.com",
+				OldPassword:     "123",
+				NewPassword:     "456",
+				ClientSaltSeed:  "xxxx1234xxxx1234xxxx1234xxxx1234xxxx1234xxxx1234xxxx1234xxxx1234",
+			},
+			"clientSaltSeed",
+			"Expected ChangePasswordRequest with clientSaltSeed with a non-hex string to return an appropriate error",
+		}, {
+			ChangePasswordRequest{
+				Hmac:           "my-hmac",
+				Sequence:       2,
+				Email:          "abc@example.com",
+				OldPassword:    "123",
+				NewPassword:    "456",
+				ClientSaltSeed: "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
 			},
 			"'encryptedWallet', 'sequence', and 'hmac'", // More likely to fail when we change the error message but whatever
-			"Expected WalletRequest with missing encrypted wallet (but with other wallet fields present) to not successfully validate",
+			"Expected ChangePasswordRequest with missing encrypted wallet (but with other wallet fields present) to return an appropriate error",
 		}, {
 			ChangePasswordRequest{
 				EncryptedWallet: "my-encrypted-wallet",
@@ -325,9 +372,10 @@ func TestServerValidateChangePasswordRequest(t *testing.T) {
 				Email:           "abc@example.com",
 				OldPassword:     "123",
 				NewPassword:     "456",
+				ClientSaltSeed:  "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
 			},
 			"'encryptedWallet', 'sequence', and 'hmac'", // More likely to fail when we change the error message but whatever
-			"Expected WalletRequest with missing hmac (but with other wallet fields present) to not successfully validate",
+			"Expected ChangePasswordRequest with missing hmac (but with other wallet fields present) to return an appropriate error",
 		}, {
 			ChangePasswordRequest{
 				EncryptedWallet: "my-encrypted-wallet",
@@ -336,9 +384,10 @@ func TestServerValidateChangePasswordRequest(t *testing.T) {
 				Email:           "abc@example.com",
 				OldPassword:     "123",
 				NewPassword:     "456",
+				ClientSaltSeed:  "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
 			},
 			"'encryptedWallet', 'sequence', and 'hmac'", // More likely to fail when we change the error message but whatever
-			"Expected WalletRequest with sequence < 1 (but with other wallet fields present) to not successfully validate",
+			"Expected ChangePasswordRequest with sequence < 1 (but with other wallet fields present) to return an appropriate error",
 		}, {
 			ChangePasswordRequest{
 				EncryptedWallet: "my-encrypted-wallet",
@@ -347,9 +396,10 @@ func TestServerValidateChangePasswordRequest(t *testing.T) {
 				Email:           "abc@example.com",
 				OldPassword:     "123",
 				NewPassword:     "123",
+				ClientSaltSeed:  "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
 			},
 			"should not be the same",
-			"Expected WalletRequest with password that does not change to not successfully validate",
+			"Expected ChangePasswordRequest with password that does not change to return an appropriate error",
 		},
 	}
 	for _, tc := range tt {
@@ -357,6 +407,5 @@ func TestServerValidateChangePasswordRequest(t *testing.T) {
 		if !strings.Contains(err.Error(), tc.expectedErrorSubstr) {
 			t.Errorf(tc.failureDescription)
 		}
-
 	}
 }

@@ -36,9 +36,10 @@ type SetWalletCall struct {
 }
 
 type ChangePasswordNoWalletCall struct {
-	Email       auth.Email
-	OldPassword auth.Password
-	NewPassword auth.Password
+	Email          auth.Email
+	OldPassword    auth.Password
+	NewPassword    auth.Password
+	ClientSaltSeed auth.ClientSaltSeed
 }
 
 type ChangePasswordWithWalletCall struct {
@@ -48,6 +49,7 @@ type ChangePasswordWithWalletCall struct {
 	Email           auth.Email
 	OldPassword     auth.Password
 	NewPassword     auth.Password
+	ClientSaltSeed  auth.ClientSaltSeed
 }
 
 // Whether functions are called, and sometimes what they're called with
@@ -60,6 +62,7 @@ type TestStoreFunctionsCalled struct {
 	GetWallet                bool
 	ChangePasswordWithWallet ChangePasswordWithWalletCall
 	ChangePasswordNoWallet   ChangePasswordNoWalletCall
+	GetClientSaltSeed        auth.Email
 }
 
 type TestStoreFunctionsErrors struct {
@@ -71,6 +74,7 @@ type TestStoreFunctionsErrors struct {
 	GetWallet                error
 	ChangePasswordWithWallet error
 	ChangePasswordNoWallet   error
+	GetClientSaltSeed        error
 }
 
 type TestStore struct {
@@ -86,6 +90,8 @@ type TestStore struct {
 	TestEncryptedWallet wallet.EncryptedWallet
 	TestSequence        wallet.Sequence
 	TestHmac            wallet.WalletHmac
+
+	TestClientSaltSeed auth.ClientSaltSeed
 }
 
 func (s *TestStore) SaveToken(authToken *auth.AuthToken) error {
@@ -103,7 +109,7 @@ func (s *TestStore) GetUserId(auth.Email, auth.Password) (auth.UserId, error) {
 	return 0, s.Errors.GetUserId
 }
 
-func (s *TestStore) CreateAccount(auth.Email, auth.Password) error {
+func (s *TestStore) CreateAccount(auth.Email, auth.Password, auth.ClientSaltSeed) error {
 	s.Called.CreateAccount = true
 	return s.Errors.CreateAccount
 }
@@ -133,6 +139,7 @@ func (s *TestStore) ChangePasswordWithWallet(
 	email auth.Email,
 	oldPassword auth.Password,
 	newPassword auth.Password,
+	clientSaltSeed auth.ClientSaltSeed,
 	encryptedWallet wallet.EncryptedWallet,
 	sequence wallet.Sequence,
 	hmac wallet.WalletHmac,
@@ -144,6 +151,7 @@ func (s *TestStore) ChangePasswordWithWallet(
 		Email:           email,
 		OldPassword:     oldPassword,
 		NewPassword:     newPassword,
+		ClientSaltSeed:  clientSaltSeed,
 	}
 	return s.Errors.ChangePasswordWithWallet
 }
@@ -152,13 +160,24 @@ func (s *TestStore) ChangePasswordNoWallet(
 	email auth.Email,
 	oldPassword auth.Password,
 	newPassword auth.Password,
+	clientSaltSeed auth.ClientSaltSeed,
 ) (err error) {
 	s.Called.ChangePasswordNoWallet = ChangePasswordNoWalletCall{
-		Email:       email,
-		OldPassword: oldPassword,
-		NewPassword: newPassword,
+		Email:          email,
+		OldPassword:    oldPassword,
+		NewPassword:    newPassword,
+		ClientSaltSeed: clientSaltSeed,
 	}
 	return s.Errors.ChangePasswordNoWallet
+}
+
+func (s *TestStore) GetClientSaltSeed(email auth.Email) (seed auth.ClientSaltSeed, err error) {
+	s.Called.GetClientSaltSeed = email
+	err = s.Errors.GetClientSaltSeed
+	if err == nil {
+		seed = s.TestClientSaltSeed
+	}
+	return
 }
 
 // expectStatusCode: A helper to call in functions that test that request

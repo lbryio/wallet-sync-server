@@ -68,7 +68,7 @@ func TestCreatePassword(t *testing.T) {
 	if len(key1) != 64 {
 		t.Error("Key has wrong length", key1)
 	}
-	if len(salt1) != 16 {
+	if len(salt1) != 32 {
 		t.Error("Salt has wrong length", salt1)
 	}
 
@@ -86,8 +86,8 @@ func TestCreatePassword(t *testing.T) {
 
 func TestCheckPassword(t *testing.T) {
 	const password = Password("password 1")
-	const key = KDFKey("b9a3669973fcd2da3625e84da9d9a2da87bd280bcb02586851e1cb5bee1efa10")
-	const salt = Salt("080cbdf6d247c665")
+	const key = KDFKey("83a832b55ba28616c91e0b514d3f297bc12d43fbc69ff7e7a72ec15f90613858")
+	const salt = ServerSalt("080cbdf6d247c665080cbdf6d247c665")
 
 	match, err := password.Check(key, salt)
 	if err != nil {
@@ -97,7 +97,7 @@ func TestCheckPassword(t *testing.T) {
 		t.Error("Expected password to match correct key and salt")
 	}
 
-	const wrongKey = KDFKey("0000000073fcd2da3625e84da9d9a2da87bd280bcb02586851e1cb5bee1efa10")
+	const wrongKey = KDFKey("000000000ba28616c91e0b514d3f297bc12d43fbc69ff7e7a72ec15f90613858")
 	match, err = password.Check(wrongKey, salt)
 	if err != nil {
 		t.Error("Error checking password")
@@ -106,7 +106,7 @@ func TestCheckPassword(t *testing.T) {
 		t.Error("Expected password to not match incorrect key")
 	}
 
-	const wrongSalt = Salt("00000000d247c665")
+	const wrongSalt = ServerSalt("00000000d247c66500000000d247c665")
 	match, err = password.Check(key, wrongSalt)
 	if err != nil {
 		t.Error("Error checking password")
@@ -115,7 +115,7 @@ func TestCheckPassword(t *testing.T) {
 		t.Error("Expected password to not match incorrect salt")
 	}
 
-	const invalidSalt = Salt("Whoops")
+	const invalidSalt = ServerSalt("Whoops")
 	match, err = password.Check(key, invalidSalt)
 	if err == nil {
 		// It does a decode of salt inside the function but not the key so we won't

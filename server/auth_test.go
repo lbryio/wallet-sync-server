@@ -116,7 +116,7 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 func TestServerValidateAuthRequest(t *testing.T) {
 	authRequest := AuthRequest{DeviceId: "dId", Email: "joe@example.com", Password: "aoeu"}
 	if authRequest.validate() != nil {
-		t.Fatalf("Expected valid AuthRequest to successfully validate")
+		t.Errorf("Expected valid AuthRequest to successfully validate")
 	}
 
 	tt := []struct {

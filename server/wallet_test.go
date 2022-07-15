@@ -277,7 +277,7 @@ func TestServerPostWallet(t *testing.T) {
 func TestServerValidateWalletRequest(t *testing.T) {
 	walletRequest := WalletRequest{Token: "seekrit", EncryptedWallet: "my-encrypted-wallet", Hmac: "my-hmac", Sequence: 2}
 	if walletRequest.validate() != nil {
-		t.Fatalf("Expected valid WalletRequest to successfully validate")
+		t.Errorf("Expected valid WalletRequest to successfully validate")
 	}
 
 	tt := []struct {

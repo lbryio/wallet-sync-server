@@ -13,8 +13,9 @@ type UserId int32
 type Email string
 type DeviceId string
 type Password string
-type KDFKey string // KDF output
-type Salt string
+type KDFKey string         // KDF output
+type ClientSaltSeed string // part of client-side KDF input along with root password
+type ServerSalt string     // server-side KDF input for accounts
 type TokenString string
 type AuthScope string
 
@@ -65,7 +66,8 @@ func (at *AuthToken) ScopeValid(required AuthScope) bool {
 	return at.Scope == ScopeFull || at.Scope == required
 }
 
-const SaltLength = 8
+const ServerSaltLength = 16
+const ClientSaltSeedLength = 32
 
 // https://words.filippo.io/the-scrypt-parameters/
 func passwordScrypt(p Password, saltBytes []byte) ([]byte, error) {
@@ -79,15 +81,15 @@ func passwordScrypt(p Password, saltBytes []byte) ([]byte, error) {
 // Given a password (in the same format submitted via request), generate a
 // random salt, run the password and salt thorugh the KDF, and return the salt
 // and kdf output. The result generally goes into a database.
-func (p Password) Create() (key KDFKey, salt Salt, err error) {
-	saltBytes := make([]byte, SaltLength)
+func (p Password) Create() (key KDFKey, salt ServerSalt, err error) {
+	saltBytes := make([]byte, ServerSaltLength)
 	if _, err := rand.Read(saltBytes); err != nil {
 		return "", "", fmt.Errorf("Error generating salt: %+v", err)
 	}
 	keyBytes, err := passwordScrypt(p, saltBytes)
 	if err == nil {
 		key = KDFKey(hex.EncodeToString(keyBytes[:]))
-		salt = Salt(hex.EncodeToString(saltBytes[:]))
+		salt = ServerSalt(hex.EncodeToString(saltBytes[:]))
 	}
 	return
 }
@@ -97,7 +99,7 @@ func (p Password) Create() (key KDFKey, salt Salt, err error) {
 // whether the result kdf output matches the kdf test output.
 // The salt and test kdf output generally come out of the database, and is used
 // to check a submitted password.
-func (p Password) Check(checkKey KDFKey, salt Salt) (match bool, err error) {
+func (p Password) Check(checkKey KDFKey, salt ServerSalt) (match bool, err error) {
 	saltBytes, err := hex.DecodeString(string(salt))
 	if err != nil {
 		return false, fmt.Errorf("Error decoding salt from hex: %+v", err)

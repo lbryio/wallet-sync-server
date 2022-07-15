@@ -17,7 +17,7 @@ func TestServerRegisterSuccess(t *testing.T) {
 	testStore := TestStore{}
 	s := Server{&testAuth, &testStore}
 
-	requestBody := []byte(`{"email": "abc@example.com", "password": "123"}`)
+	requestBody := []byte(`{"email": "abc@example.com", "password": "123", "clientSaltSeed": "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234" }`)
 
 	req := httptest.NewRequest(http.MethodPost, PathRegister, bytes.NewBuffer(requestBody))
 	w := httptest.NewRecorder()
@@ -49,7 +49,7 @@ func TestServerRegisterErrors(t *testing.T) {
 			name:                "validation error", // missing email address
 			email:               "",
 			expectedStatusCode:  http.StatusBadRequest,
-			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation: Invalid 'email'",
+			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation: Invalid or missing 'email'",
 
 			// Just check one validation error (missing email address) to make sure the
 			// validate function is called. We'll check the rest of the validation
@@ -81,7 +81,7 @@ func TestServerRegisterErrors(t *testing.T) {
 			server := Server{&testAuth, &testStore}
 
 			// Make request
-			requestBody := fmt.Sprintf(`{"email": "%s", "password": "123"}`, tc.email)
+			requestBody := fmt.Sprintf(`{"email": "%s", "password": "123", "clientSaltSeed": "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"}`, tc.email)
 			req := httptest.NewRequest(http.MethodPost, PathAuthToken, bytes.NewBuffer([]byte(requestBody)))
 			w := httptest.NewRecorder()
 
@@ -96,35 +96,53 @@ func TestServerRegisterErrors(t *testing.T) {
 }
 
 func TestServerValidateRegisterRequest(t *testing.T) {
-	registerRequest := RegisterRequest{Email: "joe@example.com", Password: "aoeu"}
+	registerRequest := RegisterRequest{Email: "joe@example.com", Password: "aoeu", ClientSaltSeed: "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"}
 	if registerRequest.validate() != nil {
-		t.Fatalf("Expected valid RegisterRequest to successfully validate")
+		t.Errorf("Expected valid RegisterRequest to successfully validate")
 	}
 
-	registerRequest = RegisterRequest{Email: "joe-example.com", Password: "aoeu"}
+	registerRequest = RegisterRequest{Email: "joe-example.com", Password: "aoeu", ClientSaltSeed: "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"}
 	err := registerRequest.validate()
 	if !strings.Contains(err.Error(), "email") {
-		t.Fatalf("Expected RegisterRequest with invalid email to not successfully validate")
+		t.Errorf("Expected RegisterRequest with invalid email to return an appropriate error")
 	}
 
 	// Note that Golang's email address parser, which I use, will accept
 	// "Joe <joe@example.com>" so we need to make sure to avoid accepting it. See
 	// the implementation.
-	registerRequest = RegisterRequest{Email: "Joe <joe@example.com>", Password: "aoeu"}
+	registerRequest = RegisterRequest{Email: "Joe <joe@example.com>", Password: "aoeu", ClientSaltSeed: "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"}
 	err = registerRequest.validate()
 	if !strings.Contains(err.Error(), "email") {
-		t.Fatalf("Expected RegisterRequest with email with unexpected formatting to not successfully validate")
+		t.Errorf("Expected RegisterRequest with email with unexpected formatting to return an appropriate error")
 	}
 
-	registerRequest = RegisterRequest{Password: "aoeu"}
+	registerRequest = RegisterRequest{Password: "aoeu", ClientSaltSeed: "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"}
 	err = registerRequest.validate()
 	if !strings.Contains(err.Error(), "email") {
-		t.Fatalf("Expected RegisterRequest with missing email to not successfully validate")
+		t.Errorf("Expected RegisterRequest with missing email to return an appropriate error")
 	}
 
-	registerRequest = RegisterRequest{Email: "joe@example.com"}
+	registerRequest = RegisterRequest{Email: "joe@example.com", ClientSaltSeed: "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"}
 	err = registerRequest.validate()
 	if !strings.Contains(err.Error(), "password") {
-		t.Fatalf("Expected RegisterRequest with missing password to not successfully validate")
+		t.Errorf("Expected RegisterRequest with missing password to return an appropriate error")
+	}
+
+	registerRequest = RegisterRequest{Email: "joe@example.com", Password: "aoeu"}
+	err = registerRequest.validate()
+	if !strings.Contains(err.Error(), "clientSaltSeed") {
+		t.Errorf("Expected RegisterRequest with missing clientSaltSeed to return an appropriate error")
+	}
+
+	registerRequest = RegisterRequest{Email: "joe@example.com", Password: "aoeu", ClientSaltSeed: "abcd1234abcd1234abcd1234abcd1234"}
+	err = registerRequest.validate()
+	if !strings.Contains(err.Error(), "clientSaltSeed") {
+		t.Errorf("Expected RegisterRequest with clientSaltSeed of wrong length to return an appropriate error")
+	}
+
+	registerRequest = RegisterRequest{Email: "joe@example.com", Password: "aoeu", ClientSaltSeed: "xxxx1234xxxx1234xxxx1234xxxx1234xxxx1234xxxx1234xxxx1234xxxx1234"}
+	err = registerRequest.validate()
+	if !strings.Contains(err.Error(), "clientSaltSeed") {
+		t.Errorf("Expected RegisterRequest with clientSaltSeed with a non-hex string to return an appropriate error")
 	}
 }

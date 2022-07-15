@@ -47,11 +47,21 @@ c2 = Client("joe2@example.com", "123abc2", 'test_wallet_2', local=True)
 """)
 
 print("""
-Register the account on the server with one of the clients.
+Register the account on the server with one of the clients. See the salt seed it generated and sent to the server along with registration.
 """)
 
 code_block("""
 c1.register()
+c1.salt_seed
+""")
+
+print("""
+Set up the other client. See that it got the same salt seed from the server in the process, which it needs to make sure we have the correct encryption key and login password.
+""")
+
+code_block("""
+c2.update_secrets()
+c2.salt_seed
 """)
 
 print("""
@@ -216,6 +226,14 @@ c1.change_password("eggsandwich")
 """)
 
 print("""
+We generate a new salt seed when we change the password
+""")
+
+code_block("""
+c1.salt_seed
+""")
+
+print("""
 This operation invalidates all of the user's auth tokens. This prevents other clients from accidentally pushing a wallet encrypted with the old password.
 """)
 
@@ -225,13 +243,14 @@ c2.get_remote_wallet()
 """)
 
 print("""
-The client that changed its password can easily get a new token because it has the new password saved locally. The other client needs to update its local password first.
+The client that changed its password can easily get a new token because it has the new password saved locally. The other client needs to update its local password first, which again includes getting the updated salt seed from the server.
 """)
 
 code_block("""
 c1.get_auth_token()
 c2.get_auth_token()
 c2.set_local_password("eggsandwich")
+c2.salt_seed
 c2.get_auth_token()
 """)
 
