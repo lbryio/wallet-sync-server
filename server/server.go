@@ -21,6 +21,9 @@ const PathRegister = PathPrefix + "/signup"
 const PathPassword = PathPrefix + "/password"
 const PathWallet = PathPrefix + "/wallet"
 
+const PathUnknownEndpoint = PathPrefix + "/"
+const PathWrongApiVersion = "/api/"
+
 type Server struct {
 	auth  auth.AuthInterface
 	store store.StoreInterface
@@ -177,11 +180,24 @@ func validateEmail(email auth.Email) bool {
 // TODO - both wallet and token requests should be PUT, not POST.
 // PUT = "...creates a new resource or replaces a representation of the target resource with the request payload."
 
+func (s *Server) unknownEndpoint(w http.ResponseWriter, req *http.Request) {
+	errorJson(w, http.StatusNotFound, "Unknown Endpoint")
+	return
+}
+
+func (s *Server) wrongApiVersion(w http.ResponseWriter, req *http.Request) {
+	errorJson(w, http.StatusNotFound, "Wrong API version. Current version is "+ApiVersion+".")
+	return
+}
+
 func (s *Server) Serve() {
 	http.HandleFunc(PathAuthToken, s.getAuthToken)
 	http.HandleFunc(PathWallet, s.handleWallet)
 	http.HandleFunc(PathRegister, s.register)
 	http.HandleFunc(PathPassword, s.changePassword)
+
+	http.HandleFunc(PathUnknownEndpoint, s.unknownEndpoint)
+	http.HandleFunc(PathWrongApiVersion, s.wrongApiVersion)
 
 	fmt.Println("Serving at localhost:8090")
 	http.ListenAndServe("localhost:8090", nil)
