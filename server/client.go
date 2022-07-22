@@ -12,6 +12,12 @@ import (
 
 // Thanks to Standard Notes. See:
 // https://docs.standardnotes.com/specification/encryption/
+//
+// Auditor: I don't really understand how this system exactly works, and if
+// I'm doing it right here, given that I don't understand it. In particular:
+// Email address isn't sufficient for a secure salt, but it *is* somehow
+// sufficient to keep the server from lying to us about passing the seed
+// between clients? Is that the idea?
 
 type ClientSaltSeedResponse struct {
 	ClientSaltSeed auth.ClientSaltSeed `json:"clientSaltSeed"`

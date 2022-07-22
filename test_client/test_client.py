@@ -318,6 +318,10 @@ class Client():
   def register(self):
     # Note that for each registration, i.e. for each domain, we generate a
     # different salt seed.
+    #
+    # Auditor - Does changing salt seed here cover the threat of sync servers
+    # guessing the password of the same user on another sync server? It should
+    # be a new seed if it's a new server.
 
     self.salt_seed = generate_salt_seed()
     self.lbry_id_password, self.sync_password, self.hmac_key = derive_secrets(
@@ -514,6 +518,7 @@ class Client():
     # update that as well so that the sync password and hmac key are derived
     # from the same root password as the lbry id password.
 
+    # Auditor - Should we be generating a *new* seed for every password change?
     self.salt_seed = generate_salt_seed()
     new_lbry_id_password, new_sync_password, new_hmac_key = derive_secrets(
       new_root_password, self.email, self.salt_seed)
