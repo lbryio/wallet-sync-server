@@ -1,6 +1,7 @@
 package store
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -40,13 +41,29 @@ func TestStoreChangePasswordSuccess(t *testing.T) {
 	sequence := wallet.Sequence(2)
 	hmac := wallet.WalletHmac("my-hmac-2")
 
-	if err := s.ChangePasswordWithWallet(email, oldPassword, newPassword, newSeed, encryptedWallet, sequence, hmac); err != nil {
-		t.Errorf("ChangePasswordWithWallet: unexpected error: %+v", err)
+	lowerEmail := auth.Email(strings.ToLower(string(email)))
+
+	if err := s.ChangePasswordWithWallet(lowerEmail, oldPassword, newPassword, newSeed, encryptedWallet, sequence, hmac); err != nil {
+		t.Errorf("ChangePasswordWithWallet (lower case email): unexpected error: %+v", err)
 	}
 
-	expectAccountMatch(t, &s, email, newPassword, newSeed)
+	expectAccountMatch(t, &s, email.Normalize(), email, newPassword, newSeed)
 	expectWalletExists(t, &s, userId, encryptedWallet, sequence, hmac)
 	expectTokenNotExists(t, &s, token)
+
+	newNewPassword := newPassword + auth.Password("_new")
+	newNewSeed := auth.ClientSaltSeed("00008765edf98765edf98765edf98765edf98765edf98765edf98765edf98765")
+	newEncryptedWallet := wallet.EncryptedWallet("my-enc-wallet-3")
+	newSequence := wallet.Sequence(3)
+	newHmac := wallet.WalletHmac("my-hmac-3")
+
+	upperEmail := auth.Email(strings.ToUpper(string(email)))
+
+	if err := s.ChangePasswordWithWallet(upperEmail, newPassword, newNewPassword, newNewSeed, newEncryptedWallet, newSequence, newHmac); err != nil {
+		t.Errorf("ChangePasswordWithWallet (upper case email): unexpected error: %+v", err)
+	}
+
+	expectAccountMatch(t, &s, email.Normalize(), email, newNewPassword, newNewSeed)
 }
 
 func TestStoreChangePasswordErrors(t *testing.T) {
@@ -144,7 +161,7 @@ func TestStoreChangePasswordErrors(t *testing.T) {
 			// This tests the transaction rollbacks in particular, given the errors
 			// that are at a couple different stages of the txn, triggered by these
 			// tests.
-			expectAccountMatch(t, &s, email, oldPassword, oldSeed)
+			expectAccountMatch(t, &s, email.Normalize(), email, oldPassword, oldSeed)
 			if tc.hasWallet {
 				expectWalletExists(t, &s, userId, oldEncryptedWallet, oldSequence, oldHmac)
 			} else {
@@ -173,13 +190,26 @@ func TestStoreChangePasswordNoWalletSuccess(t *testing.T) {
 	newPassword := oldPassword + auth.Password("_new")
 	newSeed := auth.ClientSaltSeed("edf98765edf98765edf98765edf98765edf98765edf98765edf98765edf98765")
 
-	if err := s.ChangePasswordNoWallet(email, oldPassword, newPassword, newSeed); err != nil {
-		t.Errorf("ChangePasswordNoWallet: unexpected error: %+v", err)
+	lowerEmail := auth.Email(strings.ToLower(string(email)))
+
+	if err := s.ChangePasswordNoWallet(lowerEmail, oldPassword, newPassword, newSeed); err != nil {
+		t.Errorf("ChangePasswordNoWallet (lower case email): unexpected error: %+v", err)
 	}
 
-	expectAccountMatch(t, &s, email, newPassword, newSeed)
+	expectAccountMatch(t, &s, email.Normalize(), email, newPassword, newSeed)
 	expectWalletNotExists(t, &s, userId)
 	expectTokenNotExists(t, &s, token)
+
+	newNewPassword := newPassword + auth.Password("_new")
+	newNewSeed := auth.ClientSaltSeed("00008765edf98765edf98765edf98765edf98765edf98765edf98765edf98765")
+
+	upperEmail := auth.Email(strings.ToUpper(string(email)))
+
+	if err := s.ChangePasswordNoWallet(upperEmail, newPassword, newNewPassword, newNewSeed); err != nil {
+		t.Errorf("ChangePasswordNoWallet (upper case email): unexpected error: %+v", err)
+	}
+
+	expectAccountMatch(t, &s, email.Normalize(), email, newNewPassword, newNewSeed)
 }
 
 func TestStoreChangePasswordNoWalletErrors(t *testing.T) {
@@ -262,7 +292,7 @@ func TestStoreChangePasswordNoWalletErrors(t *testing.T) {
 			// deleted. This tests the transaction rollbacks in particular, given the
 			// errors that are at a couple different stages of the txn, triggered by
 			// these tests.
-			expectAccountMatch(t, &s, email, oldPassword, oldSeed)
+			expectAccountMatch(t, &s, email.Normalize(), email, oldPassword, oldSeed)
 			if tc.hasWallet {
 				expectWalletExists(t, &s, userId, encryptedWallet, sequence, hmac)
 			} else {

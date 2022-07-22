@@ -2,6 +2,7 @@ package store
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/mattn/go-sqlite3"
@@ -9,16 +10,17 @@ import (
 	"lbryio/lbry-id/auth"
 )
 
-func expectAccountMatch(t *testing.T, s *Store, email auth.Email, password auth.Password, seed auth.ClientSaltSeed) {
+func expectAccountMatch(t *testing.T, s *Store, normEmail auth.NormalizedEmail, expectedEmail auth.Email, password auth.Password, seed auth.ClientSaltSeed) {
 	var key auth.KDFKey
 	var salt auth.ServerSalt
+	var email auth.Email
 
 	err := s.db.QueryRow(
-		`SELECT key, server_salt from accounts WHERE email=? AND client_salt_seed=?`,
-		email, seed,
-	).Scan(&key, &salt)
+		`SELECT key, server_salt, email from accounts WHERE normalized_email=? AND client_salt_seed=?`,
+		normEmail, seed,
+	).Scan(&key, &salt, &email)
 	if err != nil {
-		t.Fatalf("Error finding account for: %s %s - %+v", email, password, err)
+		t.Fatalf("Error finding account for: %s %s - %+v", normEmail, password, err)
 	}
 
 	match, err := password.Check(key, salt)
@@ -26,22 +28,26 @@ func expectAccountMatch(t *testing.T, s *Store, email auth.Email, password auth.
 		t.Fatalf("Error checking password for: %s %s - %+v", email, password, err)
 	}
 	if !match {
-		t.Fatalf("Expected account for: %s %s", email, password)
+		t.Fatalf("Password incorrect for: %s %s", email, password)
+	}
+
+	if email != expectedEmail {
+		t.Fatalf("Email case not as expected. Want: %s Got: %s", email, expectedEmail)
 	}
 }
 
-func expectAccountNotExists(t *testing.T, s *Store, email auth.Email) {
+func expectAccountNotExists(t *testing.T, s *Store, normEmail auth.NormalizedEmail) {
 	rows, err := s.db.Query(
-		`SELECT 1 from accounts WHERE email=?`,
-		email,
+		`SELECT 1 from accounts WHERE normalized_email=?`,
+		normEmail,
 	)
 	if err != nil {
-		t.Fatalf("Error finding account for: %s - %+v", email, err)
+		t.Fatalf("Error finding account for: %s - %+v", normEmail, err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		t.Fatalf("Expected no account for: %s", email)
+		t.Fatalf("Expected no account for: %s", normEmail)
 	}
 
 	// found nothing, we're good
@@ -53,10 +59,11 @@ func TestStoreCreateAccount(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	email, password, seed := auth.Email("abc@example.com"), auth.Password("123"), auth.ClientSaltSeed("abcd1234abcd1234")
+	email, normEmail := auth.Email("Abc@Example.Com"), auth.NormalizedEmail("abc@example.com")
+	password, seed := auth.Password("123"), auth.ClientSaltSeed("abcd1234abcd1234")
 
 	// Get an account, come back empty
-	expectAccountNotExists(t, &s, email)
+	expectAccountNotExists(t, &s, normEmail)
 
 	// Create an account
 	if err := s.CreateAccount(email, password, seed); err != nil {
@@ -64,7 +71,7 @@ func TestStoreCreateAccount(t *testing.T) {
 	}
 
 	// Get and confirm the account we just put in
-	expectAccountMatch(t, &s, email, password, seed)
+	expectAccountMatch(t, &s, normEmail, email, password, seed)
 
 	newPassword := auth.Password("xyz")
 
@@ -74,8 +81,16 @@ func TestStoreCreateAccount(t *testing.T) {
 		t.Fatalf(`CreateAccount err: wanted "%+v", got "%+v"`, ErrDuplicateAccount, err)
 	}
 
+	differentCaseEmail := auth.Email("aBC@examplE.CoM")
+
+	// Try to create a new account with the same email different capitalization.
+	// fail because email already exists
+	if err := s.CreateAccount(differentCaseEmail, password, seed); err != ErrDuplicateAccount {
+		t.Fatalf(`CreateAccount err (for case insensitivity check): wanted "%+v", got "%+v"`, ErrDuplicateAccount, err)
+	}
+
 	// Get the email and same *first* password we successfully put in
-	expectAccountMatch(t, &s, email, password, seed)
+	expectAccountMatch(t, &s, normEmail, email, password, seed)
 }
 
 // Test GetUserId for nonexisting email
@@ -98,8 +113,18 @@ func TestStoreGetUserIdAccountExists(t *testing.T) {
 
 	createdUserId, email, password, _ := makeTestUser(t, &s)
 
+	// Check that the userId is correct for the email, irrespective of the case of
+	// the characters in the email.
+	lowerEmail := auth.Email(strings.ToLower(string(email)))
+	upperEmail := auth.Email(strings.ToUpper(string(email)))
+
 	// Check that there's now a user id for the email and password
-	if userId, err := s.GetUserId(email, password); err != nil || userId != createdUserId {
+	if userId, err := s.GetUserId(lowerEmail, password); err != nil || userId != createdUserId {
+		t.Fatalf("Unexpected error in GetUserId: err: %+v userId: %v", err, userId)
+	}
+
+	// Check that there's now a user id for the email and password
+	if userId, err := s.GetUserId(upperEmail, password); err != nil || userId != createdUserId {
 		t.Fatalf("Unexpected error in GetUserId: err: %+v userId: %v", err, userId)
 	}
 
@@ -158,8 +183,15 @@ func TestStoreGetClientSaltSeedAccountSuccess(t *testing.T) {
 
 	_, email, _, createdSeed := makeTestUser(t, &s)
 
-	// Check that there's now a user id for the email
-	if seed, err := s.GetClientSaltSeed(email); err != nil || seed != createdSeed {
+	// Check that the seed is correct for the email, irrespective of the case of
+	// the characters in the email.
+	lowerEmail := auth.Email(strings.ToLower(string(email)))
+	upperEmail := auth.Email(strings.ToUpper(string(email)))
+
+	if seed, err := s.GetClientSaltSeed(lowerEmail); err != nil || seed != createdSeed {
+		t.Fatalf("Unexpected error in GetClientSaltSeed: err: %+v seed: %v", err, seed)
+	}
+	if seed, err := s.GetClientSaltSeed(upperEmail); err != nil || seed != createdSeed {
 		t.Fatalf("Unexpected error in GetClientSaltSeed: err: %+v seed: %v", err, seed)
 	}
 }

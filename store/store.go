@@ -111,13 +111,15 @@ func (s *Store) Migrate() error {
 			)
 		);
 		CREATE TABLE IF NOT EXISTS accounts(
-			email TEXT NOT NULL UNIQUE,
+			normalized_email TEXT NOT NULL UNIQUE,
+			email TEXT NOT NULL,
 			key TEXT NOT NULL,
 			client_salt_seed TEXT NOT NULL,
 			server_salt TEXT NOT NULL,
 			user_id INTEGER PRIMARY KEY AUTOINCREMENT,
 			CHECK (
 			  email <> '' AND
+			  normalized_email <> '' AND
 			  key <> '' AND
 			  client_salt_seed <> '' AND
 			  server_salt <> ''
@@ -336,8 +338,8 @@ func (s *Store) GetUserId(email auth.Email, password auth.Password) (userId auth
 	var key auth.KDFKey
 	var salt auth.ServerSalt
 	err = s.db.QueryRow(
-		`SELECT user_id, key, server_salt from accounts WHERE email=?`,
-		email,
+		`SELECT user_id, key, server_salt from accounts WHERE normalized_email=?`,
+		email.Normalize(),
 	).Scan(&userId, &key, &salt)
 	if err == sql.ErrNoRows {
 		err = ErrWrongCredentials
@@ -362,10 +364,11 @@ func (s *Store) CreateAccount(email auth.Email, password auth.Password, seed aut
 	if err != nil {
 		return
 	}
+
 	// userId auto-increments
 	_, err = s.db.Exec(
-		"INSERT INTO accounts (email, key, server_salt, client_salt_seed) VALUES(?,?,?,?)",
-		email, key, salt, seed,
+		"INSERT INTO accounts (normalized_email, email, key, server_salt, client_salt_seed) VALUES(?,?,?,?,?)",
+		email.Normalize(), email, key, salt, seed,
 	)
 	var sqliteErr sqlite3.Error
 	if errors.As(err, &sqliteErr) {
@@ -461,8 +464,8 @@ func (s *Store) changePassword(
 	var oldSalt auth.ServerSalt
 
 	err = tx.QueryRow(
-		`SELECT user_id, key, server_salt from accounts WHERE email=?`,
-		email,
+		`SELECT user_id, key, server_salt from accounts WHERE normalized_email=?`,
+		email.Normalize(),
 	).Scan(&userId, &oldKey, &oldSalt)
 	if err == sql.ErrNoRows {
 		err = ErrWrongCredentials
@@ -543,8 +546,8 @@ func (s *Store) changePassword(
 
 func (s *Store) GetClientSaltSeed(email auth.Email) (seed auth.ClientSaltSeed, err error) {
 	err = s.db.QueryRow(
-		`SELECT client_salt_seed from accounts WHERE email=?`,
-		email,
+		`SELECT client_salt_seed from accounts WHERE normalized_email=?`,
+		email.Normalize(),
 	).Scan(&seed)
 	if err == sql.ErrNoRows {
 		err = ErrWrongCredentials

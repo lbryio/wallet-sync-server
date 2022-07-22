@@ -4,12 +4,14 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/scrypt"
 )
 
 type UserId int32
+type NormalizedEmail string // Should always contain a normalized value
 type Email string
 type DeviceId string
 type Password string
@@ -109,4 +111,11 @@ func (p Password) Check(checkKey KDFKey, salt ServerSalt) (match bool, err error
 		match = KDFKey(hex.EncodeToString(keyBytes[:])) == checkKey
 	}
 	return
+}
+
+// TODO consider unicode. Also some providers might be case sensitive, and/or
+// may have other ways of having email addresses be equivalent (which we may
+// not care about though)
+func (e Email) Normalize() NormalizedEmail {
+	return NormalizedEmail(strings.ToLower(string(e)))
 }

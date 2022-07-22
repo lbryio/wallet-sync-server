@@ -34,7 +34,9 @@ func StoreTestCleanup(tmpFile *os.File) {
 }
 
 func makeTestUser(t *testing.T, s *Store) (userId auth.UserId, email auth.Email, password auth.Password, seed auth.ClientSaltSeed) {
-	email, password = auth.Email("abc@example.com"), auth.Password("123")
+	// email with caps to trigger possible problems
+	email, password = auth.Email("Abc@Example.Com"), auth.Password("123")
+	normEmail := auth.NormalizedEmail("abc@example.com")
 	key, salt, err := password.Create()
 	if err != nil {
 		t.Fatalf("Error creating password")
@@ -43,8 +45,8 @@ func makeTestUser(t *testing.T, s *Store) (userId auth.UserId, email auth.Email,
 	seed = auth.ClientSaltSeed("abcd1234abcd1234")
 
 	rows, err := s.db.Query(
-		"INSERT INTO accounts (email, key, server_salt, client_salt_seed) values(?,?,?,?) returning user_id",
-		email, key, salt, seed,
+		"INSERT INTO accounts (normalized_email, email, key, server_salt, client_salt_seed) values(?,?,?,?,?) returning user_id",
+		normEmail, email, key, salt, seed,
 	)
 	if err != nil {
 		t.Fatalf("Error setting up account: %+v", err)

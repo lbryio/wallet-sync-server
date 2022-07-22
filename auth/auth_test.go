@@ -123,3 +123,9 @@ func TestCheckPassword(t *testing.T) {
 		t.Error("Expected password check to fail with invalid salt")
 	}
 }
+
+func TestEmailNormalize(t *testing.T) {
+	if got, want := Email("aBc@eXaMpLe.CoM").Normalize(), NormalizedEmail("abc@example.com"); got != want {
+		t.Errorf("Email normalization failed. got: %s want: %s", got, want)
+	}
+}
