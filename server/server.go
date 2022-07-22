@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/mail"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"lbryio/lbry-id/auth"
 	"lbryio/lbry-id/store"
 )
@@ -16,6 +18,8 @@ import (
 
 const ApiVersion = "3"
 const PathPrefix = "/api/" + ApiVersion
+
+const PathPrometheus = "/metrics"
 
 const PathAuthToken = PathPrefix + "/auth/full"
 const PathRegister = PathPrefix + "/signup"
@@ -207,6 +211,8 @@ func (s *Server) Serve() {
 
 	http.HandleFunc(PathUnknownEndpoint, s.unknownEndpoint)
 	http.HandleFunc(PathWrongApiVersion, s.wrongApiVersion)
+
+	http.Handle(PathPrometheus, promhttp.Handler())
 
 	fmt.Println("Serving at localhost:8090")
 	http.ListenAndServe("localhost:8090", nil)

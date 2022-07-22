@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"lbryio/lbry-id/auth"
+	"lbryio/lbry-id/metrics"
 	"lbryio/lbry-id/store"
 	"lbryio/lbry-id/wallet"
 )
@@ -66,6 +69,8 @@ func getWalletParams(req *http.Request) (token auth.TokenString, err error) {
 }
 
 func (s *Server) getWallet(w http.ResponseWriter, req *http.Request) {
+	metrics.RequestsCount.With(prometheus.Labels{"method": "GET wallet"}).Inc()
+
 	if !getGetData(w, req) {
 		return
 	}
@@ -118,6 +123,8 @@ func (s *Server) getWallet(w http.ResponseWriter, req *http.Request) {
 //     current wallet's sequence
 //   500: Update unsuccessful for unanticipated reasons
 func (s *Server) postWallet(w http.ResponseWriter, req *http.Request) {
+	metrics.RequestsCount.With(prometheus.Labels{"method": "POST wallet"}).Inc()
+
 	var walletRequest WalletRequest
 	if !getPostData(w, req, &walletRequest) {
 		return
