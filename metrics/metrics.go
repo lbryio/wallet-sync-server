@@ -7,7 +7,10 @@ import (
 var (
 	RequestsCount = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "requests_count",
+			Name: "wallet_sync_requests_count",
+
+			// TODO For some reason, help text nor type seem to show up in
+			// Prometheus?
 			Help: "Total number of requests to various endpoints",
 		},
 		[]string{"method"},
