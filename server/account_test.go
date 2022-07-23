@@ -13,9 +13,8 @@ import (
 )
 
 func TestServerRegisterSuccess(t *testing.T) {
-	testAuth := TestAuth{}
-	testStore := TestStore{}
-	s := Server{&testAuth, &testStore}
+	testStore := &TestStore{}
+	s := Server{&TestAuth{}, testStore, &TestEnv{}}
 
 	requestBody := []byte(`{"email": "abc@example.com", "password": "123", "clientSaltSeed": "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234" }`)
 
@@ -76,9 +75,7 @@ func TestServerRegisterErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 
 			// Set this up to fail according to specification
-			testAuth := TestAuth{}
-			testStore := TestStore{Errors: tc.storeErrors}
-			server := Server{&testAuth, &testStore}
+			server := Server{&TestAuth{}, &TestStore{Errors: tc.storeErrors}, &TestEnv{}}
 
 			// Make request
 			requestBody := fmt.Sprintf(`{"email": "%s", "password": "123", "clientSaltSeed": "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"}`, tc.email)

@@ -143,9 +143,8 @@ func TestServerChangePassword(t *testing.T) {
 	}
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			testAuth := TestAuth{}
 			testStore := TestStore{Errors: tc.storeErrors}
-			s := Server{&testAuth, &testStore}
+			s := Server{&TestAuth{}, &testStore, &TestEnv{}}
 
 			// Whether we passed in wallet fields (these test cases should be passing
 			// in all of them or none of them, so we only test EncryptedWallet). This

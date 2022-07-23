@@ -17,6 +17,14 @@ import (
 
 // Implementing interfaces for stubbed out packages
 
+type TestEnv struct {
+	env map[string]string
+}
+
+func (e *TestEnv) Getenv(key string) string {
+	return e.env[key]
+}
+
 type TestAuth struct {
 	TestNewTokenString auth.TokenString
 	FailGenToken       bool
@@ -264,7 +272,7 @@ func TestServerHelperCheckAuth(t *testing.T) {
 				Errors:        tc.storeErrors,
 				TestAuthToken: auth.AuthToken{Token: auth.TokenString("seekrit"), Scope: tc.userScope},
 			}
-			s := Server{&TestAuth{}, &testStore}
+			s := Server{&TestAuth{}, &testStore, &TestEnv{}}
 
 			w := httptest.NewRecorder()
 			authToken := s.checkAuth(w, testStore.TestAuthToken.Token, tc.requiredScope)

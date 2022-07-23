@@ -76,7 +76,8 @@ func TestServerGetWallet(t *testing.T) {
 				Errors: tc.storeErrors,
 			}
 
-			s := Server{&testAuth, &testStore}
+			testEnv := TestEnv{}
+			s := Server{&testAuth, &testStore, &testEnv}
 
 			req := httptest.NewRequest(http.MethodGet, PathWallet, nil)
 			q := req.URL.Query()
@@ -234,7 +235,7 @@ func TestServerPostWallet(t *testing.T) {
 				Errors: tc.storeErrors,
 			}
 
-			s := Server{&testAuth, &testStore}
+			s := Server{&testAuth, &testStore, &TestEnv{}}
 
 			requestBody := []byte(
 				fmt.Sprintf(`{

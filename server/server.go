@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"lbryio/lbry-id/auth"
+	"lbryio/lbry-id/env"
 	"lbryio/lbry-id/store"
 )
 
@@ -33,16 +34,17 @@ const PathWrongApiVersion = "/api/"
 type Server struct {
 	auth  auth.AuthInterface
 	store store.StoreInterface
+	env   env.EnvInterface
 }
 
+// TODO If I capitalize the `auth` `store` and `env` fields of Store{} I can
+// create Store{} structs directly from main.go.
 func Init(
 	auth auth.AuthInterface,
 	store store.StoreInterface,
+	env env.EnvInterface,
 ) *Server {
-	return &Server{
-		auth:  auth,
-		store: store,
-	}
+	return &Server{auth, store, env}
 }
 
 type ErrorResponse struct {

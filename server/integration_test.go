@@ -93,7 +93,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	st, tmpFile := storeTestInit(t)
 	defer storeTestCleanup(tmpFile)
 
-	s := Init(&auth.Auth{}, &st)
+	s := Server{&auth.Auth{}, &st, &TestEnv{}}
 
 	////////////////////
 	t.Log("Request: Register email address - any device")
@@ -259,7 +259,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 	st, tmpFile := storeTestInit(t)
 	defer storeTestCleanup(tmpFile)
 
-	s := Init(&auth.Auth{}, &st)
+	s := Server{&auth.Auth{}, &st, &TestEnv{}}
 
 	////////////////////
 	t.Log("Request: Register email address")

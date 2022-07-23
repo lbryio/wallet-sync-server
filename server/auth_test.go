@@ -17,7 +17,7 @@ import (
 func TestServerAuthHandlerSuccess(t *testing.T) {
 	testAuth := TestAuth{TestNewTokenString: auth.TokenString("seekrit")}
 	testStore := TestStore{}
-	s := Server{&testAuth, &testStore}
+	s := Server{&testAuth, &testStore, &TestEnv{}}
 
 	requestBody := []byte(`{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`)
 
@@ -95,7 +95,7 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 			if tc.authFailGenToken { // TODO - TestAuth{Errors:authErrors}
 				testAuth.FailGenToken = true
 			}
-			server := Server{&testAuth, &testStore}
+			server := Server{&testAuth, &testStore, &TestEnv{}}
 
 			// Make request
 			// So long as the JSON is well-formed, the content doesn't matter here since the password check will be stubbed out

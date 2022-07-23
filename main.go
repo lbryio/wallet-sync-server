@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"lbryio/lbry-id/auth"
+	"lbryio/lbry-id/env"
 	"lbryio/lbry-id/server"
 	"lbryio/lbry-id/store"
 )
@@ -23,6 +24,6 @@ func storeInit() (s store.Store) {
 
 func main() {
 	store := storeInit()
-	srv := server.Init(&auth.Auth{}, &store)
+	srv := server.Init(&auth.Auth{}, &store, &env.Env{})
 	srv.Serve()
 }
