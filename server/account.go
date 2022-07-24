@@ -16,13 +16,14 @@ type RegisterRequest struct {
 }
 
 func (r *RegisterRequest) validate() error {
-	if !validateEmail(r.Email) {
+	if !r.Email.Validate() {
 		return fmt.Errorf("Invalid or missing 'email'")
 	}
 	if r.Password == "" {
 		return fmt.Errorf("Missing 'password'")
 	}
-	if !validateClientSaltSeed(r.ClientSaltSeed) {
+
+	if !r.ClientSaltSeed.Validate() {
 		return fmt.Errorf("Invalid or missing 'clientSaltSeed'")
 	}
 	return nil

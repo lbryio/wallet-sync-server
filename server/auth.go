@@ -18,7 +18,7 @@ type AuthRequest struct {
 }
 
 func (r *AuthRequest) validate() error {
-	if !validateEmail(r.Email) {
+	if !r.Email.Validate() {
 		return fmt.Errorf("Invalid 'email'")
 	}
 	if r.Password == "" {

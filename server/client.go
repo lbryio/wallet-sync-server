@@ -40,7 +40,7 @@ func getClientSaltSeedParams(req *http.Request) (email auth.Email, err error) {
 		}
 	}
 
-	if !validateEmail(email) {
+	if !email.Validate() {
 		email = ""
 		err = fmt.Errorf("Invalid email")
 	}

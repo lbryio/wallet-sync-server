@@ -25,7 +25,7 @@ func (r *ChangePasswordRequest) validate() error {
 	walletPresent := (r.EncryptedWallet != "" && r.Hmac != "" && r.Sequence > 0)
 	walletAbsent := (r.EncryptedWallet == "" && r.Hmac == "" && r.Sequence == 0)
 
-	if !validateEmail(r.Email) {
+	if !r.Email.Validate() {
 		return fmt.Errorf("Invalid or missing 'email'")
 	}
 	if r.OldPassword == "" {
@@ -38,7 +38,7 @@ func (r *ChangePasswordRequest) validate() error {
 	if r.OldPassword == r.NewPassword {
 		return fmt.Errorf("'oldPassword' and 'newPassword' should not be the same")
 	}
-	if !validateClientSaltSeed(r.ClientSaltSeed) {
+	if !r.ClientSaltSeed.Validate() {
 		return fmt.Errorf("Invalid or missing 'clientSaltSeed'")
 	}
 	if !walletPresent && !walletAbsent {

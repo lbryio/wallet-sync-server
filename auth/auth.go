@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"net/mail"
 	"strings"
 	"time"
 
@@ -111,6 +112,27 @@ func (p Password) Check(checkKey KDFKey, salt ServerSalt) (match bool, err error
 		match = KDFKey(hex.EncodeToString(keyBytes[:])) == checkKey
 	}
 	return
+}
+
+func (e Email) Validate() bool {
+	email, err := mail.ParseAddress(string(e))
+	if err != nil {
+		return false
+	}
+	// "Joe <joe@example.com>" is valid according to ParseAddress. Likewise
+	// " joe@example.com". Etc. We only want the exact address, "joe@example.com"
+	// to be valid. ParseAddress will extract the exact address as
+	// parsed.Address. So we'll take the input email, put it through
+	// ParseAddress, see if it parses successfully, and then compare the input
+	// email to parsed.Address to make sure that it was an exact address to begin
+	// with.
+	return string(e) == email.Address
+}
+
+func (c ClientSaltSeed) Validate() bool {
+	_, err := hex.DecodeString(string(c))
+	const seedHexLength = ClientSaltSeedLength * 2
+	return len(c) == seedHexLength && err == nil
 }
 
 // TODO consider unicode. Also some providers might be case sensitive, and/or
