@@ -13,32 +13,32 @@ func TestAccountVerificationMode(t *testing.T) {
 		name string
 
 		modeStr      string
-		expectedMode accountVerificationMode
+		expectedMode AccountVerificationMode
 		expectErr    bool
 	}{
 		{
 			name: "allow all",
 
 			modeStr:      "AllowAll",
-			expectedMode: ModeAllowAll,
+			expectedMode: AccountVerificationModeAllowAll,
 		},
 		{
 			name: "email verify",
 
 			modeStr:      "EmailVerify",
-			expectedMode: ModeEmailVerify,
+			expectedMode: AccountVerificationModeEmailVerify,
 		},
 		{
 			name: "whitelist",
 
 			modeStr:      "Whitelist",
-			expectedMode: ModeWhitelist,
+			expectedMode: AccountVerificationModeWhitelist,
 		},
 		{
 			name: "blank",
 
 			modeStr:      "",
-			expectedMode: ModeWhitelist,
+			expectedMode: AccountVerificationModeWhitelist,
 		},
 		{
 			name: "invalid",
@@ -70,33 +70,33 @@ func TestAccountWhitelist(t *testing.T) {
 		whitelist      string
 		expectedEmails []auth.Email
 		expectedErr    error
-		mode           accountVerificationMode
+		mode           AccountVerificationMode
 	}{
 		{
 			name: "empty",
 
-			mode:           ModeWhitelist,
+			mode:           AccountVerificationModeWhitelist,
 			whitelist:      "",
 			expectedEmails: []auth.Email{},
 		},
 		{
 			name: "invalid mode",
 
-			mode:        ModeEmailVerify,
+			mode:        AccountVerificationModeEmailVerify,
 			whitelist:   "test1@example.com,test2@example.com",
 			expectedErr: fmt.Errorf("Do not specify ACCOUNT_WHITELIST in env if ACCOUNT_VERIFICATION_MODE is not Whitelist"),
 		},
 		{
 			name: "spaces in email",
 
-			mode:        ModeWhitelist,
+			mode:        AccountVerificationModeWhitelist,
 			whitelist:   "test1@example.com ,test2@example.com",
 			expectedErr: fmt.Errorf("Emails in ACCOUNT_WHITELIST should be comma separated with no spaces."),
 		},
 		{
 			name: "invalid email",
 
-			mode:        ModeWhitelist,
+			mode:        AccountVerificationModeWhitelist,
 			whitelist:   "test1@example.com,test2-example.com",
 			expectedErr: fmt.Errorf("Invalid email in ACCOUNT_WHITELIST: test2-example.com"),
 		},
