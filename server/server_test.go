@@ -60,12 +60,19 @@ type ChangePasswordWithWalletCall struct {
 	ClientSaltSeed  auth.ClientSaltSeed
 }
 
+type CreateAccountCall struct {
+	Email          auth.Email
+	Password       auth.Password
+	ClientSaltSeed auth.ClientSaltSeed
+	Verified       bool
+}
+
 // Whether functions are called, and sometimes what they're called with
 type TestStoreFunctionsCalled struct {
 	SaveToken                auth.TokenString
 	GetToken                 auth.TokenString
 	GetUserId                bool
-	CreateAccount            bool
+	CreateAccount            *CreateAccountCall
 	SetWallet                SetWalletCall
 	GetWallet                bool
 	ChangePasswordWithWallet ChangePasswordWithWalletCall
@@ -117,8 +124,13 @@ func (s *TestStore) GetUserId(auth.Email, auth.Password) (auth.UserId, error) {
 	return 0, s.Errors.GetUserId
 }
 
-func (s *TestStore) CreateAccount(auth.Email, auth.Password, auth.ClientSaltSeed) error {
-	s.Called.CreateAccount = true
+func (s *TestStore) CreateAccount(email auth.Email, password auth.Password, clientSaltSeed auth.ClientSaltSeed, verified bool) error {
+	s.Called.CreateAccount = &CreateAccountCall{
+		Email:          email,
+		Password:       password,
+		ClientSaltSeed: clientSaltSeed,
+		Verified:       verified,
+	}
 	return s.Errors.CreateAccount
 }
 

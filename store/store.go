@@ -39,7 +39,7 @@ type StoreInterface interface {
 	SetWallet(auth.UserId, wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac) error
 	GetWallet(auth.UserId) (wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac, error)
 	GetUserId(auth.Email, auth.Password) (auth.UserId, error)
-	CreateAccount(auth.Email, auth.Password, auth.ClientSaltSeed) error
+	CreateAccount(auth.Email, auth.Password, auth.ClientSaltSeed, bool) error
 	ChangePasswordWithWallet(auth.Email, auth.Password, auth.Password, auth.ClientSaltSeed, wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac) error
 	ChangePasswordNoWallet(auth.Email, auth.Password, auth.Password, auth.ClientSaltSeed) error
 	GetClientSaltSeed(auth.Email) (auth.ClientSaltSeed, error)
@@ -359,7 +359,7 @@ func (s *Store) GetUserId(email auth.Email, password auth.Password) (userId auth
 // Account //
 /////////////
 
-func (s *Store) CreateAccount(email auth.Email, password auth.Password, seed auth.ClientSaltSeed) (err error) {
+func (s *Store) CreateAccount(email auth.Email, password auth.Password, seed auth.ClientSaltSeed, verified bool) (err error) {
 	key, salt, err := password.Create()
 	if err != nil {
 		return
