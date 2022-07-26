@@ -93,7 +93,10 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	st, tmpFile := storeTestInit(t)
 	defer storeTestCleanup(tmpFile)
 
-	s := Server{&auth.Auth{}, &st, &TestEnv{}}
+	env := map[string]string{
+		"ACCOUNT_VERIFICATION_MODE": "EmailVerify",
+	}
+	s := Server{&auth.Auth{}, &st, &TestEnv{env}}
 
 	////////////////////
 	t.Log("Request: Register email address - any device")
@@ -259,7 +262,10 @@ func TestIntegrationChangePassword(t *testing.T) {
 	st, tmpFile := storeTestInit(t)
 	defer storeTestCleanup(tmpFile)
 
-	s := Server{&auth.Auth{}, &st, &TestEnv{}}
+	env := map[string]string{
+		"ACCOUNT_VERIFICATION_MODE": "EmailVerify",
+	}
+	s := Server{&auth.Auth{}, &st, &TestEnv{env}}
 
 	////////////////////
 	t.Log("Request: Register email address")
