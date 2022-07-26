@@ -73,6 +73,7 @@ type TestStoreFunctionsCalled struct {
 	GetToken                 auth.TokenString
 	GetUserId                bool
 	CreateAccount            *CreateAccountCall
+	VerifyAccount            bool
 	SetWallet                SetWalletCall
 	GetWallet                bool
 	ChangePasswordWithWallet ChangePasswordWithWalletCall
@@ -85,6 +86,7 @@ type TestStoreFunctionsErrors struct {
 	GetToken                 error
 	GetUserId                error
 	CreateAccount            error
+	VerifyAccount            error
 	SetWallet                error
 	GetWallet                error
 	ChangePasswordWithWallet error
@@ -100,7 +102,8 @@ type TestStore struct {
 	// the test setup
 	Errors TestStoreFunctionsErrors
 
-	TestAuthToken auth.AuthToken
+	TestAuthToken         auth.AuthToken
+	TestVerifyTokenString auth.VerifyTokenString
 
 	TestEncryptedWallet wallet.EncryptedWallet
 	TestSequence        wallet.Sequence
@@ -132,6 +135,11 @@ func (s *TestStore) CreateAccount(email auth.Email, password auth.Password, clie
 		Verified:       verified,
 	}
 	return s.Errors.CreateAccount
+}
+
+func (s *TestStore) VerifyAccount(auth.VerifyTokenString) (err error) {
+	s.Called.VerifyAccount = true
+	return s.Errors.VerifyAccount
 }
 
 func (s *TestStore) SetWallet(
@@ -259,7 +267,7 @@ func TestServerHelperCheckAuth(t *testing.T) {
 			expectedStatusCode:  http.StatusUnauthorized,
 			expectedErrorString: http.StatusText(http.StatusUnauthorized) + ": Token Not Found",
 
-			storeErrors: TestStoreFunctionsErrors{GetToken: store.ErrNoToken},
+			storeErrors: TestStoreFunctionsErrors{GetToken: store.ErrNoTokenForUserDevice},
 		}, {
 			name:          "unknown auth token db error",
 			requiredScope: auth.AuthScope("banana"),

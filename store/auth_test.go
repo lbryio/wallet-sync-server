@@ -138,8 +138,8 @@ func TestStoreUpdateToken(t *testing.T) {
 	expectTokenNotExists(t, &s, authTokenUpdate.Token)
 
 	// Try to update the token - fail because we don't have an entry there in the first place
-	if err := s.updateToken(&authTokenUpdate, expiration); err != ErrNoToken {
-		t.Fatalf(`updateToken err: wanted "%+v", got "%+v"`, ErrNoToken, err)
+	if err := s.updateToken(&authTokenUpdate, expiration); err != ErrNoTokenForUserDevice {
+		t.Fatalf(`updateToken err: wanted "%+v", got "%+v"`, ErrNoTokenForUserDevice, err)
 	}
 
 	// Try to get a token, come back empty because the update attempt failed to do anything
@@ -287,8 +287,8 @@ func TestStoreGetToken(t *testing.T) {
 
 	// Not found (nothing saved for this token string)
 	gotToken, err := s.GetToken(authToken.Token)
-	if gotToken != nil || err != ErrNoToken {
-		t.Fatalf("Expected ErrNoToken. token: %+v err: %+v", gotToken, err)
+	if gotToken != nil || err != ErrNoTokenForUserDevice {
+		t.Fatalf("Expected ErrNoTokenForUserDevice. token: %+v err: %+v", gotToken, err)
 	}
 
 	// Put in a token
@@ -317,8 +317,8 @@ func TestStoreGetToken(t *testing.T) {
 
 	// Fail to get the expired token
 	gotToken, err = s.GetToken(authToken.Token)
-	if gotToken != nil || err != ErrNoToken {
-		t.Fatalf("Expected ErrNoToken, for expired token. token: %+v err: %+v", gotToken, err)
+	if gotToken != nil || err != ErrNoTokenForUserDevice {
+		t.Fatalf("Expected ErrNoTokenForUserDevice, for expired token. token: %+v err: %+v", gotToken, err)
 	}
 }
 

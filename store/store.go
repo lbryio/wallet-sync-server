@@ -16,8 +16,9 @@ import (
 )
 
 var (
-	ErrDuplicateToken = fmt.Errorf("Token already exists for this user and device")
-	ErrNoToken        = fmt.Errorf("Token does not exist for this user and device")
+	ErrDuplicateToken       = fmt.Errorf("Token already exists for this user and device")
+	ErrNoTokenForUserDevice = fmt.Errorf("Token does not exist for this user and device")
+	ErrNoTokenForUser       = fmt.Errorf("Token does not exist for this user")
 
 	ErrDuplicateWallet = fmt.Errorf("Wallet already exists for this user")
 
@@ -41,6 +42,7 @@ type StoreInterface interface {
 	GetWallet(auth.UserId) (wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac, error)
 	GetUserId(auth.Email, auth.Password) (auth.UserId, error)
 	CreateAccount(auth.Email, auth.Password, auth.ClientSaltSeed, bool) error
+	VerifyAccount(auth.VerifyTokenString) error
 	ChangePasswordWithWallet(auth.Email, auth.Password, auth.Password, auth.ClientSaltSeed, wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac) error
 	ChangePasswordNoWallet(auth.Email, auth.Password, auth.Password, auth.ClientSaltSeed) error
 	GetClientSaltSeed(auth.Email) (auth.ClientSaltSeed, error)
@@ -156,7 +158,7 @@ func (s *Store) GetToken(token auth.TokenString) (authToken *auth.AuthToken, err
 		&authToken.Expiration,
 	)
 	if err == sql.ErrNoRows {
-		err = ErrNoToken
+		err = ErrNoTokenForUserDevice
 	}
 	if err != nil {
 		authToken = nil
@@ -196,7 +198,7 @@ func (s *Store) updateToken(authToken *auth.AuthToken, experation time.Time) (er
 		return
 	}
 	if numRows == 0 {
-		err = ErrNoToken
+		err = ErrNoTokenForUserDevice
 	}
 	return
 }
@@ -213,7 +215,7 @@ func (s *Store) SaveToken(token *auth.AuthToken) (err error) {
 	// device, so there's probably already a token in there.
 	err = s.updateToken(token, expiration)
 
-	if err == ErrNoToken {
+	if err == ErrNoTokenForUserDevice {
 		// If we don't have a token already saved, insert a new one:
 		err = s.insertToken(token, expiration)
 
@@ -378,6 +380,10 @@ func (s *Store) CreateAccount(email auth.Email, password auth.Password, seed aut
 		}
 	}
 
+	return
+}
+
+func (s *Store) VerifyAccount(auth.VerifyTokenString) (err error) {
 	return
 }
 

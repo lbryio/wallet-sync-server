@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"lbryio/lbry-id/auth"
 	"lbryio/lbry-id/store"
 )
 
@@ -249,5 +250,90 @@ func TestServerValidateRegisterRequest(t *testing.T) {
 	err = registerRequest.validate()
 	if !strings.Contains(err.Error(), "clientSaltSeed") {
 		t.Errorf("Expected RegisterRequest with clientSaltSeed with a non-hex string to return an appropriate error")
+	}
+}
+
+func TestServerVerifyAccountSuccess(t *testing.T) {
+	testStore := TestStore{TestVerifyTokenString: "abcd1234abcd1234abcd1234abcd1234"}
+	s := Server{&TestAuth{}, &testStore, &TestEnv{}}
+
+	req := httptest.NewRequest(http.MethodGet, PathVerify, nil)
+	q := req.URL.Query()
+	q.Add("verifyToken", string(testStore.TestVerifyTokenString))
+	req.URL.RawQuery = q.Encode()
+	w := httptest.NewRecorder()
+
+	s.verify(w, req)
+	body, _ := ioutil.ReadAll(w.Body)
+
+	expectStatusCode(t, w, http.StatusOK)
+
+	if string(body) != "{}" {
+		t.Errorf("Expected register response to be \"{}\": result: %+v", string(body))
+	}
+
+	if !testStore.Called.VerifyAccount {
+		t.Errorf("Expected Store.VerifyAccount to be called")
+	}
+}
+
+func TestServerVerifyAccountErrors(t *testing.T) {
+	tt := []struct {
+		name                      string
+		token                     auth.VerifyTokenString
+		expectedStatusCode        int
+		expectedErrorString       string
+		expectedCallVerifyAccount bool
+
+		storeErrors TestStoreFunctionsErrors
+	}{
+		{
+			name:                      "missing token",
+			token:                     "",
+			expectedStatusCode:        http.StatusBadRequest,
+			expectedErrorString:       http.StatusText(http.StatusBadRequest) + ": Missing verifyToken parameter",
+			expectedCallVerifyAccount: false,
+		},
+		{
+			name:                      "not found token", // including expired
+			token:                     "abcd1234abcd1234abcd1234abcd1234",
+			expectedStatusCode:        http.StatusForbidden,
+			expectedErrorString:       http.StatusText(http.StatusForbidden) + ": Verification token not found or expired",
+			storeErrors:               TestStoreFunctionsErrors{VerifyAccount: store.ErrNoTokenForUser},
+			expectedCallVerifyAccount: true,
+		},
+		{
+			name:                      "assorted db error",
+			token:                     "abcd1234abcd1234abcd1234abcd1234",
+			expectedStatusCode:        http.StatusInternalServerError,
+			expectedErrorString:       http.StatusText(http.StatusInternalServerError),
+			storeErrors:               TestStoreFunctionsErrors{VerifyAccount: fmt.Errorf("TestStore.VerifyAccount fail")},
+			expectedCallVerifyAccount: true,
+		},
+	}
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+
+			// Set this up to fail according to specification
+			testStore := TestStore{Errors: tc.storeErrors, TestVerifyTokenString: tc.token}
+			s := Server{&TestAuth{}, &testStore, &TestEnv{}}
+
+			// Make request
+			req := httptest.NewRequest(http.MethodGet, PathVerify, nil)
+			q := req.URL.Query()
+			q.Add("verifyToken", string(testStore.TestVerifyTokenString))
+			req.URL.RawQuery = q.Encode()
+			w := httptest.NewRecorder()
+
+			s.verify(w, req)
+			body, _ := ioutil.ReadAll(w.Body)
+
+			expectStatusCode(t, w, tc.expectedStatusCode)
+			expectErrorString(t, body, tc.expectedErrorString)
+
+			if tc.expectedCallVerifyAccount != testStore.Called.VerifyAccount {
+				t.Errorf("Expected Store.VerifyAccount not to be called")
+			}
+		})
 	}
 }

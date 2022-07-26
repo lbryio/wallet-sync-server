@@ -20,6 +20,7 @@ type KDFKey string         // KDF output
 type ClientSaltSeed string // part of client-side KDF input along with root password
 type ServerSalt string     // server-side KDF input for accounts
 type TokenString string
+type VerifyTokenString string
 type AuthScope string
 
 const ScopeFull = AuthScope("*")

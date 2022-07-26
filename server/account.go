@@ -104,3 +104,54 @@ modes:
 	w.WriteHeader(http.StatusCreated)
 	fmt.Fprintf(w, string(response))
 }
+
+// TODO - There's probably a struct-based solution here like with POST/PUT.
+// We could put that struct up top as well.
+func getVerifyParams(req *http.Request) (token auth.VerifyTokenString, err error) {
+	tokenSlice, hasTokenSlice := req.URL.Query()["verifyToken"]
+
+	if !hasTokenSlice || tokenSlice[0] == "" {
+		err = fmt.Errorf("Missing verifyToken parameter")
+	}
+
+	if err == nil {
+		token = auth.VerifyTokenString(tokenSlice[0])
+	}
+
+	return
+}
+
+func (s *Server) verify(w http.ResponseWriter, req *http.Request) {
+	if !getGetData(w, req) {
+		return
+	}
+
+	token, paramsErr := getVerifyParams(req)
+
+	if paramsErr != nil {
+		// In this specific case, the error is limited to values that are safe to
+		// give to the user.
+		errorJson(w, http.StatusBadRequest, paramsErr.Error())
+		return
+	}
+
+	err := s.store.VerifyAccount(token)
+
+	if err == store.ErrNoTokenForUser {
+		errorJson(w, http.StatusForbidden, "Verification token not found or expired")
+		return
+	} else if err != nil {
+		internalServiceErrorJson(w, err, "Error verifying account")
+		return
+	}
+
+	var verifyResponse struct{}
+	response, err := json.Marshal(verifyResponse)
+
+	if err != nil {
+		internalServiceErrorJson(w, err, "Error generating verify response")
+		return
+	}
+
+	fmt.Fprintf(w, string(response))
+}

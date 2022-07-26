@@ -47,7 +47,7 @@ func TestServerGetWallet(t *testing.T) {
 			expectedStatusCode:  http.StatusUnauthorized,
 			expectedErrorString: http.StatusText(http.StatusUnauthorized) + ": Token Not Found",
 
-			storeErrors: TestStoreFunctionsErrors{GetToken: store.ErrNoToken},
+			storeErrors: TestStoreFunctionsErrors{GetToken: store.ErrNoTokenForUserDevice},
 		},
 		{
 			name:        "db error getting wallet",
@@ -200,7 +200,7 @@ func TestServerPostWallet(t *testing.T) {
 			newHmac:            wallet.WalletHmac("my-hmac"),
 
 			// What causes the error
-			storeErrors: TestStoreFunctionsErrors{GetToken: store.ErrNoToken},
+			storeErrors: TestStoreFunctionsErrors{GetToken: store.ErrNoTokenForUserDevice},
 		}, {
 			name:                "db error setting wallet",
 			expectedStatusCode:  http.StatusInternalServerError,

@@ -22,6 +22,7 @@ const PathPrometheus = "/metrics"
 
 const PathAuthToken = PathPrefix + "/auth/full"
 const PathRegister = PathPrefix + "/signup"
+const PathVerify = PathPrefix + "/verify"
 const PathPassword = PathPrefix + "/password"
 const PathWallet = PathPrefix + "/wallet"
 const PathClientSaltSeed = PathPrefix + "/client-salt-seed"
@@ -152,7 +153,7 @@ func (s *Server) checkAuth(
 	scope auth.AuthScope,
 ) *auth.AuthToken {
 	authToken, err := s.store.GetToken(token)
-	if err == store.ErrNoToken {
+	if err == store.ErrNoTokenForUserDevice {
 		errorJson(w, http.StatusUnauthorized, "Token Not Found")
 		return nil
 	}
