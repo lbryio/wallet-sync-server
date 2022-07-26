@@ -30,6 +30,7 @@ var (
 	ErrDuplicateAccount = fmt.Errorf("User already has an account")
 
 	ErrWrongCredentials = fmt.Errorf("No match for email and password")
+	ErrNotVerified = fmt.Errorf("User account is not verified")
 )
 
 // For test stubs

@@ -70,6 +70,14 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 			storeErrors: TestStoreFunctionsErrors{GetUserId: store.ErrWrongCredentials},
 		},
 		{
+			name:                "unverified account",
+			email:               "abc@example.com",
+			expectedStatusCode:  http.StatusUnauthorized,
+			expectedErrorString: http.StatusText(http.StatusUnauthorized) + ": Account is not verified",
+
+			storeErrors: TestStoreFunctionsErrors{GetUserId: store.ErrNotVerified},
+		},
+		{
 			name:                "generate token fail",
 			email:               "abc@example.com",
 			expectedStatusCode:  http.StatusInternalServerError,

@@ -41,6 +41,10 @@ func (s *Server) getAuthToken(w http.ResponseWriter, req *http.Request) {
 		errorJson(w, http.StatusUnauthorized, "No match for email and password")
 		return
 	}
+	if err == store.ErrNotVerified {
+		errorJson(w, http.StatusUnauthorized, "Account is not verified")
+		return
+	}
 	if err != nil {
 		internalServiceErrorJson(w, err, "Error getting User Id")
 		return
