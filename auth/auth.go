@@ -32,9 +32,6 @@ type AuthInterface interface {
 
 type Auth struct{}
 
-// Note that everything here is given to anybody who presents a valid
-// downloadKey and associated email. Currently these fields are safe to give
-// at that low security level, but keep this in mind as we change this struct.
 type AuthToken struct {
 	Token      TokenString `json:"token"`
 	DeviceId   DeviceId    `json:"deviceId"`
