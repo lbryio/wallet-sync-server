@@ -104,6 +104,30 @@ func TestServerChangePassword(t *testing.T) {
 
 			storeErrors: TestStoreFunctionsErrors{ChangePasswordNoWallet: store.ErrWrongCredentials},
 		}, {
+			name:                "unverified account with wallet",
+			expectedStatusCode:  http.StatusUnauthorized,
+			expectedErrorString: http.StatusText(http.StatusUnauthorized) + ": Account is not verified",
+
+			expectChangePasswordCall: true,
+
+			newEncryptedWallet: "my-enc-wallet",
+			newSequence:        2,
+			newHmac:            "my-hmac",
+
+			email: "abc@example.com",
+
+			storeErrors: TestStoreFunctionsErrors{ChangePasswordWithWallet: store.ErrNotVerified},
+		}, {
+			name:                "unverified account no wallet",
+			expectedStatusCode:  http.StatusUnauthorized,
+			expectedErrorString: http.StatusText(http.StatusUnauthorized) + ": Account is not verified",
+
+			expectChangePasswordCall: true,
+
+			email: "abc@example.com",
+
+			storeErrors: TestStoreFunctionsErrors{ChangePasswordNoWallet: store.ErrNotVerified},
+		}, {
 			name:                "validation error",
 			expectedStatusCode:  http.StatusBadRequest,
 			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation: Invalid or missing 'email'",

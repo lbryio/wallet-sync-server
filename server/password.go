@@ -53,6 +53,21 @@ func (s *Server) changePassword(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// To be cautious, we will block password changes for unverified accounts.
+	// The only reason I can think of for allowing them is if the user
+	// accidentally put in a bad password that they desperately want to change,
+	// and the verification email isn't working. However unlikely such a scenario
+	// is, with the salting and the KDF and all that, it seems all the less a big
+	// deal.
+	//
+	// Changing a password when unverified as such isn't a big deal, but I'm
+	// concerned with wallet creation. This endpoint currently doesn't allow you
+	// to _create_ a wallet if you don't already have one, so as of now we don't
+	// strictly need this restriction. However this seems too precarious and
+	// tricky. We might forget about it and allow wallet creation here later.
+	// Someone might find a loophole I'm not thinking of. So I'm just blocking
+	// unverified accounts here for simplicity.
+
 	var err error
 	if changePasswordRequest.EncryptedWallet != "" {
 		err = s.store.ChangePasswordWithWallet(
@@ -81,6 +96,10 @@ func (s *Server) changePassword(w http.ResponseWriter, req *http.Request) {
 	}
 	if err == store.ErrWrongCredentials {
 		errorJson(w, http.StatusUnauthorized, "No match for email and password")
+		return
+	}
+	if err == store.ErrNotVerified {
+		errorJson(w, http.StatusUnauthorized, "Account is not verified")
 		return
 	}
 	if err != nil {
