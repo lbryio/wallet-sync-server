@@ -10,6 +10,7 @@ import (
 
 	"lbryio/lbry-id/auth"
 	"lbryio/lbry-id/env"
+	"lbryio/lbry-id/mail"
 	"lbryio/lbry-id/store"
 )
 
@@ -34,6 +35,7 @@ type Server struct {
 	auth  auth.AuthInterface
 	store store.StoreInterface
 	env   env.EnvInterface
+	mail  mail.MailInterface
 }
 
 // TODO If I capitalize the `auth` `store` and `env` fields of Store{} I can
@@ -42,8 +44,9 @@ func Init(
 	auth auth.AuthInterface,
 	store store.StoreInterface,
 	env env.EnvInterface,
+	mail mail.MailInterface,
 ) *Server {
-	return &Server{auth, store, env}
+	return &Server{auth, store, env, mail}
 }
 
 type ErrorResponse struct {
@@ -149,7 +152,7 @@ func getGetData(w http.ResponseWriter, req *http.Request) bool {
 // deviceId. Also this is apparently not idiomatic go error handling.
 func (s *Server) checkAuth(
 	w http.ResponseWriter,
-	token auth.TokenString,
+	token auth.AuthTokenString,
 	scope auth.AuthScope,
 ) *auth.AuthToken {
 	authToken, err := s.store.GetToken(token)

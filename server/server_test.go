@@ -17,6 +17,21 @@ import (
 
 // Implementing interfaces for stubbed out packages
 
+type SendVerificationEmailCall struct {
+	Email auth.Email
+	Token auth.VerifyTokenString
+}
+
+type TestMail struct {
+	SendVerificationEmailError error
+	SendVerificationEmailCall  *SendVerificationEmailCall
+}
+
+func (m *TestMail) SendVerificationEmail(email auth.Email, token auth.VerifyTokenString) error {
+	m.SendVerificationEmailCall = &SendVerificationEmailCall{email, token}
+	return m.SendVerificationEmailError
+}
+
 type TestEnv struct {
 	env map[string]string
 }
@@ -26,15 +41,23 @@ func (e *TestEnv) Getenv(key string) string {
 }
 
 type TestAuth struct {
-	TestNewTokenString auth.TokenString
-	FailGenToken       bool
+	TestNewAuthTokenString   auth.AuthTokenString
+	TestNewVerifyTokenString auth.VerifyTokenString
+	FailGenToken             bool
 }
 
-func (a *TestAuth) NewToken(userId auth.UserId, deviceId auth.DeviceId, scope auth.AuthScope) (*auth.AuthToken, error) {
+func (a *TestAuth) NewAuthToken(userId auth.UserId, deviceId auth.DeviceId, scope auth.AuthScope) (*auth.AuthToken, error) {
 	if a.FailGenToken {
 		return nil, fmt.Errorf("Test error: fail to generate token")
 	}
-	return &auth.AuthToken{Token: a.TestNewTokenString, UserId: userId, DeviceId: deviceId, Scope: scope}, nil
+	return &auth.AuthToken{Token: a.TestNewAuthTokenString, UserId: userId, DeviceId: deviceId, Scope: scope}, nil
+}
+
+func (a *TestAuth) NewVerifyTokenString() (auth.VerifyTokenString, error) {
+	if a.FailGenToken {
+		return "", fmt.Errorf("Test error: fail to generate token")
+	}
+	return a.TestNewVerifyTokenString, nil
 }
 
 type SetWalletCall struct {
@@ -64,13 +87,13 @@ type CreateAccountCall struct {
 	Email          auth.Email
 	Password       auth.Password
 	ClientSaltSeed auth.ClientSaltSeed
-	Verified       bool
+	VerifyToken    auth.VerifyTokenString
 }
 
 // Whether functions are called, and sometimes what they're called with
 type TestStoreFunctionsCalled struct {
-	SaveToken                auth.TokenString
-	GetToken                 auth.TokenString
+	SaveToken                auth.AuthTokenString
+	GetToken                 auth.AuthTokenString
 	GetUserId                bool
 	CreateAccount            *CreateAccountCall
 	VerifyAccount            bool
@@ -102,8 +125,7 @@ type TestStore struct {
 	// the test setup
 	Errors TestStoreFunctionsErrors
 
-	TestAuthToken         auth.AuthToken
-	TestVerifyTokenString auth.VerifyTokenString
+	TestAuthToken auth.AuthToken
 
 	TestEncryptedWallet wallet.EncryptedWallet
 	TestSequence        wallet.Sequence
@@ -117,7 +139,7 @@ func (s *TestStore) SaveToken(authToken *auth.AuthToken) error {
 	return s.Errors.SaveToken
 }
 
-func (s *TestStore) GetToken(token auth.TokenString) (*auth.AuthToken, error) {
+func (s *TestStore) GetToken(token auth.AuthTokenString) (*auth.AuthToken, error) {
 	s.Called.GetToken = token
 	return &s.TestAuthToken, s.Errors.GetToken
 }
@@ -127,12 +149,12 @@ func (s *TestStore) GetUserId(auth.Email, auth.Password) (auth.UserId, error) {
 	return 0, s.Errors.GetUserId
 }
 
-func (s *TestStore) CreateAccount(email auth.Email, password auth.Password, clientSaltSeed auth.ClientSaltSeed, verified bool) error {
+func (s *TestStore) CreateAccount(email auth.Email, password auth.Password, seed auth.ClientSaltSeed, verifyToken auth.VerifyTokenString) error {
 	s.Called.CreateAccount = &CreateAccountCall{
 		Email:          email,
 		Password:       password,
-		ClientSaltSeed: clientSaltSeed,
-		Verified:       verified,
+		ClientSaltSeed: seed,
+		VerifyToken:    verifyToken,
 	}
 	return s.Errors.CreateAccount
 }
@@ -290,9 +312,9 @@ func TestServerHelperCheckAuth(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			testStore := TestStore{
 				Errors:        tc.storeErrors,
-				TestAuthToken: auth.AuthToken{Token: auth.TokenString("seekrit"), Scope: tc.userScope},
+				TestAuthToken: auth.AuthToken{Token: auth.AuthTokenString("seekrit"), Scope: tc.userScope},
 			}
-			s := Server{&TestAuth{}, &testStore, &TestEnv{}}
+			s := Server{&TestAuth{}, &testStore, &TestEnv{}, &TestMail{}}
 
 			w := httptest.NewRecorder()
 			authToken := s.checkAuth(w, testStore.TestAuthToken.Token, tc.requiredScope)

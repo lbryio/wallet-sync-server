@@ -96,7 +96,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	env := map[string]string{
 		"ACCOUNT_VERIFICATION_MODE": "EmailVerify",
 	}
-	s := Server{&auth.Auth{}, &st, &TestEnv{env}}
+	s := Server{&auth.Auth{}, &st, &TestEnv{env}, &TestMail{}}
 
 	////////////////////
 	t.Log("Request: Register email address - any device")
@@ -130,8 +130,8 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 
 	checkStatusCode(t, statusCode, responseBody)
 
-	// result.Token is in hex, auth.AuthTokenLength is bytes in the original
-	expectedTokenLength := auth.AuthTokenLength * 2
+	// result.Token is in hex, auth.TokenLength is bytes in the original
+	expectedTokenLength := auth.TokenLength * 2
 	if len(authToken1.Token) != expectedTokenLength {
 		t.Fatalf("Expected auth response to contain token length 32: result: %+v", string(responseBody))
 	}
@@ -265,7 +265,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 	env := map[string]string{
 		"ACCOUNT_VERIFICATION_MODE": "EmailVerify",
 	}
-	s := Server{&auth.Auth{}, &st, &TestEnv{env}}
+	s := Server{&auth.Auth{}, &st, &TestEnv{env}, &TestMail{}}
 
 	////////////////////
 	t.Log("Request: Register email address")
@@ -321,8 +321,8 @@ func TestIntegrationChangePassword(t *testing.T) {
 
 	checkStatusCode(t, statusCode, responseBody)
 
-	// result.Token is in hex, auth.AuthTokenLength is bytes in the original
-	expectedTokenLength := auth.AuthTokenLength * 2
+	// result.Token is in hex, auth.TokenLength is bytes in the original
+	expectedTokenLength := auth.TokenLength * 2
 	if len(authToken.Token) != expectedTokenLength {
 		t.Fatalf("Expected auth response to contain token length 32: result: %+v", string(responseBody))
 	}
@@ -404,8 +404,8 @@ func TestIntegrationChangePassword(t *testing.T) {
 
 	checkStatusCode(t, statusCode, responseBody)
 
-	// result.Token is in hex, auth.AuthTokenLength is bytes in the original
-	expectedTokenLength = auth.AuthTokenLength * 2
+	// result.Token is in hex, auth.TokenLength is bytes in the original
+	expectedTokenLength = auth.TokenLength * 2
 	if len(authToken.Token) != expectedTokenLength {
 		t.Fatalf("Expected auth response to contain token length 32: result: %+v", string(responseBody))
 	}
@@ -509,8 +509,8 @@ func TestIntegrationChangePassword(t *testing.T) {
 
 	checkStatusCode(t, statusCode, responseBody)
 
-	// result.Token is in hex, auth.AuthTokenLength is bytes in the original
-	expectedTokenLength = auth.AuthTokenLength * 2
+	// result.Token is in hex, auth.TokenLength is bytes in the original
+	expectedTokenLength = auth.TokenLength * 2
 	if len(authToken.Token) != expectedTokenLength {
 		t.Fatalf("Expected auth response to contain token length 32: result: %+v", string(responseBody))
 	}

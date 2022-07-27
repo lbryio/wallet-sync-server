@@ -17,7 +17,7 @@ func TestStoreChangePasswordSuccess(t *testing.T) {
 	defer StoreTestCleanup(sqliteTmpFile)
 
 	userId, email, oldPassword, _ := makeTestUser(t, &s)
-	token := auth.TokenString("my-token")
+	token := auth.AuthTokenString("my-token")
 
 	_, err := s.db.Exec(
 		"INSERT INTO auth_tokens (token, user_id, device_id, scope, expiration) VALUES(?,?,?,?,?)",
@@ -117,7 +117,7 @@ func TestStoreChangePasswordErrors(t *testing.T) {
 			userId, email, oldPassword, oldSeed := makeTestUser(t, &s)
 			expiration := time.Now().UTC().Add(time.Hour * 24 * 14)
 			authToken := auth.AuthToken{
-				Token:      auth.TokenString("my-token"),
+				Token:      auth.AuthTokenString("my-token"),
 				DeviceId:   auth.DeviceId("my-dev-id"),
 				UserId:     userId,
 				Scope:      auth.AuthScope("*"),
@@ -177,7 +177,7 @@ func TestStoreChangePasswordNoWalletSuccess(t *testing.T) {
 	defer StoreTestCleanup(sqliteTmpFile)
 
 	userId, email, oldPassword, _ := makeTestUser(t, &s)
-	token := auth.TokenString("my-token")
+	token := auth.AuthTokenString("my-token")
 
 	_, err := s.db.Exec(
 		"INSERT INTO auth_tokens (token, user_id, device_id, scope, expiration) VALUES(?,?,?,?,?)",
@@ -249,7 +249,7 @@ func TestStoreChangePasswordNoWalletErrors(t *testing.T) {
 			userId, email, oldPassword, oldSeed := makeTestUser(t, &s)
 			expiration := time.Now().UTC().Add(time.Hour * 24 * 14)
 			authToken := auth.AuthToken{
-				Token:      auth.TokenString("my-token"),
+				Token:      auth.AuthTokenString("my-token"),
 				DeviceId:   auth.DeviceId("my-dev-id"),
 				UserId:     userId,
 				Scope:      auth.AuthScope("*"),

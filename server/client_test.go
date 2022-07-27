@@ -66,7 +66,7 @@ func TestServerGetClientSalt(t *testing.T) {
 				Errors: tc.storeErrors,
 			}
 
-			s := Server{&testAuth, &testStore, &TestEnv{}}
+			s := Server{&testAuth, &testStore, &TestEnv{}, &TestMail{}}
 
 			req := httptest.NewRequest(http.MethodGet, PathClientSaltSeed, nil)
 			q := req.URL.Query()

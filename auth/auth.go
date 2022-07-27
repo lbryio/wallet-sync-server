@@ -19,7 +19,7 @@ type Password string
 type KDFKey string         // KDF output
 type ClientSaltSeed string // part of client-side KDF input along with root password
 type ServerSalt string     // server-side KDF input for accounts
-type TokenString string
+type AuthTokenString string
 type VerifyTokenString string
 type AuthScope string
 
@@ -28,35 +28,46 @@ const ScopeFull = AuthScope("*")
 // For test stubs
 type AuthInterface interface {
 	// TODO maybe have a "refresh token" thing if the client won't have email available all the time?
-	NewToken(UserId, DeviceId, AuthScope) (*AuthToken, error)
+	NewAuthToken(UserId, DeviceId, AuthScope) (*AuthToken, error)
+	NewVerifyTokenString() (VerifyTokenString, error)
 }
 
 type Auth struct{}
 
 type AuthToken struct {
-	Token      TokenString `json:"token"`
-	DeviceId   DeviceId    `json:"deviceId"`
-	Scope      AuthScope   `json:"scope"`
-	UserId     UserId      `json:"userId"`
-	Expiration *time.Time  `json:"expiration"`
+	Token      AuthTokenString `json:"token"`
+	DeviceId   DeviceId        `json:"deviceId"`
+	Scope      AuthScope       `json:"scope"`
+	UserId     UserId          `json:"userId"`
+	Expiration *time.Time      `json:"expiration"`
 }
 
-const AuthTokenLength = 32
+const TokenLength = 32
 
-func (a *Auth) NewToken(userId UserId, deviceId DeviceId, scope AuthScope) (*AuthToken, error) {
-	b := make([]byte, AuthTokenLength)
+func (a *Auth) NewAuthToken(userId UserId, deviceId DeviceId, scope AuthScope) (*AuthToken, error) {
+	b := make([]byte, TokenLength)
 	// TODO - Is this is a secure random function? (Maybe audit)
 	if _, err := rand.Read(b); err != nil {
 		return nil, fmt.Errorf("Error generating token: %+v", err)
 	}
 
 	return &AuthToken{
-		Token:    TokenString(hex.EncodeToString(b)),
+		Token:    AuthTokenString(hex.EncodeToString(b)),
 		DeviceId: deviceId,
 		Scope:    scope,
 		UserId:   userId,
 		// TODO add Expiration here instead of putting it in store.go. and thus redo store.go. d'oh.
 	}, nil
+}
+
+func (a *Auth) NewVerifyTokenString() (VerifyTokenString, error) {
+	b := make([]byte, TokenLength)
+	// TODO - Is this is a secure random function? (Maybe audit)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("Error generating token: %+v", err)
+	}
+
+	return VerifyTokenString(hex.EncodeToString(b)), nil
 }
 
 // NOTE - not stubbing methods of structs like this. more convoluted than it's worth right now

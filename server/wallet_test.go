@@ -18,7 +18,7 @@ import (
 func TestServerGetWallet(t *testing.T) {
 	tt := []struct {
 		name        string
-		tokenString auth.TokenString
+		tokenString auth.AuthTokenString
 
 		expectedStatusCode  int
 		expectedErrorString string
@@ -27,12 +27,12 @@ func TestServerGetWallet(t *testing.T) {
 	}{
 		{
 			name:               "success",
-			tokenString:        auth.TokenString("seekrit"),
+			tokenString:        auth.AuthTokenString("seekrit"),
 			expectedStatusCode: http.StatusOK,
 		},
 		{
 			name:                "validation error", // missing auth token
-			tokenString:         auth.TokenString(""),
+			tokenString:         auth.AuthTokenString(""),
 			expectedStatusCode:  http.StatusBadRequest,
 			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Missing token parameter",
 
@@ -42,7 +42,7 @@ func TestServerGetWallet(t *testing.T) {
 		},
 		{
 			name:        "auth error",
-			tokenString: auth.TokenString("seekrit"),
+			tokenString: auth.AuthTokenString("seekrit"),
 
 			expectedStatusCode:  http.StatusUnauthorized,
 			expectedErrorString: http.StatusText(http.StatusUnauthorized) + ": Token Not Found",
@@ -51,7 +51,7 @@ func TestServerGetWallet(t *testing.T) {
 		},
 		{
 			name:        "db error getting wallet",
-			tokenString: auth.TokenString("seekrit"),
+			tokenString: auth.AuthTokenString("seekrit"),
 
 			expectedStatusCode:  http.StatusInternalServerError,
 			expectedErrorString: http.StatusText(http.StatusInternalServerError),
@@ -65,7 +65,7 @@ func TestServerGetWallet(t *testing.T) {
 			testAuth := TestAuth{}
 			testStore := TestStore{
 				TestAuthToken: auth.AuthToken{
-					Token: auth.TokenString(tc.tokenString),
+					Token: auth.AuthTokenString(tc.tokenString),
 					Scope: auth.ScopeFull,
 				},
 
@@ -77,7 +77,7 @@ func TestServerGetWallet(t *testing.T) {
 			}
 
 			testEnv := TestEnv{}
-			s := Server{&testAuth, &testStore, &testEnv}
+			s := Server{&testAuth, &testStore, &testEnv, &TestMail{}}
 
 			req := httptest.NewRequest(http.MethodGet, PathWallet, nil)
 			q := req.URL.Query()
@@ -228,14 +228,14 @@ func TestServerPostWallet(t *testing.T) {
 			testAuth := TestAuth{}
 			testStore := TestStore{
 				TestAuthToken: auth.AuthToken{
-					Token: auth.TokenString("seekrit"),
+					Token: auth.AuthTokenString("seekrit"),
 					Scope: auth.ScopeFull,
 				},
 
 				Errors: tc.storeErrors,
 			}
 
-			s := Server{&testAuth, &testStore, &TestEnv{}}
+			s := Server{&testAuth, &testStore, &TestEnv{}, &TestMail{}}
 
 			requestBody := []byte(
 				fmt.Sprintf(`{

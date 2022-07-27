@@ -43,7 +43,7 @@ func expectTokenExists(t *testing.T, s *Store, expectedToken auth.AuthToken) {
 	t.Fatalf("Expected token for: %s", expectedToken.Token)
 }
 
-func expectTokenNotExists(t *testing.T, s *Store, token auth.TokenString) {
+func expectTokenNotExists(t *testing.T, s *Store, token auth.AuthTokenString) {
 	rows, err := s.db.Query("SELECT * FROM auth_tokens WHERE token=?", token)
 	if err != nil {
 		t.Fatalf("Error finding (lack of) token for: %s - %+v", token, err)

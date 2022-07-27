@@ -14,7 +14,7 @@ import (
 )
 
 type WalletRequest struct {
-	Token           auth.TokenString       `json:"token"`
+	Token           auth.AuthTokenString   `json:"token"`
 	EncryptedWallet wallet.EncryptedWallet `json:"encryptedWallet"`
 	Sequence        wallet.Sequence        `json:"sequence"`
 	Hmac            wallet.WalletHmac      `json:"hmac"`
@@ -54,7 +54,7 @@ func (s *Server) handleWallet(w http.ResponseWriter, req *http.Request) {
 
 // TODO - There's probably a struct-based solution here like with POST/PUT.
 // We could put that struct up top as well.
-func getWalletParams(req *http.Request) (token auth.TokenString, err error) {
+func getWalletParams(req *http.Request) (token auth.AuthTokenString, err error) {
 	tokenSlice, hasTokenSlice := req.URL.Query()["token"]
 
 	if !hasTokenSlice || tokenSlice[0] == "" {
@@ -62,7 +62,7 @@ func getWalletParams(req *http.Request) (token auth.TokenString, err error) {
 	}
 
 	if err == nil {
-		token = auth.TokenString(tokenSlice[0])
+		token = auth.AuthTokenString(tokenSlice[0])
 	}
 
 	return

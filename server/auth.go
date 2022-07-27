@@ -50,7 +50,7 @@ func (s *Server) getAuthToken(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	authToken, err := s.auth.NewToken(userId, authRequest.DeviceId, auth.ScopeFull)
+	authToken, err := s.auth.NewAuthToken(userId, authRequest.DeviceId, auth.ScopeFull)
 
 	if err != nil {
 		internalServiceErrorJson(w, err, "Error generating auth token")

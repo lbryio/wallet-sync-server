@@ -37,11 +37,11 @@ var (
 // For test stubs
 type StoreInterface interface {
 	SaveToken(*auth.AuthToken) error
-	GetToken(auth.TokenString) (*auth.AuthToken, error)
+	GetToken(auth.AuthTokenString) (*auth.AuthToken, error)
 	SetWallet(auth.UserId, wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac) error
 	GetWallet(auth.UserId) (wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac, error)
 	GetUserId(auth.Email, auth.Password) (auth.UserId, error)
-	CreateAccount(auth.Email, auth.Password, auth.ClientSaltSeed, bool) error
+	CreateAccount(auth.Email, auth.Password, auth.ClientSaltSeed, auth.VerifyTokenString) error
 	VerifyAccount(auth.VerifyTokenString) error
 	ChangePasswordWithWallet(auth.Email, auth.Password, auth.Password, auth.ClientSaltSeed, wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac) error
 	ChangePasswordNoWallet(auth.Email, auth.Password, auth.Password, auth.ClientSaltSeed) error
@@ -143,7 +143,7 @@ func (s *Store) Migrate() error {
 // (which I did previously)?
 //
 // TODO Put the timestamp in the token to avoid duplicates over time. And/or just use a library! Someone solved this already.
-func (s *Store) GetToken(token auth.TokenString) (authToken *auth.AuthToken, err error) {
+func (s *Store) GetToken(token auth.AuthTokenString) (authToken *auth.AuthToken, err error) {
 	expirationCutoff := time.Now().UTC()
 
 	authToken = &(auth.AuthToken{})
@@ -362,7 +362,7 @@ func (s *Store) GetUserId(email auth.Email, password auth.Password) (userId auth
 // Account //
 /////////////
 
-func (s *Store) CreateAccount(email auth.Email, password auth.Password, seed auth.ClientSaltSeed, verified bool) (err error) {
+func (s *Store) CreateAccount(email auth.Email, password auth.Password, seed auth.ClientSaltSeed, verifyToken auth.VerifyTokenString) (err error) {
 	key, salt, err := password.Create()
 	if err != nil {
 		return

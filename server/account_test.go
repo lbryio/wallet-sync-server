@@ -7,20 +7,21 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"strings"
 	"testing"
 
-	"lbryio/lbry-id/auth"
 	"lbryio/lbry-id/store"
 )
 
+// TODO - maybe this test could just be one of the TestServerRegisterAccountVerification tests now
 func TestServerRegisterSuccess(t *testing.T) {
 	testStore := &TestStore{}
 	env := map[string]string{
-		"ACCOUNT_VERIFICATION_MODE": "AllowAll",
+		"ACCOUNT_VERIFICATION_MODE": "EmailVerify",
 	}
-	s := Server{&TestAuth{}, testStore, &TestEnv{env}}
+	testMail := TestMail{}
+	testAuth := TestAuth{TestNewVerifyTokenString: "abcd1234abcd1234abcd1234abcd1234"}
+	s := Server{&testAuth, testStore, &TestEnv{env}, &testMail}
 
 	requestBody := []byte(`{"email": "abc@example.com", "password": "123", "clientSaltSeed": "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234" }`)
 
@@ -35,61 +36,99 @@ func TestServerRegisterSuccess(t *testing.T) {
 	var result RegisterResponse
 	err := json.Unmarshal(body, &result)
 
-	expectedResponse := RegisterResponse{Verified: true}
-	if err != nil || !reflect.DeepEqual(&result, &expectedResponse) {
+	expectedResponse := RegisterResponse{Verified: false}
+	if err != nil || result != expectedResponse {
 		t.Errorf("Unexpected value for register response. Want: %+v Got: %+v Err: %+v", expectedResponse, result, err)
 	}
 
 	if testStore.Called.CreateAccount == nil {
 		t.Errorf("Expected Store.CreateAccount to be called")
 	}
+
+	if testMail.SendVerificationEmailCall == nil {
+		// We're doing EmailVerify for this test.
+		t.Fatalf("Expected Store.SendVerificationEmail to be called")
+	}
 }
 
 func TestServerRegisterErrors(t *testing.T) {
 	tt := []struct {
-		name                string
-		email               string
-		expectedStatusCode  int
-		expectedErrorString string
+		name                              string
+		email                             string
+		expectedStatusCode                int
+		expectedErrorString               string
+		expectedCallSendVerificationEmail bool
+		expectedCallCreateAccount         bool
 
-		storeErrors TestStoreFunctionsErrors
+		storeErrors  TestStoreFunctionsErrors
+		mailError    error
+		failGenToken bool
 	}{
 		{
-			name:                "validation error", // missing email address
-			email:               "",
-			expectedStatusCode:  http.StatusBadRequest,
-			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation: Invalid or missing 'email'",
+			name:                              "validation error", // missing email address
+			email:                             "",
+			expectedStatusCode:                http.StatusBadRequest,
+			expectedErrorString:               http.StatusText(http.StatusBadRequest) + ": Request failed validation: Invalid or missing 'email'",
+			expectedCallSendVerificationEmail: false,
+			expectedCallCreateAccount:         false,
 
 			// Just check one validation error (missing email address) to make sure the
 			// validate function is called. We'll check the rest of the validation
 			// errors in the other test below.
 		},
 		{
-			name:                "existing account",
-			email:               "abc@example.com",
-			expectedStatusCode:  http.StatusConflict,
-			expectedErrorString: http.StatusText(http.StatusConflict) + ": Error registering",
+			name:                              "existing account",
+			email:                             "abc@example.com",
+			expectedStatusCode:                http.StatusConflict,
+			expectedErrorString:               http.StatusText(http.StatusConflict) + ": Error registering",
+			expectedCallSendVerificationEmail: false,
+			expectedCallCreateAccount:         true,
 
 			storeErrors: TestStoreFunctionsErrors{CreateAccount: store.ErrDuplicateEmail},
 		},
 		{
-			name:                "unspecified account creation failure",
-			email:               "abc@example.com",
-			expectedStatusCode:  http.StatusInternalServerError,
-			expectedErrorString: http.StatusText(http.StatusInternalServerError),
+			name:                              "unspecified account creation failure",
+			email:                             "abc@example.com",
+			expectedStatusCode:                http.StatusInternalServerError,
+			expectedErrorString:               http.StatusText(http.StatusInternalServerError),
+			expectedCallSendVerificationEmail: false,
+			expectedCallCreateAccount:         true,
 
 			storeErrors: TestStoreFunctionsErrors{CreateAccount: fmt.Errorf("TestStore.CreateAccount fail")},
+		},
+		{
+			name:                              "fail to generate verifiy token",
+			email:                             "abc@example.com",
+			expectedStatusCode:                http.StatusInternalServerError,
+			expectedErrorString:               http.StatusText(http.StatusInternalServerError),
+			expectedCallSendVerificationEmail: false,
+			expectedCallCreateAccount:         false,
+
+			failGenToken: true,
+		},
+		{
+			name:                              "fail to generate verification email",
+			email:                             "abc@example.com",
+			expectedStatusCode:                http.StatusInternalServerError,
+			expectedErrorString:               http.StatusText(http.StatusInternalServerError),
+			expectedCallSendVerificationEmail: true,
+			expectedCallCreateAccount:         true,
+
+			mailError: fmt.Errorf("TestEmail.SendVerificationEmail fail"),
 		},
 	}
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 
 			env := map[string]string{
-				"ACCOUNT_VERIFICATION_MODE": "AllowAll",
+				"ACCOUNT_VERIFICATION_MODE": "EmailVerify",
 			}
 
 			// Set this up to fail according to specification
-			s := Server{&TestAuth{}, &TestStore{Errors: tc.storeErrors}, &TestEnv{env}}
+			testAuth := TestAuth{TestNewVerifyTokenString: "abcd1234abcd1234abcd1234abcd1234", FailGenToken: tc.failGenToken}
+			testMail := TestMail{SendVerificationEmailError: tc.mailError}
+			testStore := TestStore{Errors: tc.storeErrors}
+			s := Server{&testAuth, &testStore, &TestEnv{env}, &testMail}
 
 			// Make request
 			requestBody := fmt.Sprintf(`{"email": "%s", "password": "123", "clientSaltSeed": "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"}`, tc.email)
@@ -102,6 +141,20 @@ func TestServerRegisterErrors(t *testing.T) {
 
 			expectStatusCode(t, w, tc.expectedStatusCode)
 			expectErrorString(t, body, tc.expectedErrorString)
+
+			if tc.expectedCallCreateAccount && testStore.Called.CreateAccount == nil {
+				t.Errorf("Expected Store.CreateAccount to be called")
+			}
+			if !tc.expectedCallCreateAccount && testStore.Called.CreateAccount != nil {
+				t.Errorf("Expected Store.CreateAccount not to be called")
+			}
+
+			if tc.expectedCallSendVerificationEmail && testMail.SendVerificationEmailCall == nil {
+				t.Errorf("Expected Store.SendVerificationEmail to be called")
+			}
+			if !tc.expectedCallSendVerificationEmail && testMail.SendVerificationEmailCall != nil {
+				t.Errorf("Expected Store.SendVerificationEmail not to be called")
+			}
 		})
 	}
 }
@@ -110,10 +163,11 @@ func TestServerRegisterAccountVerification(t *testing.T) {
 	tt := []struct {
 		name string
 
-		env                map[string]string
-		expectSuccess      bool
-		expectedVerified   bool
-		expectedStatusCode int
+		env                               map[string]string
+		expectSuccess                     bool
+		expectedVerified                  bool
+		expectedStatusCode                int
+		expectedCallSendVerificationEmail bool
 	}{
 		{
 			name: "allow all",
@@ -122,9 +176,10 @@ func TestServerRegisterAccountVerification(t *testing.T) {
 				"ACCOUNT_VERIFICATION_MODE": "AllowAll",
 			},
 
-			expectedVerified:   true,
-			expectSuccess:      true,
-			expectedStatusCode: http.StatusCreated,
+			expectedVerified:                  true,
+			expectSuccess:                     true,
+			expectedStatusCode:                http.StatusCreated,
+			expectedCallSendVerificationEmail: false,
 		},
 		{
 			name: "whitelist allowed",
@@ -134,9 +189,10 @@ func TestServerRegisterAccountVerification(t *testing.T) {
 				"ACCOUNT_WHITELIST":         "abc@example.com",
 			},
 
-			expectedVerified:   true,
-			expectSuccess:      true,
-			expectedStatusCode: http.StatusCreated,
+			expectedVerified:                  true,
+			expectSuccess:                     true,
+			expectedStatusCode:                http.StatusCreated,
+			expectedCallSendVerificationEmail: false,
 		},
 		{
 			name: "whitelist disallowed",
@@ -146,9 +202,10 @@ func TestServerRegisterAccountVerification(t *testing.T) {
 				"ACCOUNT_WHITELIST":         "something-else@example.com",
 			},
 
-			expectedVerified:   false,
-			expectSuccess:      false,
-			expectedStatusCode: http.StatusForbidden,
+			expectedVerified:                  false,
+			expectSuccess:                     false,
+			expectedStatusCode:                http.StatusForbidden,
+			expectedCallSendVerificationEmail: false,
 		},
 		{
 			name: "email verify",
@@ -157,16 +214,19 @@ func TestServerRegisterAccountVerification(t *testing.T) {
 				"ACCOUNT_VERIFICATION_MODE": "EmailVerify",
 			},
 
-			expectedVerified:   false,
-			expectSuccess:      true,
-			expectedStatusCode: http.StatusCreated,
+			expectedVerified:                  false,
+			expectSuccess:                     true,
+			expectedStatusCode:                http.StatusCreated,
+			expectedCallSendVerificationEmail: true,
 		},
 	}
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 			testStore := &TestStore{}
-			s := Server{&TestAuth{}, testStore, &TestEnv{tc.env}}
+			testAuth := TestAuth{TestNewVerifyTokenString: "abcd1234abcd1234abcd1234abcd1234"}
+			testMail := TestMail{}
+			s := Server{&testAuth, testStore, &TestEnv{tc.env}, &testMail}
 
 			requestBody := []byte(`{"email": "abc@example.com", "password": "123", "clientSaltSeed": "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234" }`)
 
@@ -182,8 +242,12 @@ func TestServerRegisterAccountVerification(t *testing.T) {
 				if testStore.Called.CreateAccount == nil {
 					t.Fatalf("Expected CreateAccount to be called")
 				}
-				if tc.expectedVerified != testStore.Called.CreateAccount.Verified {
-					t.Errorf("Unexpected value in call to CreateAccount for `verified`. Want: %+v Got: %+v", tc.expectedVerified, testStore.Called.CreateAccount.Verified)
+				tokenPassedIn := testStore.Called.CreateAccount.VerifyToken != ""
+				if tc.expectedVerified && tokenPassedIn {
+					t.Errorf("Expected new account to be verified, thus expected verifyToken *not to be passed in* to call to CreateAccount.")
+				}
+				if !tc.expectedVerified && !tokenPassedIn {
+					t.Errorf("Expected new account not to be verified, thus expected verifyToken not *to be passed in* to call to CreateAccount.")
 				}
 				var result RegisterResponse
 				err := json.Unmarshal(body, &result)
@@ -195,6 +259,13 @@ func TestServerRegisterAccountVerification(t *testing.T) {
 				if testStore.Called.CreateAccount != nil {
 					t.Errorf("Expected CreateAccount not to be called")
 				}
+			}
+
+			if tc.expectedCallSendVerificationEmail && testMail.SendVerificationEmailCall == nil {
+				t.Errorf("Expected Store.SendVerificationEmail to be called")
+			}
+			if !tc.expectedCallSendVerificationEmail && testMail.SendVerificationEmailCall != nil {
+				t.Errorf("Expected Store.SendVerificationEmail not to be called")
 			}
 
 		})
@@ -254,12 +325,12 @@ func TestServerValidateRegisterRequest(t *testing.T) {
 }
 
 func TestServerVerifyAccountSuccess(t *testing.T) {
-	testStore := TestStore{TestVerifyTokenString: "abcd1234abcd1234abcd1234abcd1234"}
-	s := Server{&TestAuth{}, &testStore, &TestEnv{}}
+	testStore := TestStore{}
+	s := Server{&TestAuth{}, &testStore, &TestEnv{}, &TestMail{}}
 
 	req := httptest.NewRequest(http.MethodGet, PathVerify, nil)
 	q := req.URL.Query()
-	q.Add("verifyToken", string(testStore.TestVerifyTokenString))
+	q.Add("verifyToken", "abcd1234abcd1234abcd1234abcd1234")
 	req.URL.RawQuery = q.Encode()
 	w := httptest.NewRecorder()
 
@@ -280,7 +351,7 @@ func TestServerVerifyAccountSuccess(t *testing.T) {
 func TestServerVerifyAccountErrors(t *testing.T) {
 	tt := []struct {
 		name                      string
-		token                     auth.VerifyTokenString
+		token                     string
 		expectedStatusCode        int
 		expectedErrorString       string
 		expectedCallVerifyAccount bool
@@ -315,13 +386,13 @@ func TestServerVerifyAccountErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 
 			// Set this up to fail according to specification
-			testStore := TestStore{Errors: tc.storeErrors, TestVerifyTokenString: tc.token}
-			s := Server{&TestAuth{}, &testStore, &TestEnv{}}
+			testStore := TestStore{Errors: tc.storeErrors}
+			s := Server{&TestAuth{}, &testStore, &TestEnv{}, &TestMail{}}
 
 			// Make request
 			req := httptest.NewRequest(http.MethodGet, PathVerify, nil)
 			q := req.URL.Query()
-			q.Add("verifyToken", string(testStore.TestVerifyTokenString))
+			q.Add("verifyToken", tc.token)
 			req.URL.RawQuery = q.Encode()
 			w := httptest.NewRecorder()
 

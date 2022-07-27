@@ -53,6 +53,8 @@ func (s *Server) register(w http.ResponseWriter, req *http.Request) {
 
 	var registerResponse RegisterResponse
 
+	var token auth.VerifyTokenString
+
 modes:
 	switch verificationMode {
 	case env.AccountVerificationModeAllowAll:
@@ -75,13 +77,19 @@ modes:
 	case env.AccountVerificationModeEmailVerify:
 		// Not verified until they click their email link.
 		registerResponse.Verified = false
+		token, err = s.auth.NewVerifyTokenString()
+
+		if err != nil {
+			internalServiceErrorJson(w, err, "Error generating verify token string")
+			return
+		}
 	}
 
 	err = s.store.CreateAccount(
 		registerRequest.Email,
 		registerRequest.Password,
 		registerRequest.ClientSaltSeed,
-		registerResponse.Verified,
+		token, // if it's not set, the user is marked as verified
 	)
 
 	if err != nil {
@@ -90,6 +98,15 @@ modes:
 		} else {
 			internalServiceErrorJson(w, err, "Error registering")
 		}
+		return
+	}
+
+	if len(token) > 0 {
+		err = s.mail.SendVerificationEmail(registerRequest.Email, token)
+	}
+
+	if err != nil {
+		internalServiceErrorJson(w, err, "Error sending verification email")
 		return
 	}
 

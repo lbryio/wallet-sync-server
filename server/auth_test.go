@@ -15,9 +15,9 @@ import (
 )
 
 func TestServerAuthHandlerSuccess(t *testing.T) {
-	testAuth := TestAuth{TestNewTokenString: auth.TokenString("seekrit")}
+	testAuth := TestAuth{TestNewAuthTokenString: auth.AuthTokenString("seekrit")}
 	testStore := TestStore{}
-	s := Server{&testAuth, &testStore, &TestEnv{}}
+	s := Server{&testAuth, &testStore, &TestEnv{}, &TestMail{}}
 
 	requestBody := []byte(`{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`)
 
@@ -32,12 +32,12 @@ func TestServerAuthHandlerSuccess(t *testing.T) {
 	var result auth.AuthToken
 	err := json.Unmarshal(body, &result)
 
-	if err != nil || result.Token != testAuth.TestNewTokenString {
+	if err != nil || result.Token != testAuth.TestNewAuthTokenString {
 		t.Errorf("Expected auth response to contain token: result: %+v err: %+v", string(body), err)
 	}
 
-	if testStore.Called.SaveToken != testAuth.TestNewTokenString {
-		t.Errorf("Expected Store.SaveToken to be called with %s", testAuth.TestNewTokenString)
+	if testStore.Called.SaveToken != testAuth.TestNewAuthTokenString {
+		t.Errorf("Expected Store.SaveToken to be called with %s", testAuth.TestNewAuthTokenString)
 	}
 }
 
@@ -98,12 +98,12 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 
 			// Set this up to fail according to specification
-			testAuth := TestAuth{TestNewTokenString: auth.TokenString("seekrit")}
+			testAuth := TestAuth{TestNewAuthTokenString: auth.AuthTokenString("seekrit")}
 			testStore := TestStore{Errors: tc.storeErrors}
 			if tc.authFailGenToken { // TODO - TestAuth{Errors:authErrors}
 				testAuth.FailGenToken = true
 			}
-			server := Server{&testAuth, &testStore, &TestEnv{}}
+			server := Server{&testAuth, &testStore, &TestEnv{}, &TestMail{}}
 
 			// Make request
 			// So long as the JSON is well-formed, the content doesn't matter here since the password check will be stubbed out
