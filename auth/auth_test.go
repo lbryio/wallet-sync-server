@@ -4,8 +4,6 @@ import (
 	"testing"
 )
 
-// Test stubs for now
-
 func TestAuthNewAuthToken(t *testing.T) {
 	auth := Auth{}
 	authToken, err := auth.NewAuthToken(234, "dId", "my-scope")
@@ -23,7 +21,22 @@ func TestAuthNewAuthToken(t *testing.T) {
 	// result.Token is in hex, TokenLength is bytes in the original
 	expectedTokenLength := TokenLength * 2
 	if len(authToken.Token) != expectedTokenLength {
-		t.Fatalf("authToken token string length isn't the expected length")
+		t.Fatalf("authToken token string isn't the expected length")
+	}
+}
+
+func TestAuthNewVerifyTokenString(t *testing.T) {
+	auth := Auth{}
+	verifyTokenString, err := auth.NewVerifyTokenString()
+
+	if err != nil {
+		t.Fatalf("Error creating new token")
+	}
+
+	// result.Token is in hex, TokenLength is bytes in the original
+	expectedTokenLength := TokenLength * 2
+	if len(verifyTokenString) != expectedTokenLength {
+		t.Fatalf("verifyTokenString isn't the expected length")
 	}
 }
 
