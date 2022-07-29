@@ -5,6 +5,7 @@ import (
 
 	"lbryio/lbry-id/auth"
 	"lbryio/lbry-id/env"
+	"lbryio/lbry-id/mail"
 	"lbryio/lbry-id/server"
 	"lbryio/lbry-id/store"
 )
@@ -22,8 +23,35 @@ func storeInit() (s store.Store) {
 	return
 }
 
+// Output information about the email verification mode so the user can confirm
+// what they set. Also trigger an error on startup if there's a configuration
+// problem.
+func logEmailVerificationMode(e *env.Env) (err error) {
+	verificationMode, err := env.GetAccountVerificationMode(e)
+	if err != nil {
+		return
+	}
+	accountWhitelist, err := env.GetAccountWhitelist(e, verificationMode)
+	if err != nil {
+		return
+	}
+
+	if verificationMode == env.AccountVerificationModeWhitelist {
+		log.Printf("Account verification mode: %s - Whitelist has %d email(s).\n", verificationMode, len(accountWhitelist))
+	} else {
+		log.Printf("Account verification mode: %s", verificationMode)
+	}
+	return
+}
+
 func main() {
+	e := env.Env{}
+
+	if err := logEmailVerificationMode(&e); err != nil {
+		log.Fatal(err.Error())
+	}
+
 	store := storeInit()
-	srv := server.Init(&auth.Auth{}, &store, &env.Env{})
+	srv := server.Init(&auth.Auth{}, &store, &e, &mail.Mail{})
 	srv.Serve()
 }
