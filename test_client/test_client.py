@@ -404,6 +404,11 @@ class Client():
       self.device_id,
     )
     if not token:
+      # In a real client, this is where you may consider
+      # a) Offering to have the user change their password
+      # b) Try update_secrets() and get_auth_token() silently, for the unlikely case that the user changed their password back and forth
+      print ("Failed to get the auth token. Do you need to update this client's password (set_local_password())?")
+      print ("Or, in the off-chance the user changed their password back and forth, try updating secrets (update_secrets()) to get the latest salt seed.")
       return
     self.auth_token = token
     print ("Got auth token: ", self.auth_token)
