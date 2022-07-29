@@ -30,7 +30,7 @@ var (
 	ErrDuplicateEmail   = fmt.Errorf("Email already exists for this user")
 	ErrDuplicateAccount = fmt.Errorf("User already has an account")
 
-	ErrWrongCredentials = fmt.Errorf("No match for email and password")
+	ErrWrongCredentials = fmt.Errorf("No match for email and/or password")
 	ErrNotVerified      = fmt.Errorf("User account is not verified")
 )
 

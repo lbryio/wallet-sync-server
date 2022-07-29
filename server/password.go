@@ -95,7 +95,7 @@ func (s *Server) changePassword(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 	if err == store.ErrWrongCredentials {
-		errorJson(w, http.StatusUnauthorized, "No match for email and password")
+		errorJson(w, http.StatusUnauthorized, "No match for email and/or password")
 		return
 	}
 	if err == store.ErrNotVerified {

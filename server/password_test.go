@@ -82,7 +82,7 @@ func TestServerChangePassword(t *testing.T) {
 		}, {
 			name:                "incorrect email with wallet",
 			expectedStatusCode:  http.StatusUnauthorized,
-			expectedErrorString: http.StatusText(http.StatusUnauthorized) + ": No match for email and password",
+			expectedErrorString: http.StatusText(http.StatusUnauthorized) + ": No match for email and/or password",
 
 			expectChangePasswordCall: true,
 
@@ -96,7 +96,7 @@ func TestServerChangePassword(t *testing.T) {
 		}, {
 			name:                "incorrect email no wallet",
 			expectedStatusCode:  http.StatusUnauthorized,
-			expectedErrorString: http.StatusText(http.StatusUnauthorized) + ": No match for email and password",
+			expectedErrorString: http.StatusText(http.StatusUnauthorized) + ": No match for email and/or password",
 
 			expectChangePasswordCall: true,
 

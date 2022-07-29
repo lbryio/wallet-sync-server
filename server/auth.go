@@ -38,7 +38,7 @@ func (s *Server) getAuthToken(w http.ResponseWriter, req *http.Request) {
 
 	userId, err := s.store.GetUserId(authRequest.Email, authRequest.Password)
 	if err == store.ErrWrongCredentials {
-		errorJson(w, http.StatusUnauthorized, "No match for email and password")
+		errorJson(w, http.StatusUnauthorized, "No match for email and/or password")
 		return
 	}
 	if err == store.ErrNotVerified {

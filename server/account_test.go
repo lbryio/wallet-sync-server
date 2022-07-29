@@ -366,7 +366,7 @@ func TestServerVerifyAccountErrors(t *testing.T) {
 			expectedCallVerifyAccount: false,
 		},
 		{
-			name:                      "not found token", // including expired
+			name:                      "token not found", // including expired
 			token:                     "abcd1234abcd1234abcd1234abcd1234",
 			expectedStatusCode:        http.StatusForbidden,
 			expectedErrorString:       http.StatusText(http.StatusForbidden) + ": Verification token not found or expired",

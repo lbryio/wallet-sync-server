@@ -65,7 +65,7 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 			name:                "login fail",
 			email:               "abc@example.com",
 			expectedStatusCode:  http.StatusUnauthorized,
-			expectedErrorString: http.StatusText(http.StatusUnauthorized) + ": No match for email and password",
+			expectedErrorString: http.StatusText(http.StatusUnauthorized) + ": No match for email and/or password",
 
 			storeErrors: TestStoreFunctionsErrors{GetUserId: store.ErrWrongCredentials},
 		},

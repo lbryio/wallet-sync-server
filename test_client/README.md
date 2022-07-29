@@ -274,7 +274,7 @@ The client that changed its password can easily get a new token because it has t
 Got auth token:  796ea0575fe1ba5d6a43afec016f6ed2c9225a5180e76e744aad5b8857c8702b
 >>> c2.get_auth_token()
 Error 401
-b'{"error":"Unauthorized: No match for email and password"}\n'
+b'{"error":"Unauthorized: No match for email and/or password"}\n'
 >>> c2.set_local_password("eggsandwich")
 Generating keys...
 Done generating keys
