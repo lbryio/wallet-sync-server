@@ -8,6 +8,11 @@ import (
 	"lbryio/lbry-id/auth"
 )
 
+// NOTE for users: If you have weird characters in your email address, please
+// remember to properly escape it as necessary when putting it in an
+// environmental variable, lest you run commands you didn't mean to run.
+//
+// We'll replace this with a config file later.
 const whitelistKey = "ACCOUNT_WHITELIST"
 const verificationModeKey = "ACCOUNT_VERIFICATION_MODE"
 
