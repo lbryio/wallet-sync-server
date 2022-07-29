@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 
@@ -198,6 +197,6 @@ func (s *Server) Serve() {
 
 	http.Handle(PathPrometheus, promhttp.Handler())
 
-	fmt.Println("Serving at localhost:8090")
+	log.Println("Serving at localhost:8090")
 	http.ListenAndServe("localhost:8090", nil)
 }
