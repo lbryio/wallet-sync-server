@@ -96,6 +96,7 @@ type TestStoreFunctionsCalled struct {
 	GetToken                 auth.AuthTokenString
 	GetUserId                bool
 	CreateAccount            *CreateAccountCall
+	UpdateVerifyTokenString  bool
 	VerifyAccount            bool
 	SetWallet                SetWalletCall
 	GetWallet                bool
@@ -109,6 +110,7 @@ type TestStoreFunctionsErrors struct {
 	GetToken                 error
 	GetUserId                error
 	CreateAccount            error
+	UpdateVerifyTokenString  error
 	VerifyAccount            error
 	SetWallet                error
 	GetWallet                error
@@ -157,6 +159,11 @@ func (s *TestStore) CreateAccount(email auth.Email, password auth.Password, seed
 		VerifyToken:    verifyToken,
 	}
 	return s.Errors.CreateAccount
+}
+
+func (s *TestStore) UpdateVerifyTokenString(auth.Email, auth.VerifyTokenString) (err error) {
+	s.Called.UpdateVerifyTokenString = true
+	return s.Errors.UpdateVerifyTokenString
 }
 
 func (s *TestStore) VerifyAccount(auth.VerifyTokenString) (err error) {

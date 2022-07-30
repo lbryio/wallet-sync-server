@@ -138,6 +138,68 @@ func getVerifyParams(req *http.Request) (token auth.VerifyTokenString, err error
 	return
 }
 
+type ResendVerifyEmailRequest struct {
+	Email auth.Email `json:"email"`
+}
+
+func (r *ResendVerifyEmailRequest) validate() error {
+	if !r.Email.Validate() {
+		return fmt.Errorf("Invalid or missing 'email'")
+	}
+	return nil
+}
+
+func (s *Server) resendVerifyEmail(w http.ResponseWriter, req *http.Request) {
+	verificationMode, err := env.GetAccountVerificationMode(s.env)
+	if err != nil {
+		internalServiceErrorJson(w, err, "Error getting account verification mode")
+		return
+	}
+	if verificationMode != env.AccountVerificationModeEmailVerify {
+		errorJson(w, http.StatusForbidden, "Account verification mode is not set to EmailVerify")
+		return
+	}
+
+	var resendVerifyEmailRequest ResendVerifyEmailRequest
+	if !getPostData(w, req, &resendVerifyEmailRequest) {
+		return
+	}
+
+	token, err := s.auth.NewVerifyTokenString()
+
+	if err != nil {
+		internalServiceErrorJson(w, err, "Error generating verify token string")
+		return
+	}
+
+	err = s.store.UpdateVerifyTokenString(resendVerifyEmailRequest.Email, token)
+	if err == store.ErrWrongCredentials {
+		errorJson(w, http.StatusUnauthorized, "No match for email")
+		return
+	}
+	if err != nil {
+		internalServiceErrorJson(w, err, "Error updating verify token string")
+		return
+	}
+
+	err = s.mail.SendVerificationEmail(resendVerifyEmailRequest.Email, token)
+
+	if err != nil {
+		internalServiceErrorJson(w, err, "Error re-sending verification email")
+		return
+	}
+
+	var verifyResponse struct{}
+	response, err := json.Marshal(verifyResponse)
+
+	if err != nil {
+		internalServiceErrorJson(w, err, "Error generating verify response")
+		return
+	}
+
+	fmt.Fprintf(w, string(response))
+}
+
 func (s *Server) verify(w http.ResponseWriter, req *http.Request) {
 	if !getGetData(w, req) {
 		return

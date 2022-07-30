@@ -324,6 +324,147 @@ func TestServerValidateRegisterRequest(t *testing.T) {
 	}
 }
 
+func TestServerResendVerifyEmailSuccess(t *testing.T) {
+	testStore := TestStore{}
+	testMail := TestMail{}
+
+	env := map[string]string{
+		"ACCOUNT_VERIFICATION_MODE": "EmailVerify",
+	}
+	s := Server{&TestAuth{}, &testStore, &TestEnv{env}, &testMail}
+
+	requestBody := []byte(`{"email": "abc@example.com"}`)
+	req := httptest.NewRequest(http.MethodPost, PathVerify, bytes.NewBuffer(requestBody))
+	w := httptest.NewRecorder()
+
+	s.resendVerifyEmail(w, req)
+	body, _ := ioutil.ReadAll(w.Body)
+
+	expectStatusCode(t, w, http.StatusOK)
+
+	if string(body) != "{}" {
+		t.Errorf("Expected register response to be \"{}\": result: %+v", string(body))
+	}
+
+	if !testStore.Called.UpdateVerifyTokenString {
+		t.Errorf("Expected Store.UpdateVerifyTokenString to be called")
+	}
+
+	if testMail.SendVerificationEmailCall == nil {
+		// We're doing EmailVerify for this test.
+		t.Fatalf("Expected Store.SendVerificationEmail to be called")
+	}
+}
+
+func TestServerResendVerifyEmailErrors(t *testing.T) {
+	tt := []struct {
+		name                    string
+		omitEmailAddress        bool
+		accountVerificationMode string
+
+		expectedStatusCode                  int
+		expectedErrorString                 string
+		expectedCallSendVerificationEmail   bool
+		expectedCallUpdateVerifyTokenString bool
+
+		storeErrors TestStoreFunctionsErrors
+		mailError   error
+	}{
+
+		{
+			name:                                "wrong account verification mode",
+			accountVerificationMode:             "Whitelist",
+			expectedStatusCode:                  http.StatusForbidden,
+			expectedErrorString:                 http.StatusText(http.StatusForbidden) + ": Account verification mode is not set to EmailVerify",
+			expectedCallSendVerificationEmail:   false,
+			expectedCallUpdateVerifyTokenString: false,
+		},
+		{
+			name:                                "validation error",
+			accountVerificationMode:             "EmailVerify",
+			omitEmailAddress:                    true,
+			expectedStatusCode:                  http.StatusBadRequest,
+			expectedErrorString:                 http.StatusText(http.StatusBadRequest) + ": Request failed validation: Invalid or missing 'email'",
+			expectedCallSendVerificationEmail:   false,
+			expectedCallUpdateVerifyTokenString: false,
+		},
+
+		{
+			name:                                "not found email",
+			accountVerificationMode:             "EmailVerify",
+			expectedStatusCode:                  http.StatusUnauthorized,
+			expectedErrorString:                 http.StatusText(http.StatusUnauthorized) + ": No match for email",
+			storeErrors:                         TestStoreFunctionsErrors{UpdateVerifyTokenString: store.ErrWrongCredentials},
+			expectedCallSendVerificationEmail:   false,
+			expectedCallUpdateVerifyTokenString: true,
+		},
+		{
+			name:                                "assorted db error",
+			accountVerificationMode:             "EmailVerify",
+			expectedStatusCode:                  http.StatusInternalServerError,
+			expectedErrorString:                 http.StatusText(http.StatusInternalServerError),
+			storeErrors:                         TestStoreFunctionsErrors{UpdateVerifyTokenString: fmt.Errorf("TestStore.UpdateVerifyTokenString fail")},
+			expectedCallSendVerificationEmail:   false,
+			expectedCallUpdateVerifyTokenString: true,
+		},
+		{
+			name:                                "fail to generate verification email",
+			accountVerificationMode:             "EmailVerify",
+			expectedStatusCode:                  http.StatusInternalServerError,
+			expectedErrorString:                 http.StatusText(http.StatusInternalServerError),
+			expectedCallSendVerificationEmail:   true,
+			expectedCallUpdateVerifyTokenString: true,
+
+			mailError: fmt.Errorf("TestEmail.SendVerificationEmail fail"),
+		},
+	}
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+
+			env := map[string]string{
+				"ACCOUNT_VERIFICATION_MODE": tc.accountVerificationMode,
+			}
+
+			// Set this up to fail according to specification
+			testStore := TestStore{Errors: tc.storeErrors}
+			testMail := TestMail{SendVerificationEmailError: tc.mailError}
+			s := Server{&TestAuth{}, &testStore, &TestEnv{env}, &testMail}
+
+			// Make request
+			var requestBody []byte
+			if tc.omitEmailAddress {
+				requestBody = []byte(`{}`)
+			} else {
+				requestBody = []byte(`{"email": "abc@example.com"}`)
+			}
+			req := httptest.NewRequest(http.MethodPost, PathVerify, bytes.NewBuffer(requestBody))
+			w := httptest.NewRecorder()
+
+			s.resendVerifyEmail(w, req)
+			body, _ := ioutil.ReadAll(w.Body)
+
+			expectStatusCode(t, w, tc.expectedStatusCode)
+			expectErrorString(t, body, tc.expectedErrorString)
+
+			if tc.expectedCallUpdateVerifyTokenString && !testStore.Called.UpdateVerifyTokenString {
+				t.Errorf("Expected Store.UpdateVerifyTokenString to be called")
+			}
+			if !tc.expectedCallUpdateVerifyTokenString && testStore.Called.UpdateVerifyTokenString {
+				t.Errorf("Expected Store.UpdateVerifyTokenString not to be called")
+			}
+
+			if tc.expectedCallSendVerificationEmail && testMail.SendVerificationEmailCall == nil {
+				// We're doing EmailVerify for this test.
+				t.Fatalf("Expected Store.SendVerificationEmail to be called")
+			}
+			if !tc.expectedCallSendVerificationEmail && testMail.SendVerificationEmailCall != nil {
+				// We're doing EmailVerify for this test.
+				t.Fatalf("Expected Store.SendVerificationEmail not to be called")
+			}
+		})
+	}
+}
+
 func TestServerVerifyAccountSuccess(t *testing.T) {
 	testStore := TestStore{}
 	s := Server{&TestAuth{}, &testStore, &TestEnv{}, &TestMail{}}
@@ -402,7 +543,10 @@ func TestServerVerifyAccountErrors(t *testing.T) {
 			expectStatusCode(t, w, tc.expectedStatusCode)
 			expectErrorString(t, body, tc.expectedErrorString)
 
-			if tc.expectedCallVerifyAccount != testStore.Called.VerifyAccount {
+			if tc.expectedCallVerifyAccount && !testStore.Called.VerifyAccount {
+				t.Errorf("Expected Store.VerifyAccount to be called")
+			}
+			if !tc.expectedCallVerifyAccount && testStore.Called.VerifyAccount {
 				t.Errorf("Expected Store.VerifyAccount not to be called")
 			}
 		})

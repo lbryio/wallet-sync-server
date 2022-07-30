@@ -42,6 +42,7 @@ type StoreInterface interface {
 	GetWallet(auth.UserId) (wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac, error)
 	GetUserId(auth.Email, auth.Password) (auth.UserId, error)
 	CreateAccount(auth.Email, auth.Password, auth.ClientSaltSeed, auth.VerifyTokenString) error
+	UpdateVerifyTokenString(auth.Email, auth.VerifyTokenString) error
 	VerifyAccount(auth.VerifyTokenString) error
 	ChangePasswordWithWallet(auth.Email, auth.Password, auth.Password, auth.ClientSaltSeed, wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac) error
 	ChangePasswordNoWallet(auth.Email, auth.Password, auth.Password, auth.ClientSaltSeed) error
@@ -380,6 +381,10 @@ func (s *Store) CreateAccount(email auth.Email, password auth.Password, seed aut
 		}
 	}
 
+	return
+}
+
+func (s *Store) UpdateVerifyTokenString(auth.Email, auth.VerifyTokenString) (err error) {
 	return
 }
 
