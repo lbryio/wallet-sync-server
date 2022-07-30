@@ -64,6 +64,8 @@ func (s *Server) getClientSaltSeed(w http.ResponseWriter, req *http.Request) {
 
 	seed, err := s.store.GetClientSaltSeed(email)
 	if err == store.ErrWrongCredentials {
+		// Going with 404 instead of 401 because we're not really authenticating
+		// here. It's an open API and anyone can peep someone else's salt seed.
 		errorJson(w, http.StatusNotFound, "No match for email")
 		return
 	}
