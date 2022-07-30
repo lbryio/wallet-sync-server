@@ -86,7 +86,7 @@ func TestStoreInsertWallet(t *testing.T) {
 	defer StoreTestCleanup(sqliteTmpFile)
 
 	// Get a valid userId
-	userId, _, _, _ := makeTestUser(t, &s)
+	userId, _, _, _ := makeTestUser(t, &s, "", nil)
 
 	// Get a wallet, come back empty
 	expectWalletNotExists(t, &s, userId)
@@ -118,7 +118,7 @@ func TestStoreUpdateWallet(t *testing.T) {
 	defer StoreTestCleanup(sqliteTmpFile)
 
 	// Get a valid userId
-	userId, _, _, _ := makeTestUser(t, &s)
+	userId, _, _, _ := makeTestUser(t, &s, "", nil)
 
 	// Try to update a wallet, fail for nothing to update
 	if err := s.updateWalletToSequence(userId, wallet.EncryptedWallet("my-enc-wallet-a"), wallet.Sequence(1), wallet.WalletHmac("my-hmac-a")); err != ErrNoWallet {
@@ -174,7 +174,7 @@ func TestStoreSetWallet(t *testing.T) {
 	defer StoreTestCleanup(sqliteTmpFile)
 
 	// Get a valid userId
-	userId, _, _, _ := makeTestUser(t, &s)
+	userId, _, _, _ := makeTestUser(t, &s, "", nil)
 
 	// Sequence 2 - fails - out of sequence (behind the scenes, tries to update but there's nothing there yet)
 	if err := s.SetWallet(userId, wallet.EncryptedWallet("my-enc-wallet-a"), wallet.Sequence(2), wallet.WalletHmac("my-hmac-a")); err != ErrWrongSequence {
@@ -221,7 +221,7 @@ func TestStoreGetWallet(t *testing.T) {
 	defer StoreTestCleanup(sqliteTmpFile)
 
 	// Get a valid userId
-	userId, _, _, _ := makeTestUser(t, &s)
+	userId, _, _, _ := makeTestUser(t, &s, "", nil)
 
 	// GetWallet fails when there's no wallet
 	encryptedWallet, sequence, hmac, err := s.GetWallet(userId)
@@ -264,7 +264,7 @@ func TestStoreWalletEmptyFields(t *testing.T) {
 			s, sqliteTmpFile := StoreTestInit(t)
 			defer StoreTestCleanup(sqliteTmpFile)
 
-			userId, _, _, _ := makeTestUser(t, &s)
+			userId, _, _, _ := makeTestUser(t, &s, "", nil)
 
 			var sqliteErr sqlite3.Error
 

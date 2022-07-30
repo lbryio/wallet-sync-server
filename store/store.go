@@ -343,10 +343,12 @@ func (s *Store) SetWallet(userId auth.UserId, encryptedWallet wallet.EncryptedWa
 func (s *Store) GetUserId(email auth.Email, password auth.Password) (userId auth.UserId, err error) {
 	var key auth.KDFKey
 	var salt auth.ServerSalt
+	var verified bool
+
 	err = s.db.QueryRow(
-		`SELECT user_id, key, server_salt from accounts WHERE normalized_email=?`,
+		`SELECT user_id, key, server_salt, verify_token="" from accounts WHERE normalized_email=?`,
 		email.Normalize(),
-	).Scan(&userId, &key, &salt)
+	).Scan(&userId, &key, &salt, &verified)
 	if err == sql.ErrNoRows {
 		err = ErrWrongCredentials
 	}
@@ -356,6 +358,10 @@ func (s *Store) GetUserId(email auth.Email, password auth.Password) (userId auth
 	match, err := password.Check(key, salt)
 	if err == nil && !match {
 		err = ErrWrongCredentials
+		userId = auth.UserId(0)
+	}
+	if err == nil && !verified {
+		err = ErrNotVerified
 		userId = auth.UserId(0)
 	}
 	return

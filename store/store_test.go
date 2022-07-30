@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
+	"time"
 
 	"lbryio/lbry-id/auth"
 )
@@ -33,7 +34,12 @@ func StoreTestCleanup(tmpFile *os.File) {
 	}
 }
 
-func makeTestUser(t *testing.T, s *Store) (userId auth.UserId, email auth.Email, password auth.Password, seed auth.ClientSaltSeed) {
+func makeTestUser(
+	t *testing.T,
+	s *Store,
+	verifyToken auth.VerifyTokenString,
+	verifyExpiration *time.Time,
+) (userId auth.UserId, email auth.Email, password auth.Password, seed auth.ClientSaltSeed) {
 	// email with caps to trigger possible problems
 	email, password = auth.Email("Abc@Example.Com"), auth.Password("123")
 	normEmail := auth.NormalizedEmail("abc@example.com")
@@ -46,7 +52,7 @@ func makeTestUser(t *testing.T, s *Store) (userId auth.UserId, email auth.Email,
 
 	rows, err := s.db.Query(
 		"INSERT INTO accounts (normalized_email, email, key, server_salt, client_salt_seed, verify_token) values(?,?,?,?,?,?) returning user_id",
-		normEmail, email, key, salt, seed, "",
+		normEmail, email, key, salt, seed, verifyToken, verifyExpiration,
 	)
 	if err != nil {
 		t.Fatalf("Error setting up account: %+v", err)

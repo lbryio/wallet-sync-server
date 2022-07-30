@@ -16,7 +16,7 @@ func TestStoreChangePasswordSuccess(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	userId, email, oldPassword, _ := makeTestUser(t, &s)
+	userId, email, oldPassword, _ := makeTestUser(t, &s, "", nil)
 	token := auth.AuthTokenString("my-token")
 
 	_, err := s.db.Exec(
@@ -114,7 +114,7 @@ func TestStoreChangePasswordErrors(t *testing.T) {
 			s, sqliteTmpFile := StoreTestInit(t)
 			defer StoreTestCleanup(sqliteTmpFile)
 
-			userId, email, oldPassword, oldSeed := makeTestUser(t, &s)
+			userId, email, oldPassword, oldSeed := makeTestUser(t, &s, "", nil)
 			expiration := time.Now().UTC().Add(time.Hour * 24 * 14)
 			authToken := auth.AuthToken{
 				Token:      auth.AuthTokenString("my-token"),
@@ -176,7 +176,7 @@ func TestStoreChangePasswordNoWalletSuccess(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	userId, email, oldPassword, _ := makeTestUser(t, &s)
+	userId, email, oldPassword, _ := makeTestUser(t, &s, "", nil)
 	token := auth.AuthTokenString("my-token")
 
 	_, err := s.db.Exec(
@@ -246,7 +246,7 @@ func TestStoreChangePasswordNoWalletErrors(t *testing.T) {
 			s, sqliteTmpFile := StoreTestInit(t)
 			defer StoreTestCleanup(sqliteTmpFile)
 
-			userId, email, oldPassword, oldSeed := makeTestUser(t, &s)
+			userId, email, oldPassword, oldSeed := makeTestUser(t, &s, "", nil)
 			expiration := time.Now().UTC().Add(time.Hour * 24 * 14)
 			authToken := auth.AuthToken{
 				Token:      auth.AuthTokenString("my-token"),

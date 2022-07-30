@@ -167,7 +167,7 @@ func TestStoreGetUserIdAccountExists(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	createdUserId, email, password, _ := makeTestUser(t, &s)
+	createdUserId, email, password, _ := makeTestUser(t, &s, "", nil)
 
 	// Check that the userId is correct for the email, irrespective of the case of
 	// the characters in the email.
@@ -187,6 +187,19 @@ func TestStoreGetUserIdAccountExists(t *testing.T) {
 	// Check that it won't return if the wrong password is given
 	if userId, err := s.GetUserId(email, password+auth.Password("_wrong")); err != ErrWrongCredentials || userId != 0 {
 		t.Fatalf(`GetUserId error for wrong password: wanted "%+v", got "%+v. userId: %v"`, ErrWrongCredentials, err, userId)
+	}
+}
+
+// Test GetUserId for existing but unverified account
+func TestStoreGetUserIdAccountUnverified(t *testing.T) {
+	s, sqliteTmpFile := StoreTestInit(t)
+	defer StoreTestCleanup(sqliteTmpFile)
+
+	_, email, password, _ := makeTestUser(t, &s, "abcd1234abcd1234abcd1234abcd1234", &time.Time{})
+
+	// Check that it won't return if the account is unverified
+	if userId, err := s.GetUserId(email, password); err != ErrNotVerified || userId != 0 {
+		t.Fatalf(`GetUserId error for unverified account: wanted "%+v", got "%+v. userId: %v"`, ErrNotVerified, err, userId)
 	}
 }
 
@@ -237,7 +250,7 @@ func TestStoreGetClientSaltSeedAccountSuccess(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	_, email, _, createdSeed := makeTestUser(t, &s)
+	_, email, _, createdSeed := makeTestUser(t, &s, "", nil)
 
 	// Check that the seed is correct for the email, irrespective of the case of
 	// the characters in the email.
