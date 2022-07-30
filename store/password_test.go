@@ -47,7 +47,7 @@ func TestStoreChangePasswordSuccess(t *testing.T) {
 		t.Errorf("ChangePasswordWithWallet (lower case email): unexpected error: %+v", err)
 	}
 
-	expectAccountMatch(t, &s, email.Normalize(), email, newPassword, newSeed)
+	expectAccountMatch(t, &s, email.Normalize(), email, newPassword, newSeed, "", nil)
 	expectWalletExists(t, &s, userId, encryptedWallet, sequence, hmac)
 	expectTokenNotExists(t, &s, token)
 
@@ -63,7 +63,7 @@ func TestStoreChangePasswordSuccess(t *testing.T) {
 		t.Errorf("ChangePasswordWithWallet (upper case email): unexpected error: %+v", err)
 	}
 
-	expectAccountMatch(t, &s, email.Normalize(), email, newNewPassword, newNewSeed)
+	expectAccountMatch(t, &s, email.Normalize(), email, newNewPassword, newNewSeed, "", nil)
 }
 
 func TestStoreChangePasswordErrors(t *testing.T) {
@@ -161,7 +161,7 @@ func TestStoreChangePasswordErrors(t *testing.T) {
 			// This tests the transaction rollbacks in particular, given the errors
 			// that are at a couple different stages of the txn, triggered by these
 			// tests.
-			expectAccountMatch(t, &s, email.Normalize(), email, oldPassword, oldSeed)
+			expectAccountMatch(t, &s, email.Normalize(), email, oldPassword, oldSeed, "", nil)
 			if tc.hasWallet {
 				expectWalletExists(t, &s, userId, oldEncryptedWallet, oldSequence, oldHmac)
 			} else {
@@ -196,7 +196,7 @@ func TestStoreChangePasswordNoWalletSuccess(t *testing.T) {
 		t.Errorf("ChangePasswordNoWallet (lower case email): unexpected error: %+v", err)
 	}
 
-	expectAccountMatch(t, &s, email.Normalize(), email, newPassword, newSeed)
+	expectAccountMatch(t, &s, email.Normalize(), email, newPassword, newSeed, "", nil)
 	expectWalletNotExists(t, &s, userId)
 	expectTokenNotExists(t, &s, token)
 
@@ -209,7 +209,7 @@ func TestStoreChangePasswordNoWalletSuccess(t *testing.T) {
 		t.Errorf("ChangePasswordNoWallet (upper case email): unexpected error: %+v", err)
 	}
 
-	expectAccountMatch(t, &s, email.Normalize(), email, newNewPassword, newNewSeed)
+	expectAccountMatch(t, &s, email.Normalize(), email, newNewPassword, newNewSeed, "", nil)
 }
 
 func TestStoreChangePasswordNoWalletErrors(t *testing.T) {
@@ -292,7 +292,7 @@ func TestStoreChangePasswordNoWalletErrors(t *testing.T) {
 			// deleted. This tests the transaction rollbacks in particular, given the
 			// errors that are at a couple different stages of the txn, triggered by
 			// these tests.
-			expectAccountMatch(t, &s, email.Normalize(), email, oldPassword, oldSeed)
+			expectAccountMatch(t, &s, email.Normalize(), email, oldPassword, oldSeed, "", nil)
 			if tc.hasWallet {
 				expectWalletExists(t, &s, userId, encryptedWallet, sequence, hmac)
 			} else {

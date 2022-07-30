@@ -120,6 +120,8 @@ func (s *Store) Migrate() error {
 			key TEXT NOT NULL,
 			client_salt_seed TEXT NOT NULL,
 			server_salt TEXT NOT NULL,
+			verify_token TEXT NOT NULL,
+			verify_expiration DATETIME,
 			user_id INTEGER PRIMARY KEY AUTOINCREMENT,
 			CHECK (
 			  email <> '' AND
@@ -369,10 +371,16 @@ func (s *Store) CreateAccount(email auth.Email, password auth.Password, seed aut
 		return
 	}
 
+	var verifyExpiration *time.Time
+	if len(verifyToken) > 0 {
+		verifyExpiration = new(time.Time)
+		*verifyExpiration = time.Now().UTC().Add(time.Hour * 24 * 2)
+	}
+
 	// userId auto-increments
 	_, err = s.db.Exec(
-		"INSERT INTO accounts (normalized_email, email, key, server_salt, client_salt_seed) VALUES(?,?,?,?,?)",
-		email.Normalize(), email, key, salt, seed,
+		"INSERT INTO accounts (normalized_email, email, key, server_salt, client_salt_seed, verify_token, verify_expiration) VALUES(?,?,?,?,?,?,?)",
+		email.Normalize(), email, key, salt, seed, verifyToken, verifyExpiration,
 	)
 	var sqliteErr sqlite3.Error
 	if errors.As(err, &sqliteErr) {

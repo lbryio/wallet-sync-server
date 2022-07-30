@@ -4,21 +4,33 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mattn/go-sqlite3"
 
 	"lbryio/lbry-id/auth"
 )
 
-func expectAccountMatch(t *testing.T, s *Store, normEmail auth.NormalizedEmail, expectedEmail auth.Email, password auth.Password, seed auth.ClientSaltSeed) {
+func expectAccountMatch(
+	t *testing.T,
+	s *Store,
+	normEmail auth.NormalizedEmail,
+	expectedEmail auth.Email,
+	password auth.Password,
+	seed auth.ClientSaltSeed,
+	expectedVerifyTokenString auth.VerifyTokenString,
+	approxVerifyExpiration *time.Time,
+) {
 	var key auth.KDFKey
 	var salt auth.ServerSalt
 	var email auth.Email
+	var verifyExpiration *time.Time
+	var verifyTokenString auth.VerifyTokenString
 
 	err := s.db.QueryRow(
-		`SELECT key, server_salt, email from accounts WHERE normalized_email=? AND client_salt_seed=?`,
+		`SELECT key, server_salt, email, verify_token, verify_expiration from accounts WHERE normalized_email=? AND client_salt_seed=?`,
 		normEmail, seed,
-	).Scan(&key, &salt, &email)
+	).Scan(&key, &salt, &email, &verifyTokenString, &verifyExpiration)
 	if err != nil {
 		t.Fatalf("Error finding account for: %s %s - %+v", normEmail, password, err)
 	}
@@ -33,6 +45,31 @@ func expectAccountMatch(t *testing.T, s *Store, normEmail auth.NormalizedEmail, 
 
 	if email != expectedEmail {
 		t.Fatalf("Email case not as expected. Want: %s Got: %s", email, expectedEmail)
+	}
+
+	if verifyTokenString != expectedVerifyTokenString {
+		t.Fatalf(
+			"Verify token string not as expected. Want: %s Got: %s",
+			verifyTokenString,
+			expectedVerifyTokenString,
+		)
+	}
+
+	if approxVerifyExpiration != nil {
+		if verifyExpiration == nil {
+			t.Fatalf("Expected verify expiration to not be nil")
+		}
+		expDiff := approxVerifyExpiration.Sub(*verifyExpiration)
+		if time.Second < expDiff || expDiff < -time.Second {
+			t.Fatalf(
+				"Verify expiration not as expected. Want approximately: %s Got: %s",
+				verifyExpiration,
+				approxVerifyExpiration,
+			)
+		}
+	}
+	if approxVerifyExpiration == nil && verifyExpiration != nil {
+		t.Fatalf("Expected verify expiration to be nil. Got: %+v", verifyExpiration)
 	}
 }
 
@@ -65,19 +102,20 @@ func TestStoreCreateAccount(t *testing.T) {
 	// Get an account, come back empty
 	expectAccountNotExists(t, &s, normEmail)
 
-	// Create an account
-	if err := s.CreateAccount(email, password, seed); err != nil {
+	// Create an account. Make it verified (i.e. no token) for the usual
+	// case. We'll test unverified (with token) separately.
+	if err := s.CreateAccount(email, password, seed, ""); err != nil {
 		t.Fatalf("Unexpected error in CreateAccount: %+v", err)
 	}
 
 	// Get and confirm the account we just put in
-	expectAccountMatch(t, &s, normEmail, email, password, seed)
+	expectAccountMatch(t, &s, normEmail, email, password, seed, "", nil)
 
 	newPassword := auth.Password("xyz")
 
 	// Try to create a new account with the same email and different password,
 	// fail because email already exists
-	if err := s.CreateAccount(email, newPassword, seed); err != ErrDuplicateAccount {
+	if err := s.CreateAccount(email, newPassword, seed, ""); err != ErrDuplicateAccount {
 		t.Fatalf(`CreateAccount err: wanted "%+v", got "%+v"`, ErrDuplicateAccount, err)
 	}
 
@@ -85,12 +123,30 @@ func TestStoreCreateAccount(t *testing.T) {
 
 	// Try to create a new account with the same email different capitalization.
 	// fail because email already exists
-	if err := s.CreateAccount(differentCaseEmail, password, seed); err != ErrDuplicateAccount {
+	if err := s.CreateAccount(differentCaseEmail, password, seed, ""); err != ErrDuplicateAccount {
 		t.Fatalf(`CreateAccount err (for case insensitivity check): wanted "%+v", got "%+v"`, ErrDuplicateAccount, err)
 	}
 
 	// Get the email and same *first* password we successfully put in
-	expectAccountMatch(t, &s, normEmail, email, password, seed)
+	expectAccountMatch(t, &s, normEmail, email, password, seed, "", nil)
+}
+
+// Try CreateAccount with a verification string, thus unverified
+func TestStoreCreateAccountUnverified(t *testing.T) {
+	s, sqliteTmpFile := StoreTestInit(t)
+	defer StoreTestCleanup(sqliteTmpFile)
+
+	email, normEmail := auth.Email("Abc@Example.Com"), auth.NormalizedEmail("abc@example.com")
+	password, seed := auth.Password("123"), auth.ClientSaltSeed("abcd1234abcd1234")
+
+	// Create an account
+	if err := s.CreateAccount(email, password, seed, "abcd1234abcd1234abcd1234abcd1234"); err != nil {
+		t.Fatalf("Unexpected error in CreateAccount: %+v", err)
+	}
+
+	// Get and confirm the account we just put in
+	approxVerifyExpiration := time.Now().Add(time.Hour * 24 * 2).UTC()
+	expectAccountMatch(t, &s, normEmail, email, password, seed, "abcd1234abcd1234abcd1234abcd1234", &approxVerifyExpiration)
 }
 
 // Test GetUserId for nonexisting email
@@ -165,7 +221,7 @@ func TestStoreAccountEmptyFields(t *testing.T) {
 
 			var sqliteErr sqlite3.Error
 
-			err := s.CreateAccount(tc.email, tc.password, tc.clientSaltSeed)
+			err := s.CreateAccount(tc.email, tc.password, tc.clientSaltSeed, "")
 			if errors.As(err, &sqliteErr) {
 				if errors.Is(sqliteErr.ExtendedCode, sqlite3.ErrConstraintCheck) {
 					return // We got the error we expected
