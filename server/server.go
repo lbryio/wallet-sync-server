@@ -18,18 +18,18 @@ import (
 const ApiVersion = "3"
 const PathPrefix = "/api/" + ApiVersion
 
-const PathPrometheus = "/metrics"
-
 const PathAuthToken = PathPrefix + "/auth/full"
+const PathWallet = PathPrefix + "/wallet"
 const PathRegister = PathPrefix + "/signup"
+const PathPassword = PathPrefix + "/password"
 const PathVerify = PathPrefix + "/verify"
 const PathResendVerify = PathPrefix + "/verify/resend"
-const PathPassword = PathPrefix + "/password"
-const PathWallet = PathPrefix + "/wallet"
 const PathClientSaltSeed = PathPrefix + "/client-salt-seed"
 
 const PathUnknownEndpoint = PathPrefix + "/"
 const PathWrongApiVersion = "/api/"
+
+const PathPrometheus = "/metrics"
 
 type Server struct {
 	auth  auth.AuthInterface
@@ -191,6 +191,8 @@ func (s *Server) Serve() {
 	http.HandleFunc(PathWallet, s.handleWallet)
 	http.HandleFunc(PathRegister, s.register)
 	http.HandleFunc(PathPassword, s.changePassword)
+	http.HandleFunc(PathVerify, s.verify)
+	http.HandleFunc(PathResendVerify, s.resendVerifyEmail)
 	http.HandleFunc(PathClientSaltSeed, s.getClientSaltSeed)
 
 	http.HandleFunc(PathUnknownEndpoint, s.unknownEndpoint)
