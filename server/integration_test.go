@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"lbryio/lbry-id/auth"
@@ -80,9 +81,11 @@ func request(t *testing.T, method string, handler func(http.ResponseWriter, *htt
 	handler(w, req)
 	responseBody, _ := ioutil.ReadAll(w.Body)
 
-	err := json.Unmarshal(responseBody, &jsonResult)
-	if err != nil {
-		t.Errorf("Error unmarshalling response body err: %+v body: %s", err, responseBody)
+	if jsonResult != nil {
+		err := json.Unmarshal(responseBody, &jsonResult)
+		if err != nil {
+			t.Errorf("Error unmarshalling response body err: %+v body: %s", err, responseBody)
+		}
 	}
 
 	return responseBody, w.Result().StatusCode
@@ -93,8 +96,9 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	st, tmpFile := storeTestInit(t)
 	defer storeTestCleanup(tmpFile)
 
+	// Excluding env and email from the integration
 	env := map[string]string{
-		"ACCOUNT_VERIFICATION_MODE": "EmailVerify",
+		"ACCOUNT_WHITELIST": "abc@example.com",
 	}
 	s := Server{&auth.Auth{}, &st, &TestEnv{env}, &TestMail{}}
 
@@ -133,7 +137,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	// result.Token is in hex, auth.TokenLength is bytes in the original
 	expectedTokenLength := auth.TokenLength * 2
 	if len(authToken1.Token) != expectedTokenLength {
-		t.Fatalf("Expected auth response to contain token length 32: result: %+v", string(responseBody))
+		t.Fatalf("Expected auth response to contain token length %d: result: %+v", auth.TokenLength, string(responseBody))
 	}
 	if authToken1.DeviceId != "dev-1" {
 		t.Fatalf("Unexpected response DeviceId. want: %+v got: %+v", "dev-1", authToken1.DeviceId)
@@ -262,8 +266,9 @@ func TestIntegrationChangePassword(t *testing.T) {
 	st, tmpFile := storeTestInit(t)
 	defer storeTestCleanup(tmpFile)
 
+	// Excluding env and email from the integration
 	env := map[string]string{
-		"ACCOUNT_VERIFICATION_MODE": "EmailVerify",
+		"ACCOUNT_WHITELIST": "abc@example.com",
 	}
 	s := Server{&auth.Auth{}, &st, &TestEnv{env}, &TestMail{}}
 
@@ -324,7 +329,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 	// result.Token is in hex, auth.TokenLength is bytes in the original
 	expectedTokenLength := auth.TokenLength * 2
 	if len(authToken.Token) != expectedTokenLength {
-		t.Fatalf("Expected auth response to contain token length 32: result: %+v", string(responseBody))
+		t.Fatalf("Expected auth response to contain token length %d: result: %+v", auth.TokenLength, string(responseBody))
 	}
 	if authToken.DeviceId != "dev-1" {
 		t.Fatalf("Unexpected response DeviceId. want: %+v got: %+v", "dev-1", authToken.DeviceId)
@@ -407,7 +412,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 	// result.Token is in hex, auth.TokenLength is bytes in the original
 	expectedTokenLength = auth.TokenLength * 2
 	if len(authToken.Token) != expectedTokenLength {
-		t.Fatalf("Expected auth response to contain token length 32: result: %+v", string(responseBody))
+		t.Fatalf("Expected auth response to contain token length %d: result: %+v", auth.TokenLength, string(responseBody))
 	}
 	if authToken.DeviceId != "dev-1" {
 		t.Fatalf("Unexpected response DeviceId. want: %+v got: %+v", "dev-1", authToken.DeviceId)
@@ -512,7 +517,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 	// result.Token is in hex, auth.TokenLength is bytes in the original
 	expectedTokenLength = auth.TokenLength * 2
 	if len(authToken.Token) != expectedTokenLength {
-		t.Fatalf("Expected auth response to contain token length 32: result: %+v", string(responseBody))
+		t.Fatalf("Expected auth response to contain token length %d: result: %+v", auth.TokenLength, string(responseBody))
 	}
 	if authToken.DeviceId != "dev-1" {
 		t.Fatalf("Unexpected response DeviceId. want: %+v got: %+v", "dev-1", authToken.DeviceId)
@@ -544,5 +549,122 @@ func TestIntegrationChangePassword(t *testing.T) {
 
 	if !reflect.DeepEqual(walletGetResponse, expectedResponse) {
 		t.Fatalf("Unexpected response values. want: %+v got: %+v", expectedResponse, walletGetResponse)
+	}
+}
+
+func TestIntegrationVerifyAccount(t *testing.T) {
+	st, tmpFile := storeTestInit(t)
+	defer storeTestCleanup(tmpFile)
+
+	// Excluding env and email from the integration. We will spy on emails sent.
+	env := map[string]string{
+		"ACCOUNT_VERIFICATION_MODE": "EmailVerify",
+	}
+	testMail := TestMail{}
+	s := Server{&auth.Auth{}, &st, &TestEnv{env}, &testMail}
+
+	////////////////////
+	t.Log("Request: Register email address")
+	////////////////////
+
+	var registerResponse struct{}
+	responseBody, statusCode := request(
+		t,
+		http.MethodPost,
+		s.register,
+		PathRegister,
+		&registerResponse,
+		`{"email": "abc@example.com", "password": "123", "clientSaltSeed": "1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd"}`,
+	)
+
+	checkStatusCode(t, statusCode, responseBody, http.StatusCreated)
+
+	// result.Token is in hex, auth.TokenLength is bytes in the original
+	expectedTokenLength := auth.TokenLength * 2
+	if len(testMail.SendVerificationEmailCall.Token) != expectedTokenLength {
+		t.Fatalf("Expected account verify email to contain token length %d: result: %+v", auth.TokenLength, string(responseBody))
+	}
+
+	////////////////////
+	t.Log("Request: Resend verify email")
+	////////////////////
+
+	var resendVerifyResponse struct{}
+	responseBody, statusCode = request(
+		t,
+		http.MethodPost,
+		s.resendVerifyEmail,
+		PathResendVerify,
+		&resendVerifyResponse,
+		`{"email": "abc@example.com"}`,
+	)
+
+	checkStatusCode(t, statusCode, responseBody)
+
+	// result.Token is in hex, auth.TokenLength is bytes in the original
+	expectedTokenLength = auth.TokenLength * 2
+	if len(testMail.SendVerificationEmailCall.Token) != expectedTokenLength {
+		t.Fatalf("Expected account verify email to contain token length %d: result: %+v", auth.TokenLength, string(responseBody))
+	}
+
+	////////////////////
+	t.Log("Request: Get auth token and fail for not being verified")
+	////////////////////
+
+	var authToken auth.AuthToken
+	responseBody, statusCode = request(
+		t,
+		http.MethodPost,
+		s.getAuthToken,
+		PathAuthToken,
+		&authToken,
+		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`,
+	)
+
+	checkStatusCode(t, statusCode, responseBody, http.StatusUnauthorized)
+
+	////////////////////
+	t.Log("Request: Verify account")
+	////////////////////
+
+	responseBody, statusCode = request(
+		t,
+		http.MethodGet,
+		s.verify,
+		PathVerify+"?verifyToken="+string(testMail.SendVerificationEmailCall.Token),
+		nil,
+		``,
+	)
+
+	checkStatusCode(t, statusCode, responseBody)
+	if strings.TrimSpace(string(responseBody)) != "Your account has been verified." {
+		t.Fatalf("Unexpected resonse from verify account endpoint. Got: '" + string(responseBody) + "'")
+	}
+
+	////////////////////
+	t.Log("Request: Get auth token")
+	////////////////////
+
+	responseBody, statusCode = request(
+		t,
+		http.MethodPost,
+		s.getAuthToken,
+		PathAuthToken,
+		&authToken,
+		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`,
+	)
+
+	checkStatusCode(t, statusCode, responseBody)
+
+	// result.Token is in hex, auth.TokenLength is bytes in the original
+	expectedTokenLength = auth.TokenLength * 2
+	if len(authToken.Token) != expectedTokenLength {
+		t.Fatalf("Expected auth response to contain token length %d: result: %+v", auth.TokenLength, string(responseBody))
+	}
+	if authToken.DeviceId != "dev-1" {
+		t.Fatalf("Unexpected response DeviceId. want: %+v got: %+v", "dev-1", authToken.DeviceId)
+	}
+	if authToken.Scope != auth.ScopeFull {
+		t.Fatalf("Unexpected response Scope. want: %+v got: %+v", auth.ScopeFull, authToken.Scope)
 	}
 }
