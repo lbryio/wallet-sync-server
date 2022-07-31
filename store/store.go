@@ -151,6 +151,8 @@ func (s *Store) Migrate() error {
 // (which I did previously)?
 //
 // TODO Put the timestamp in the token to avoid duplicates over time. And/or just use a library! Someone solved this already.
+// Assumption: User is verified (as it was necessary to call SaveToken to begin
+// with)
 func (s *Store) GetToken(token auth.AuthTokenString) (authToken *auth.AuthToken, err error) {
 	expirationCutoff := time.Now().UTC()
 
@@ -211,6 +213,8 @@ func (s *Store) updateToken(authToken *auth.AuthToken, experation time.Time) (er
 	return
 }
 
+// Assumption: User is verified (as they have been identified with GetUserId
+// which requires users be verified)
 func (s *Store) SaveToken(token *auth.AuthToken) (err error) {
 	// TODO: For psql, do upsert here instead of separate insertToken and updateToken functions
 	//       Actually it may even be available for SQLite?
@@ -246,6 +250,7 @@ func (s *Store) SaveToken(token *auth.AuthToken) (err error) {
 // Wallet //
 ////////////
 
+// Assumption: Auth token has been checked (thus account is verified)
 func (s *Store) GetWallet(userId auth.UserId) (encryptedWallet wallet.EncryptedWallet, sequence wallet.Sequence, hmac wallet.WalletHmac, err error) {
 	err = s.db.QueryRow(
 		"SELECT encrypted_wallet, sequence, hmac FROM wallets WHERE user_id=?",
@@ -319,6 +324,7 @@ func (s *Store) updateWalletToSequence(
 }
 
 // Assumption: Sequence has been validated (>=1)
+// Assumption: Auth token has been checked (thus account is verified)
 func (s *Store) SetWallet(userId auth.UserId, encryptedWallet wallet.EncryptedWallet, sequence wallet.Sequence, hmac wallet.WalletHmac) (err error) {
 	if sequence == 1 {
 		// If sequence == 1, the client assumed that this is our first
@@ -612,6 +618,7 @@ func (s *Store) changePassword(
 	return
 }
 
+// It's a public endpoint, we don't really care if the user is verified
 func (s *Store) GetClientSaltSeed(email auth.Email) (seed auth.ClientSaltSeed, err error) {
 	err = s.db.QueryRow(
 		`SELECT client_salt_seed from accounts WHERE normalized_email=?`,
