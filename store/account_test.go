@@ -320,3 +320,33 @@ func TestStoreUpdateVerifyTokenStringAccountNotExists(t *testing.T) {
 		t.Fatalf(`UpdateVerifyTokenString error for nonexistant account: wanted "%+v", got "%+v."`, ErrWrongCredentials, err)
 	}
 }
+
+
+// Test VerifyAccount for existing account
+func TestUpdateVerifyAccountSuccess(t *testing.T) {
+	s, sqliteTmpFile := StoreTestInit(t)
+	defer StoreTestCleanup(sqliteTmpFile)
+
+	verifyTokenString := auth.VerifyTokenString("abcd1234abcd1234abcd1234abcd1234")
+	time1 := time.Time{}
+
+	_, email, password, createdSeed := makeTestUser(t, &s, verifyTokenString, &time1)
+
+	// we're not testing normalization features so we'll just use this here
+	normEmail := email.Normalize()
+
+	if err := s.VerifyAccount( verifyTokenString); err != nil {
+		t.Fatalf("Unexpected error in VerifyAccount: err: %+v", err)
+	}
+	expectAccountMatch(t, &s, normEmail, email, password, createdSeed, "", nil)
+}
+
+// Test VerifyAccount for nonexisting token
+func TestStoreVerifyAccountTokenNotExists(t *testing.T) {
+	s, sqliteTmpFile := StoreTestInit(t)
+	defer StoreTestCleanup(sqliteTmpFile)
+
+	if err := s.VerifyAccount("abcd1234abcd1234abcd1234abcd1234"); err != ErrNoTokenForUser {
+		t.Fatalf(`VerifyAccount error for nonexistant token: wanted "%+v", got "%+v."`, ErrNoTokenForUser, err)
+	}
+}

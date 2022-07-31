@@ -125,7 +125,7 @@ func (s *Store) Migrate() error {
 			key TEXT NOT NULL,
 			client_salt_seed TEXT NOT NULL,
 			server_salt TEXT NOT NULL,
-			verify_token TEXT NOT NULL,
+			verify_token TEXT NOT NULL UNIQUE, -- will query by token when verifying
 			verify_expiration DATETIME,
 			user_id INTEGER PRIMARY KEY AUTOINCREMENT,
 			CHECK (
@@ -425,7 +425,22 @@ func (s *Store) UpdateVerifyTokenString(email auth.Email, verifyTokenString auth
 	return
 }
 
-func (s *Store) VerifyAccount(auth.VerifyTokenString) (err error) {
+func (s *Store) VerifyAccount(verifyTokenString auth.VerifyTokenString) (err error) {
+	res, err := s.db.Exec(
+		"UPDATE accounts SET verify_token=?, verify_expiration=? WHERE verify_token=?",
+		"", nil, verifyTokenString,
+	)
+	if err != nil {
+		return
+	}
+
+	numRows, err := res.RowsAffected()
+	if err != nil {
+		return
+	}
+	if numRows == 0 {
+		err = ErrNoTokenForUser
+	}
 	return
 }
 
