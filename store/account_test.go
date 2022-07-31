@@ -321,6 +321,18 @@ func TestStoreUpdateVerifyTokenStringAccountNotExists(t *testing.T) {
 	}
 }
 
+// Test UpdateVerifyTokenString for already verified account
+func TestStoreUpdateVerifyTokenStringAccountVerified(t *testing.T) {
+	s, sqliteTmpFile := StoreTestInit(t)
+	defer StoreTestCleanup(sqliteTmpFile)
+
+	_, email, _, _ := makeTestUser(t, &s, "", nil)
+
+	if err := s.UpdateVerifyTokenString(email, "abcd1234abcd1234abcd1234abcd1234"); err != ErrNoTokenForUser {
+		t.Fatalf(`UpdateVerifyTokenString error for already verified account: wanted "%+v", got "%+v."`, ErrNoTokenForUser, err)
+	}
+}
+
 // Test VerifyAccount for existing account
 func TestUpdateVerifyAccountSuccess(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)

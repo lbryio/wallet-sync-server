@@ -410,11 +410,17 @@ func (s *Store) CreateAccount(email auth.Email, password auth.Password, seed aut
 	return
 }
 
+// In case the user needs a new verification email, generate a new verify token
+// with a new deadline 2 days away.
+//
+// This function should only work if the account is not already verified.
+// Otherwise we risk de-verifying accounts which would be confusing and
+// annoying if it were to ever get triggered.
 func (s *Store) UpdateVerifyTokenString(email auth.Email, verifyTokenString auth.VerifyTokenString) (err error) {
 	expiration := time.Now().UTC().Add(VerifyTokenLifespan)
 
 	res, err := s.db.Exec(
-		"UPDATE accounts SET verify_token=?, verify_expiration=? WHERE normalized_email=?",
+		`UPDATE accounts SET verify_token=?, verify_expiration=? WHERE normalized_email=? and verify_token!=""`,
 		verifyTokenString, expiration, email.Normalize(),
 	)
 	if err != nil {
@@ -426,7 +432,19 @@ func (s *Store) UpdateVerifyTokenString(email auth.Email, verifyTokenString auth
 		return
 	}
 	if numRows == 0 {
-		err = ErrWrongCredentials
+		// Since we got a miss (presumably not very common), let's do another check
+		// to see which error to return: invalid email or invalid token
+		var dummy int
+		err = s.db.QueryRow(
+			`SELECT 1 from accounts WHERE normalized_email=?`,
+			email.Normalize(),
+		).Scan(&dummy)
+		if err == sql.ErrNoRows {
+			err = ErrWrongCredentials
+		}
+		if err == nil {
+			err = ErrNoTokenForUser
+		}
 	}
 	return
 }
