@@ -73,6 +73,8 @@ func TestStoreChangePasswordErrors(t *testing.T) {
 		sequence          wallet.Sequence
 		emailSuffix       auth.Email
 		oldPasswordSuffix auth.Password
+		verifyToken       auth.VerifyTokenString
+		verifyExpiration  *time.Time
 		expectedError     error
 	}{
 		{
@@ -82,6 +84,15 @@ func TestStoreChangePasswordErrors(t *testing.T) {
 			emailSuffix:       auth.Email("_wrong"), // the email is *incorrect*
 			oldPasswordSuffix: auth.Password(""),    // the password is correct
 			expectedError:     ErrWrongCredentials,
+		}, {
+			name:              "unverified account",
+			hasWallet:         true,               // we have the requisite wallet (even though it should be impossible for an unverified account)
+			sequence:          wallet.Sequence(2), // sequence is correct
+			emailSuffix:       auth.Email(""),     // the email is correct
+			oldPasswordSuffix: auth.Password(""),  // the password is correct
+			verifyToken:       auth.VerifyTokenString("aoeu1234aoeu1234aoeu1234aoeu1234"),
+			verifyExpiration:  &time.Time{},
+			expectedError:     ErrNotVerified,
 		}, {
 			name:              "wrong old password",
 			hasWallet:         true,                    // we have the requisite wallet
@@ -114,7 +125,7 @@ func TestStoreChangePasswordErrors(t *testing.T) {
 			s, sqliteTmpFile := StoreTestInit(t)
 			defer StoreTestCleanup(sqliteTmpFile)
 
-			userId, email, oldPassword, oldSeed := makeTestUser(t, &s, "", nil)
+			userId, email, oldPassword, oldSeed := makeTestUser(t, &s, tc.verifyToken, tc.verifyExpiration)
 			expiration := time.Now().UTC().Add(time.Hour * 24 * 14)
 			authToken := auth.AuthToken{
 				Token:      auth.AuthTokenString("my-token"),
@@ -161,7 +172,7 @@ func TestStoreChangePasswordErrors(t *testing.T) {
 			// This tests the transaction rollbacks in particular, given the errors
 			// that are at a couple different stages of the txn, triggered by these
 			// tests.
-			expectAccountMatch(t, &s, email.Normalize(), email, oldPassword, oldSeed, "", nil)
+			expectAccountMatch(t, &s, email.Normalize(), email, oldPassword, oldSeed, tc.verifyToken, tc.verifyExpiration)
 			if tc.hasWallet {
 				expectWalletExists(t, &s, userId, oldEncryptedWallet, oldSequence, oldHmac)
 			} else {
@@ -218,6 +229,8 @@ func TestStoreChangePasswordNoWalletErrors(t *testing.T) {
 		hasWallet         bool
 		emailSuffix       auth.Email
 		oldPasswordSuffix auth.Password
+		verifyToken       auth.VerifyTokenString
+		verifyExpiration  *time.Time
 		expectedError     error
 	}{
 		{
@@ -233,6 +246,14 @@ func TestStoreChangePasswordNoWalletErrors(t *testing.T) {
 			oldPasswordSuffix: auth.Password("_wrong"), // the old password is *incorrect*
 			expectedError:     ErrWrongCredentials,
 		}, {
+			name:              "unverified account",
+			hasWallet:         false,             // we don't have the wallet, as expected for this function
+			emailSuffix:       auth.Email(""),    // the email is correct
+			oldPasswordSuffix: auth.Password(""), // the password is correct
+			verifyToken:       auth.VerifyTokenString("aoeu1234aoeu1234aoeu1234aoeu1234"),
+			verifyExpiration:  &time.Time{},
+			expectedError:     ErrNotVerified,
+		}, {
 			name:              "unexpected wallet",
 			hasWallet:         true,              // we have a wallet which we shouldn't have at this point
 			emailSuffix:       auth.Email(""),    // the email is correct
@@ -246,7 +267,7 @@ func TestStoreChangePasswordNoWalletErrors(t *testing.T) {
 			s, sqliteTmpFile := StoreTestInit(t)
 			defer StoreTestCleanup(sqliteTmpFile)
 
-			userId, email, oldPassword, oldSeed := makeTestUser(t, &s, "", nil)
+			userId, email, oldPassword, oldSeed := makeTestUser(t, &s, tc.verifyToken, tc.verifyExpiration)
 			expiration := time.Now().UTC().Add(time.Hour * 24 * 14)
 			authToken := auth.AuthToken{
 				Token:      auth.AuthTokenString("my-token"),
@@ -292,7 +313,7 @@ func TestStoreChangePasswordNoWalletErrors(t *testing.T) {
 			// deleted. This tests the transaction rollbacks in particular, given the
 			// errors that are at a couple different stages of the txn, triggered by
 			// these tests.
-			expectAccountMatch(t, &s, email.Normalize(), email, oldPassword, oldSeed, "", nil)
+			expectAccountMatch(t, &s, email.Normalize(), email, oldPassword, oldSeed, tc.verifyToken, tc.verifyExpiration)
 			if tc.hasWallet {
 				expectWalletExists(t, &s, userId, encryptedWallet, sequence, hmac)
 			} else {

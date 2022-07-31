@@ -50,8 +50,8 @@ func expectAccountMatch(
 	if verifyTokenString != expectedVerifyTokenString {
 		t.Fatalf(
 			"Verify token string not as expected. Want: %s Got: %s",
-			verifyTokenString,
 			expectedVerifyTokenString,
+			verifyTokenString,
 		)
 	}
 

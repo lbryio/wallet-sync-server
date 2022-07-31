@@ -488,11 +488,12 @@ func (s *Store) changePassword(
 
 	var oldKey auth.KDFKey
 	var oldSalt auth.ServerSalt
+	var verified bool
 
 	err = tx.QueryRow(
-		`SELECT user_id, key, server_salt from accounts WHERE normalized_email=?`,
+		`SELECT user_id, key, server_salt, verify_token="" from accounts WHERE normalized_email=?`,
 		email.Normalize(),
-	).Scan(&userId, &oldKey, &oldSalt)
+	).Scan(&userId, &oldKey, &oldSalt, &verified)
 	if err == sql.ErrNoRows {
 		err = ErrWrongCredentials
 	}
@@ -502,6 +503,9 @@ func (s *Store) changePassword(
 	match, err := oldPassword.Check(oldKey, oldSalt)
 	if err == nil && !match {
 		err = ErrWrongCredentials
+	}
+	if err == nil && !verified {
+		err = ErrNotVerified
 	}
 	if err != nil {
 		return

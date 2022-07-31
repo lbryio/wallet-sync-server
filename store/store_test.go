@@ -51,7 +51,7 @@ func makeTestUser(
 	seed = auth.ClientSaltSeed("abcd1234abcd1234")
 
 	rows, err := s.db.Query(
-		"INSERT INTO accounts (normalized_email, email, key, server_salt, client_salt_seed, verify_token) values(?,?,?,?,?,?) returning user_id",
+		"INSERT INTO accounts (normalized_email, email, key, server_salt, client_salt_seed, verify_token, verify_expiration) values(?,?,?,?,?,?,?) returning user_id",
 		normEmail, email, key, salt, seed, verifyToken, verifyExpiration,
 	)
 	if err != nil {
