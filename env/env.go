@@ -15,6 +15,8 @@ import (
 // We'll replace this with a config file later.
 const whitelistKey = "ACCOUNT_WHITELIST"
 const verificationModeKey = "ACCOUNT_VERIFICATION_MODE"
+const mailgunDomainKey = "MAILGUN_DOMAIN"
+const mailgunPrivateAPIKeyKey = "MAILGUN_PRIVATE_API_KEY"
 
 type AccountVerificationMode string
 
@@ -47,6 +49,10 @@ func GetAccountWhitelist(e EnvInterface, mode AccountVerificationMode) (emails [
 	return getAccountWhitelist(e.Getenv(whitelistKey), mode)
 }
 
+func GetMailgunConfigs(e EnvInterface, mode AccountVerificationMode) (domain string, privateAPIKey string, err error) {
+	return getMailgunConfigs(e.Getenv(mailgunDomainKey), e.Getenv(mailgunPrivateAPIKeyKey), mode)
+}
+
 // Factor out the guts of the functions so we can test them by just passing in
 // the env vars
 
@@ -72,7 +78,11 @@ func getAccountWhitelist(whitelist string, mode AccountVerificationMode) (emails
 	}
 
 	if mode != AccountVerificationModeWhitelist {
-		return nil, fmt.Errorf("Do not specify ACCOUNT_WHITELIST in env if ACCOUNT_VERIFICATION_MODE is not Whitelist")
+		return nil, fmt.Errorf("Do not specify %s in env if %s is not %s",
+			whitelistKey,
+			verificationModeKey,
+			AccountVerificationModeWhitelist,
+		)
 	}
 
 	rawEmails := strings.Split(whitelist, ",")
@@ -89,4 +99,25 @@ func getAccountWhitelist(whitelist string, mode AccountVerificationMode) (emails
 		emails = append(emails, email)
 	}
 	return emails, nil
+}
+
+func getMailgunConfigs(domain string, privateAPIKey string, mode AccountVerificationMode) (string, string, error) {
+	if mode != AccountVerificationModeEmailVerify && (domain != "" || privateAPIKey != "") {
+		return "", "", fmt.Errorf("Do not specify %s or %s in env if %s is not %s",
+			mailgunDomainKey,
+			mailgunPrivateAPIKeyKey,
+			verificationModeKey,
+			AccountVerificationModeEmailVerify,
+		)
+	}
+	if mode == AccountVerificationModeEmailVerify && (domain == "" || privateAPIKey == "") {
+		return "", "", fmt.Errorf("Specify %s and %s in env if %s is %s",
+			mailgunDomainKey,
+			mailgunPrivateAPIKeyKey,
+			verificationModeKey,
+			AccountVerificationModeEmailVerify,
+		)
+	}
+
+	return domain, privateAPIKey, nil
 }

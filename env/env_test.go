@@ -113,3 +113,65 @@ func TestAccountWhitelist(t *testing.T) {
 		})
 	}
 }
+
+func TestMailgunConfigs(t *testing.T) {
+	tt := []struct {
+		name string
+
+		domain     string
+		privateAPIKey string
+		mode       AccountVerificationMode
+
+		expectErr bool
+	}{
+		{
+			name:       "success",
+			mode:       AccountVerificationModeEmailVerify,
+			domain:     "www.example.com",
+			privateAPIKey: "my-private-api-key",
+			expectErr:  false,
+		},
+		{
+			name:      "wrong mode with domain",
+			mode:      AccountVerificationModeWhitelist,
+			domain:    "www.example.com",
+			expectErr: true,
+		},
+		{
+			name:       "wrong mode with private api key",
+			mode:       AccountVerificationModeWhitelist,
+			privateAPIKey: "my-private-api-key",
+			expectErr:  true,
+		},
+		{
+			name:       "missing domain",
+			mode:       AccountVerificationModeEmailVerify,
+			privateAPIKey: "my-private-api-key",
+			expectErr:  true,
+		},
+		{
+			name:      "missing private api key",
+			mode:      AccountVerificationModeEmailVerify,
+			domain:    "www.example.com",
+			expectErr: true,
+		},
+	}
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			domain, privateAPIKey, err := getMailgunConfigs(tc.domain, tc.privateAPIKey, tc.mode)
+			if tc.expectErr && err == nil {
+				t.Errorf("Expected err")
+			}
+			if !tc.expectErr && err != nil {
+				t.Errorf("Unexpected err: %s", err.Error())
+			}
+			if !tc.expectErr && tc.domain != domain {
+				t.Errorf("Expected domain to be set")
+			}
+			if !tc.expectErr && tc.privateAPIKey != privateAPIKey {
+				t.Errorf("Expected privateAPIKey to be set")
+			}
+		})
+	}
+
+}

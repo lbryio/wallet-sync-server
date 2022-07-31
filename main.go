@@ -36,6 +36,12 @@ func logEmailVerificationMode(e *env.Env) (err error) {
 		return
 	}
 
+	// just to report config errors to the user on startup
+	_, _, err = env.GetMailgunConfigs(e, verificationMode)
+	if err != nil {
+		return
+	}
+
 	if verificationMode == env.AccountVerificationModeWhitelist {
 		log.Printf("Account verification mode: %s - Whitelist has %d email(s).\n", verificationMode, len(accountWhitelist))
 	} else {
