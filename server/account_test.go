@@ -480,7 +480,7 @@ func TestServerVerifyAccountSuccess(t *testing.T) {
 
 	expectStatusCode(t, w, http.StatusOK)
 
-	if string(body) != "{}" {
+	if string(body) != "Your account has been verified." {
 		t.Errorf("Expected register response to be \"{}\": result: %+v", string(body))
 	}
 
@@ -494,7 +494,7 @@ func TestServerVerifyAccountErrors(t *testing.T) {
 		name                      string
 		token                     string
 		expectedStatusCode        int
-		expectedErrorString       string
+		expectedBody              string
 		expectedCallVerifyAccount bool
 
 		storeErrors TestStoreFunctionsErrors
@@ -503,14 +503,14 @@ func TestServerVerifyAccountErrors(t *testing.T) {
 			name:                      "missing token",
 			token:                     "",
 			expectedStatusCode:        http.StatusBadRequest,
-			expectedErrorString:       http.StatusText(http.StatusBadRequest) + ": Missing verifyToken parameter",
+			expectedBody:              "There seems to be a problem with this URL: Missing verifyToken parameter",
 			expectedCallVerifyAccount: false,
 		},
 		{
 			name:                      "token not found", // including expired
 			token:                     "abcd1234abcd1234abcd1234abcd1234",
 			expectedStatusCode:        http.StatusForbidden,
-			expectedErrorString:       http.StatusText(http.StatusForbidden) + ": Verification token not found or expired",
+			expectedBody:              "The verification token was not found, or it expired. Try generating a new one from your app.",
 			storeErrors:               TestStoreFunctionsErrors{VerifyAccount: store.ErrNoTokenForUser},
 			expectedCallVerifyAccount: true,
 		},
@@ -518,7 +518,7 @@ func TestServerVerifyAccountErrors(t *testing.T) {
 			name:                      "assorted db error",
 			token:                     "abcd1234abcd1234abcd1234abcd1234",
 			expectedStatusCode:        http.StatusInternalServerError,
-			expectedErrorString:       http.StatusText(http.StatusInternalServerError),
+			expectedBody:              "Something went wrong trying to verify your account.",
 			storeErrors:               TestStoreFunctionsErrors{VerifyAccount: fmt.Errorf("TestStore.VerifyAccount fail")},
 			expectedCallVerifyAccount: true,
 		},
@@ -541,7 +541,9 @@ func TestServerVerifyAccountErrors(t *testing.T) {
 			body, _ := ioutil.ReadAll(w.Body)
 
 			expectStatusCode(t, w, tc.expectedStatusCode)
-			expectErrorString(t, body, tc.expectedErrorString)
+			if want, got := tc.expectedBody, strings.TrimSpace(string(body)); want != got {
+				t.Errorf("Body: expected `%s`, got `%s`", want, got)
+			}
 
 			if tc.expectedCallVerifyAccount && !testStore.Called.VerifyAccount {
 				t.Errorf("Expected Store.VerifyAccount to be called")

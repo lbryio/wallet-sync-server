@@ -321,7 +321,6 @@ func TestStoreUpdateVerifyTokenStringAccountNotExists(t *testing.T) {
 	}
 }
 
-
 // Test VerifyAccount for existing account
 func TestUpdateVerifyAccountSuccess(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
@@ -335,7 +334,7 @@ func TestUpdateVerifyAccountSuccess(t *testing.T) {
 	// we're not testing normalization features so we'll just use this here
 	normEmail := email.Normalize()
 
-	if err := s.VerifyAccount( verifyTokenString); err != nil {
+	if err := s.VerifyAccount(verifyTokenString); err != nil {
 		t.Fatalf("Unexpected error in VerifyAccount: err: %+v", err)
 	}
 	expectAccountMatch(t, &s, normEmail, email, password, createdSeed, "", nil)

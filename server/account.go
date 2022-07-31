@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 
 	"lbryio/lbry-id/auth"
@@ -210,27 +211,20 @@ func (s *Server) verify(w http.ResponseWriter, req *http.Request) {
 	if paramsErr != nil {
 		// In this specific case, the error is limited to values that are safe to
 		// give to the user.
-		errorJson(w, http.StatusBadRequest, paramsErr.Error())
+		http.Error(w, "There seems to be a problem with this URL: "+paramsErr.Error(), http.StatusBadRequest)
 		return
 	}
 
 	err := s.store.VerifyAccount(token)
 
 	if err == store.ErrNoTokenForUser {
-		errorJson(w, http.StatusForbidden, "Verification token not found or expired")
+		http.Error(w, "The verification token was not found, or it expired. Try generating a new one from your app.", http.StatusForbidden)
 		return
 	} else if err != nil {
-		internalServiceErrorJson(w, err, "Error verifying account")
+		http.Error(w, "Something went wrong trying to verify your account.", http.StatusInternalServerError)
+		log.Printf("%s: %+v\n", "Error verifying account", err)
 		return
 	}
 
-	var verifyResponse struct{}
-	response, err := json.Marshal(verifyResponse)
-
-	if err != nil {
-		internalServiceErrorJson(w, err, "Error generating verify response")
-		return
-	}
-
-	fmt.Fprintf(w, string(response))
+	fmt.Fprintf(w, "Your account has been verified.")
 }
