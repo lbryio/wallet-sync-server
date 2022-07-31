@@ -156,7 +156,6 @@ func TestStoreGetUserIdAccountNotExists(t *testing.T) {
 
 	email, password := auth.Email("abc@example.com"), auth.Password("123")
 
-	// Check that there's no user id for email and password first
 	if userId, err := s.GetUserId(email, password); err != ErrWrongCredentials || userId != 0 {
 		t.Fatalf(`GetUserId error for nonexistant account: wanted "%+v", got "%+v. userId: %v"`, ErrWrongCredentials, err, userId)
 	}
@@ -246,7 +245,7 @@ func TestStoreAccountEmptyFields(t *testing.T) {
 }
 
 // Test GetClientSaltSeed for existing account
-func TestStoreGetClientSaltSeedAccountSuccess(t *testing.T) {
+func TestStoreGetClientSaltSeedAccountExists(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
@@ -272,8 +271,52 @@ func TestStoreGetClientSaltSeedAccountNotExists(t *testing.T) {
 
 	email := auth.Email("abc@example.com")
 
-	// Check that there's no user id for email and password first
 	if seed, err := s.GetClientSaltSeed(email); err != ErrWrongCredentials || seed != "" {
 		t.Fatalf(`GetClientSaltSeed error for nonexistant account: wanted "%+v", got "%+v. seed: %v"`, ErrWrongCredentials, err, seed)
+	}
+}
+
+// Test UpdateVerifyTokenString for existing account
+func TestUpdateVerifyTokenStringSuccess(t *testing.T) {
+	s, sqliteTmpFile := StoreTestInit(t)
+	defer StoreTestCleanup(sqliteTmpFile)
+
+	verifyTokenString1 := auth.VerifyTokenString("00000000000000000000000000000000")
+	time1 := time.Time{}
+
+	_, email, password, createdSeed := makeTestUser(t, &s, verifyTokenString1, &time1)
+
+	// we're not testing normalization features so we'll just use this here
+	normEmail := email.Normalize()
+
+	// Check that the token updates for the email, irrespective of the case of
+	// the characters in the email.
+	lowerEmail := auth.Email(strings.ToLower(string(email)))
+	upperEmail := auth.Email(strings.ToUpper(string(email)))
+
+	verifyTokenString2 := auth.VerifyTokenString("abcd1234abcd1234abcd1234abcd1234")
+	verifyTokenString3 := auth.VerifyTokenString("ef095678ef095678ef095678ef095678")
+	approxVerifyExpiration := time.Now().Add(time.Hour * 24 * 2).UTC()
+
+	if err := s.UpdateVerifyTokenString(lowerEmail, verifyTokenString2); err != nil {
+		t.Fatalf("Unexpected error in UpdateVerifyTokenString: err: %+v", err)
+	}
+	expectAccountMatch(t, &s, normEmail, email, password, createdSeed, verifyTokenString2, &approxVerifyExpiration)
+
+	if err := s.UpdateVerifyTokenString(upperEmail, verifyTokenString3); err != nil {
+		t.Fatalf("Unexpected error in UpdateVerifyTokenString: err: %+v", err)
+	}
+	expectAccountMatch(t, &s, normEmail, email, password, createdSeed, verifyTokenString3, &approxVerifyExpiration)
+}
+
+// Test UpdateVerifyTokenString for nonexisting email
+func TestStoreUpdateVerifyTokenStringAccountNotExists(t *testing.T) {
+	s, sqliteTmpFile := StoreTestInit(t)
+	defer StoreTestCleanup(sqliteTmpFile)
+
+	email := auth.Email("abc@example.com")
+
+	if err := s.UpdateVerifyTokenString(email, "abcd1234abcd1234abcd1234abcd1234"); err != ErrWrongCredentials {
+		t.Fatalf(`UpdateVerifyTokenString error for nonexistant account: wanted "%+v", got "%+v."`, ErrWrongCredentials, err)
 	}
 }

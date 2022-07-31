@@ -34,6 +34,11 @@ var (
 	ErrNotVerified      = fmt.Errorf("User account is not verified")
 )
 
+const (
+	AuthTokenLifespan   = time.Hour * 24 * 14
+	VerifyTokenLifespan = time.Hour * 24 * 2
+)
+
 // For test stubs
 type StoreInterface interface {
 	SaveToken(*auth.AuthToken) error
@@ -209,10 +214,11 @@ func (s *Store) updateToken(authToken *auth.AuthToken, experation time.Time) (er
 func (s *Store) SaveToken(token *auth.AuthToken) (err error) {
 	// TODO: For psql, do upsert here instead of separate insertToken and updateToken functions
 	//       Actually it may even be available for SQLite?
+	//       But not for wallet, it probably makes sense to keep that separate because of the sequence variable
 
 	// TODO - Should we auto-delete expired tokens?
 
-	expiration := time.Now().UTC().Add(time.Hour * 24 * 14)
+	expiration := time.Now().UTC().Add(AuthTokenLifespan)
 
 	// This is most likely not the first time calling this function for this
 	// device, so there's probably already a token in there.
@@ -380,7 +386,7 @@ func (s *Store) CreateAccount(email auth.Email, password auth.Password, seed aut
 	var verifyExpiration *time.Time
 	if len(verifyToken) > 0 {
 		verifyExpiration = new(time.Time)
-		*verifyExpiration = time.Now().UTC().Add(time.Hour * 24 * 2)
+		*verifyExpiration = time.Now().UTC().Add(VerifyTokenLifespan)
 	}
 
 	// userId auto-increments
@@ -398,7 +404,24 @@ func (s *Store) CreateAccount(email auth.Email, password auth.Password, seed aut
 	return
 }
 
-func (s *Store) UpdateVerifyTokenString(auth.Email, auth.VerifyTokenString) (err error) {
+func (s *Store) UpdateVerifyTokenString(email auth.Email, verifyTokenString auth.VerifyTokenString) (err error) {
+	expiration := time.Now().UTC().Add(VerifyTokenLifespan)
+
+	res, err := s.db.Exec(
+		"UPDATE accounts SET verify_token=?, verify_expiration=? WHERE normalized_email=?",
+		verifyTokenString, expiration, email.Normalize(),
+	)
+	if err != nil {
+		return
+	}
+
+	numRows, err := res.RowsAffected()
+	if err != nil {
+		return
+	}
+	if numRows == 0 {
+		err = ErrWrongCredentials
+	}
 	return
 }
 
