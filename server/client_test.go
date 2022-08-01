@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"lbryio/lbry-id/auth"
+	"lbryio/lbry-id/server/paths"
 	"lbryio/lbry-id/store"
 )
 
@@ -66,9 +67,9 @@ func TestServerGetClientSalt(t *testing.T) {
 				Errors: tc.storeErrors,
 			}
 
-			s := Server{&testAuth, &testStore, &TestEnv{}, &TestMail{}}
+			s := Server{&testAuth, &testStore, &TestEnv{}, &TestMail{}, TestPort}
 
-			req := httptest.NewRequest(http.MethodGet, PathClientSaltSeed, nil)
+			req := httptest.NewRequest(http.MethodGet, paths.PathClientSaltSeed, nil)
 			q := req.URL.Query()
 			q.Add("email", string(tc.emailGetParam))
 			req.URL.RawQuery = q.Encode()

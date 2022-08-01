@@ -218,7 +218,7 @@ func (s *Server) verify(w http.ResponseWriter, req *http.Request) {
 	err := s.store.VerifyAccount(token)
 
 	if err == store.ErrNoTokenForUser {
-		http.Error(w, "The verification token was not found, or it expired. Try generating a new one from your app.", http.StatusForbidden)
+		http.Error(w, "The verification token was not found, already used, or expired. If you want to try again, generate a new one from your app.", http.StatusForbidden)
 		return
 	} else if err != nil {
 		http.Error(w, "Something went wrong trying to verify your account.", http.StatusInternalServerError)

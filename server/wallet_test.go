@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"lbryio/lbry-id/auth"
+	"lbryio/lbry-id/server/paths"
 	"lbryio/lbry-id/store"
 	"lbryio/lbry-id/wallet"
 )
@@ -77,9 +78,9 @@ func TestServerGetWallet(t *testing.T) {
 			}
 
 			testEnv := TestEnv{}
-			s := Server{&testAuth, &testStore, &testEnv, &TestMail{}}
+			s := Server{&testAuth, &testStore, &testEnv, &TestMail{}, TestPort}
 
-			req := httptest.NewRequest(http.MethodGet, PathWallet, nil)
+			req := httptest.NewRequest(http.MethodGet, paths.PathWallet, nil)
 			q := req.URL.Query()
 			q.Add("token", string(testStore.TestAuthToken.Token))
 			req.URL.RawQuery = q.Encode()
@@ -235,7 +236,7 @@ func TestServerPostWallet(t *testing.T) {
 				Errors: tc.storeErrors,
 			}
 
-			s := Server{&testAuth, &testStore, &TestEnv{}, &TestMail{}}
+			s := Server{&testAuth, &testStore, &TestEnv{}, &TestMail{}, TestPort}
 
 			requestBody := []byte(
 				fmt.Sprintf(`{
@@ -246,7 +247,7 @@ func TestServerPostWallet(t *testing.T) {
         }`, testStore.TestAuthToken.Token, tc.newEncryptedWallet, tc.newSequence, tc.newHmac),
 			)
 
-			req := httptest.NewRequest(http.MethodPost, PathWallet, bytes.NewBuffer(requestBody))
+			req := httptest.NewRequest(http.MethodPost, paths.PathWallet, bytes.NewBuffer(requestBody))
 			w := httptest.NewRecorder()
 
 			// test handleWallet while we're at it, which is a dispatch for get and post

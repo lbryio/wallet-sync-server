@@ -11,9 +11,12 @@ import (
 	"testing"
 
 	"lbryio/lbry-id/auth"
+	"lbryio/lbry-id/server/paths"
 	"lbryio/lbry-id/store"
 	"lbryio/lbry-id/wallet"
 )
+
+const TestPort = 8090
 
 // Implementing interfaces for stubbed out packages
 
@@ -321,7 +324,7 @@ func TestServerHelperCheckAuth(t *testing.T) {
 				Errors:        tc.storeErrors,
 				TestAuthToken: auth.AuthToken{Token: auth.AuthTokenString("seekrit"), Scope: tc.userScope},
 			}
-			s := Server{&TestAuth{}, &testStore, &TestEnv{}, &TestMail{}}
+			s := Server{&TestAuth{}, &testStore, &TestEnv{}, &TestMail{}, TestPort}
 
 			w := httptest.NewRecorder()
 			authToken := s.checkAuth(w, testStore.TestAuthToken.Token, tc.requiredScope)
@@ -418,7 +421,7 @@ func TestServerHelperGetPostDataErrors(t *testing.T) {
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 			// Make request
-			req := httptest.NewRequest(tc.method, PathAuthToken, bytes.NewBuffer([]byte(tc.requestBody)))
+			req := httptest.NewRequest(tc.method, paths.PathAuthToken, bytes.NewBuffer([]byte(tc.requestBody)))
 			w := httptest.NewRecorder()
 
 			success := getPostData(w, req, &TestReqStruct{})

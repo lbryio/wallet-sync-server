@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -10,32 +11,16 @@ import (
 	"lbryio/lbry-id/auth"
 	"lbryio/lbry-id/env"
 	"lbryio/lbry-id/mail"
+	"lbryio/lbry-id/server/paths"
 	"lbryio/lbry-id/store"
 )
-
-// TODO proper doc comments!
-
-const ApiVersion = "3"
-const PathPrefix = "/api/" + ApiVersion
-
-const PathAuthToken = PathPrefix + "/auth/full"
-const PathWallet = PathPrefix + "/wallet"
-const PathRegister = PathPrefix + "/signup"
-const PathPassword = PathPrefix + "/password"
-const PathVerify = PathPrefix + "/verify"
-const PathResendVerify = PathPrefix + "/verify/resend"
-const PathClientSaltSeed = PathPrefix + "/client-salt-seed"
-
-const PathUnknownEndpoint = PathPrefix + "/"
-const PathWrongApiVersion = "/api/"
-
-const PathPrometheus = "/metrics"
 
 type Server struct {
 	auth  auth.AuthInterface
 	store store.StoreInterface
 	env   env.EnvInterface
 	mail  mail.MailInterface
+	port  int
 }
 
 // TODO If I capitalize the `auth` `store` and `env` fields of Store{} I can
@@ -45,8 +30,9 @@ func Init(
 	store store.StoreInterface,
 	env env.EnvInterface,
 	mail mail.MailInterface,
+	port int,
 ) *Server {
-	return &Server{auth, store, env, mail}
+	return &Server{auth, store, env, mail, port}
 }
 
 type ErrorResponse struct {
@@ -182,24 +168,24 @@ func (s *Server) unknownEndpoint(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *Server) wrongApiVersion(w http.ResponseWriter, req *http.Request) {
-	errorJson(w, http.StatusNotFound, "Wrong API version. Current version is "+ApiVersion+".")
+	errorJson(w, http.StatusNotFound, "Wrong API version. Current version is "+paths.ApiVersion+".")
 	return
 }
 
 func (s *Server) Serve() {
-	http.HandleFunc(PathAuthToken, s.getAuthToken)
-	http.HandleFunc(PathWallet, s.handleWallet)
-	http.HandleFunc(PathRegister, s.register)
-	http.HandleFunc(PathPassword, s.changePassword)
-	http.HandleFunc(PathVerify, s.verify)
-	http.HandleFunc(PathResendVerify, s.resendVerifyEmail)
-	http.HandleFunc(PathClientSaltSeed, s.getClientSaltSeed)
+	http.HandleFunc(paths.PathAuthToken, s.getAuthToken)
+	http.HandleFunc(paths.PathWallet, s.handleWallet)
+	http.HandleFunc(paths.PathRegister, s.register)
+	http.HandleFunc(paths.PathPassword, s.changePassword)
+	http.HandleFunc(paths.PathVerify, s.verify)
+	http.HandleFunc(paths.PathResendVerify, s.resendVerifyEmail)
+	http.HandleFunc(paths.PathClientSaltSeed, s.getClientSaltSeed)
 
-	http.HandleFunc(PathUnknownEndpoint, s.unknownEndpoint)
-	http.HandleFunc(PathWrongApiVersion, s.wrongApiVersion)
+	http.HandleFunc(paths.PathUnknownEndpoint, s.unknownEndpoint)
+	http.HandleFunc(paths.PathWrongApiVersion, s.wrongApiVersion)
 
-	http.Handle(PathPrometheus, promhttp.Handler())
+	http.Handle(paths.PathPrometheus, promhttp.Handler())
 
-	log.Println("Serving at localhost:8090")
-	http.ListenAndServe("localhost:8090", nil)
+	log.Printf("Serving at localhost:%d\n", s.port)
+	http.ListenAndServe(fmt.Sprintf("localhost:%d", s.port), nil)
 }

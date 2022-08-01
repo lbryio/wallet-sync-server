@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"lbryio/lbry-id/server/paths"
 	"lbryio/lbry-id/store"
 )
 
@@ -21,11 +22,11 @@ func TestServerRegisterSuccess(t *testing.T) {
 	}
 	testMail := TestMail{}
 	testAuth := TestAuth{TestNewVerifyTokenString: "abcd1234abcd1234abcd1234abcd1234"}
-	s := Server{&testAuth, testStore, &TestEnv{env}, &testMail}
+	s := Server{&testAuth, testStore, &TestEnv{env}, &testMail, TestPort}
 
 	requestBody := []byte(`{"email": "abc@example.com", "password": "123", "clientSaltSeed": "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234" }`)
 
-	req := httptest.NewRequest(http.MethodPost, PathRegister, bytes.NewBuffer(requestBody))
+	req := httptest.NewRequest(http.MethodPost, paths.PathRegister, bytes.NewBuffer(requestBody))
 	w := httptest.NewRecorder()
 
 	s.register(w, req)
@@ -128,11 +129,11 @@ func TestServerRegisterErrors(t *testing.T) {
 			testAuth := TestAuth{TestNewVerifyTokenString: "abcd1234abcd1234abcd1234abcd1234", FailGenToken: tc.failGenToken}
 			testMail := TestMail{SendVerificationEmailError: tc.mailError}
 			testStore := TestStore{Errors: tc.storeErrors}
-			s := Server{&testAuth, &testStore, &TestEnv{env}, &testMail}
+			s := Server{&testAuth, &testStore, &TestEnv{env}, &testMail, TestPort}
 
 			// Make request
 			requestBody := fmt.Sprintf(`{"email": "%s", "password": "123", "clientSaltSeed": "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"}`, tc.email)
-			req := httptest.NewRequest(http.MethodPost, PathAuthToken, bytes.NewBuffer([]byte(requestBody)))
+			req := httptest.NewRequest(http.MethodPost, paths.PathAuthToken, bytes.NewBuffer([]byte(requestBody)))
 			w := httptest.NewRecorder()
 
 			s.register(w, req)
@@ -226,11 +227,11 @@ func TestServerRegisterAccountVerification(t *testing.T) {
 			testStore := &TestStore{}
 			testAuth := TestAuth{TestNewVerifyTokenString: "abcd1234abcd1234abcd1234abcd1234"}
 			testMail := TestMail{}
-			s := Server{&testAuth, testStore, &TestEnv{tc.env}, &testMail}
+			s := Server{&testAuth, testStore, &TestEnv{tc.env}, &testMail, TestPort}
 
 			requestBody := []byte(`{"email": "abc@example.com", "password": "123", "clientSaltSeed": "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234" }`)
 
-			req := httptest.NewRequest(http.MethodPost, PathRegister, bytes.NewBuffer(requestBody))
+			req := httptest.NewRequest(http.MethodPost, paths.PathRegister, bytes.NewBuffer(requestBody))
 			w := httptest.NewRecorder()
 
 			s.register(w, req)
@@ -331,10 +332,10 @@ func TestServerResendVerifyEmailSuccess(t *testing.T) {
 	env := map[string]string{
 		"ACCOUNT_VERIFICATION_MODE": "EmailVerify",
 	}
-	s := Server{&TestAuth{}, &testStore, &TestEnv{env}, &testMail}
+	s := Server{&TestAuth{}, &testStore, &TestEnv{env}, &testMail, TestPort}
 
 	requestBody := []byte(`{"email": "abc@example.com"}`)
-	req := httptest.NewRequest(http.MethodPost, PathVerify, bytes.NewBuffer(requestBody))
+	req := httptest.NewRequest(http.MethodPost, paths.PathVerify, bytes.NewBuffer(requestBody))
 	w := httptest.NewRecorder()
 
 	s.resendVerifyEmail(w, req)
@@ -428,7 +429,7 @@ func TestServerResendVerifyEmailErrors(t *testing.T) {
 			// Set this up to fail according to specification
 			testStore := TestStore{Errors: tc.storeErrors}
 			testMail := TestMail{SendVerificationEmailError: tc.mailError}
-			s := Server{&TestAuth{}, &testStore, &TestEnv{env}, &testMail}
+			s := Server{&TestAuth{}, &testStore, &TestEnv{env}, &testMail, TestPort}
 
 			// Make request
 			var requestBody []byte
@@ -437,7 +438,7 @@ func TestServerResendVerifyEmailErrors(t *testing.T) {
 			} else {
 				requestBody = []byte(`{"email": "abc@example.com"}`)
 			}
-			req := httptest.NewRequest(http.MethodPost, PathVerify, bytes.NewBuffer(requestBody))
+			req := httptest.NewRequest(http.MethodPost, paths.PathVerify, bytes.NewBuffer(requestBody))
 			w := httptest.NewRecorder()
 
 			s.resendVerifyEmail(w, req)
@@ -467,9 +468,9 @@ func TestServerResendVerifyEmailErrors(t *testing.T) {
 
 func TestServerVerifyAccountSuccess(t *testing.T) {
 	testStore := TestStore{}
-	s := Server{&TestAuth{}, &testStore, &TestEnv{}, &TestMail{}}
+	s := Server{&TestAuth{}, &testStore, &TestEnv{}, &TestMail{}, TestPort}
 
-	req := httptest.NewRequest(http.MethodGet, PathVerify, nil)
+	req := httptest.NewRequest(http.MethodGet, paths.PathVerify, nil)
 	q := req.URL.Query()
 	q.Add("verifyToken", "abcd1234abcd1234abcd1234abcd1234")
 	req.URL.RawQuery = q.Encode()
@@ -510,7 +511,7 @@ func TestServerVerifyAccountErrors(t *testing.T) {
 			name:                      "token not found", // including expired
 			token:                     "abcd1234abcd1234abcd1234abcd1234",
 			expectedStatusCode:        http.StatusForbidden,
-			expectedBody:              "The verification token was not found, or it expired. Try generating a new one from your app.",
+			expectedBody:              "The verification token was not found, already used, or expired. If you want to try again, generate a new one from your app.",
 			storeErrors:               TestStoreFunctionsErrors{VerifyAccount: store.ErrNoTokenForUser},
 			expectedCallVerifyAccount: true,
 		},
@@ -528,10 +529,10 @@ func TestServerVerifyAccountErrors(t *testing.T) {
 
 			// Set this up to fail according to specification
 			testStore := TestStore{Errors: tc.storeErrors}
-			s := Server{&TestAuth{}, &testStore, &TestEnv{}, &TestMail{}}
+			s := Server{&TestAuth{}, &testStore, &TestEnv{}, &TestMail{}, TestPort}
 
 			// Make request
-			req := httptest.NewRequest(http.MethodGet, PathVerify, nil)
+			req := httptest.NewRequest(http.MethodGet, paths.PathVerify, nil)
 			q := req.URL.Query()
 			q.Add("verifyToken", tc.token)
 			req.URL.RawQuery = q.Encode()

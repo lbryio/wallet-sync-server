@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"lbryio/lbry-id/auth"
+	"lbryio/lbry-id/server/paths"
 	"lbryio/lbry-id/store"
 	"lbryio/lbry-id/wallet"
 )
@@ -168,7 +169,7 @@ func TestServerChangePassword(t *testing.T) {
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 			testStore := TestStore{Errors: tc.storeErrors}
-			s := Server{&TestAuth{}, &testStore, &TestEnv{}, &TestMail{}}
+			s := Server{&TestAuth{}, &testStore, &TestEnv{}, &TestMail{}, TestPort}
 
 			// Whether we passed in wallet fields (these test cases should be passing
 			// in all of them or none of them, so we only test EncryptedWallet). This
@@ -192,7 +193,7 @@ func TestServerChangePassword(t *testing.T) {
         }`, tc.newEncryptedWallet, tc.newSequence, tc.newHmac, tc.email, oldPassword, newPassword, clientSaltSeed),
 			)
 
-			req := httptest.NewRequest(http.MethodPost, PathPassword, bytes.NewBuffer(requestBody))
+			req := httptest.NewRequest(http.MethodPost, paths.PathPassword, bytes.NewBuffer(requestBody))
 			w := httptest.NewRecorder()
 
 			s.changePassword(w, req)

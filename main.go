@@ -26,7 +26,7 @@ func storeInit() (s store.Store) {
 // Output information about the email verification mode so the user can confirm
 // what they set. Also trigger an error on startup if there's a configuration
 // problem.
-func logEmailVerificationMode(e *env.Env) (err error) {
+func logEmailVerificationConfigs(e *env.Env) (err error) {
 	verificationMode, err := env.GetAccountVerificationMode(e)
 	if err != nil {
 		return
@@ -37,7 +37,7 @@ func logEmailVerificationMode(e *env.Env) (err error) {
 	}
 
 	// just to report config errors to the user on startup
-	_, _, err = env.GetMailgunConfigs(e, verificationMode)
+	sendingDomain, serverDomain, _, _, err := env.GetMailgunConfigs(e, verificationMode)
 	if err != nil {
 		return
 	}
@@ -47,17 +47,29 @@ func logEmailVerificationMode(e *env.Env) (err error) {
 	} else {
 		log.Printf("Account verification mode: %s", verificationMode)
 	}
+	if verificationMode == env.AccountVerificationModeEmailVerify {
+		log.Printf("Mailgun domains: %s for sending addresses, %s for links in the email", sendingDomain, serverDomain)
+	}
 	return
 }
 
 func main() {
 	e := env.Env{}
 
-	if err := logEmailVerificationMode(&e); err != nil {
+	if err := logEmailVerificationConfigs(&e); err != nil {
 		log.Fatal(err.Error())
 	}
 
 	store := storeInit()
-	srv := server.Init(&auth.Auth{}, &store, &e, &mail.Mail{})
+
+	// The port that the sync server serves from.
+	internalPort := 8090
+
+	// The port that the webserver (Caddy recommended), which reverse proxies to
+	// the sync server, should use to serve to the outside world. This will be
+	// used for links in emails.
+	externalPort := 8091
+
+	srv := server.Init(&auth.Auth{}, &store, &e, &mail.Mail{externalPort, &e}, internalPort)
 	srv.Serve()
 }

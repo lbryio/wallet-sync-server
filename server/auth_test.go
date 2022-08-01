@@ -11,17 +11,18 @@ import (
 	"testing"
 
 	"lbryio/lbry-id/auth"
+	"lbryio/lbry-id/server/paths"
 	"lbryio/lbry-id/store"
 )
 
 func TestServerAuthHandlerSuccess(t *testing.T) {
 	testAuth := TestAuth{TestNewAuthTokenString: auth.AuthTokenString("seekrit")}
 	testStore := TestStore{}
-	s := Server{&testAuth, &testStore, &TestEnv{}, &TestMail{}}
+	s := Server{&testAuth, &testStore, &TestEnv{}, &TestMail{}, TestPort}
 
 	requestBody := []byte(`{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`)
 
-	req := httptest.NewRequest(http.MethodPost, PathAuthToken, bytes.NewBuffer(requestBody))
+	req := httptest.NewRequest(http.MethodPost, paths.PathAuthToken, bytes.NewBuffer(requestBody))
 	w := httptest.NewRecorder()
 
 	s.getAuthToken(w, req)
@@ -103,12 +104,12 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 			if tc.authFailGenToken { // TODO - TestAuth{Errors:authErrors}
 				testAuth.FailGenToken = true
 			}
-			server := Server{&testAuth, &testStore, &TestEnv{}, &TestMail{}}
+			server := Server{&testAuth, &testStore, &TestEnv{}, &TestMail{}, TestPort}
 
 			// Make request
 			// So long as the JSON is well-formed, the content doesn't matter here since the password check will be stubbed out
 			requestBody := fmt.Sprintf(`{"deviceId": "dev-1", "email": "%s", "password": "123"}`, tc.email)
-			req := httptest.NewRequest(http.MethodPost, PathAuthToken, bytes.NewBuffer([]byte(requestBody)))
+			req := httptest.NewRequest(http.MethodPost, paths.PathAuthToken, bytes.NewBuffer([]byte(requestBody)))
 			w := httptest.NewRecorder()
 
 			server.getAuthToken(w, req)

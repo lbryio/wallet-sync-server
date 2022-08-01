@@ -15,8 +15,14 @@ import (
 // We'll replace this with a config file later.
 const whitelistKey = "ACCOUNT_WHITELIST"
 const verificationModeKey = "ACCOUNT_VERIFICATION_MODE"
-const mailgunDomainKey = "MAILGUN_DOMAIN"
+const mailgunIsDomainEUKey = "MAILGUN_SENDING_DOMAIN_IS_EU"
 const mailgunPrivateAPIKeyKey = "MAILGUN_PRIVATE_API_KEY"
+
+// for the "from" address
+const mailgunSendingDomainKey = "MAILGUN_SENDING_DOMAIN"
+
+// for links in the emails
+const mailgunServerDomainKey = "MAILGUN_SERVER_DOMAIN"
 
 type AccountVerificationMode string
 
@@ -49,8 +55,8 @@ func GetAccountWhitelist(e EnvInterface, mode AccountVerificationMode) (emails [
 	return getAccountWhitelist(e.Getenv(whitelistKey), mode)
 }
 
-func GetMailgunConfigs(e EnvInterface, mode AccountVerificationMode) (domain string, privateAPIKey string, err error) {
-	return getMailgunConfigs(e.Getenv(mailgunDomainKey), e.Getenv(mailgunPrivateAPIKeyKey), mode)
+func GetMailgunConfigs(e EnvInterface, mode AccountVerificationMode) (sendingDomain string, serverDomain string, isDomainEU bool, privateAPIKey string, err error) {
+	return getMailgunConfigs(e.Getenv(mailgunSendingDomainKey), e.Getenv(mailgunServerDomainKey), e.Getenv(mailgunIsDomainEUKey), e.Getenv(mailgunPrivateAPIKeyKey), mode)
 }
 
 // Factor out the guts of the functions so we can test them by just passing in
@@ -101,23 +107,30 @@ func getAccountWhitelist(whitelist string, mode AccountVerificationMode) (emails
 	return emails, nil
 }
 
-func getMailgunConfigs(domain string, privateAPIKey string, mode AccountVerificationMode) (string, string, error) {
-	if mode != AccountVerificationModeEmailVerify && (domain != "" || privateAPIKey != "") {
-		return "", "", fmt.Errorf("Do not specify %s or %s in env if %s is not %s",
-			mailgunDomainKey,
+func getMailgunConfigs(sendingDomain string, serverDomain string, isDomainEUStr string, privateAPIKey string, mode AccountVerificationMode) (string, string, bool, string, error) {
+	if mode != AccountVerificationModeEmailVerify && (sendingDomain != "" || serverDomain != "" || isDomainEUStr != "" || privateAPIKey != "") {
+		return "", "", false, "", fmt.Errorf("Do not specify %s, %s, %s or %s in env if %s is not %s",
+			mailgunSendingDomainKey,
+			mailgunServerDomainKey,
+			mailgunIsDomainEUKey,
 			mailgunPrivateAPIKeyKey,
 			verificationModeKey,
 			AccountVerificationModeEmailVerify,
 		)
 	}
-	if mode == AccountVerificationModeEmailVerify && (domain == "" || privateAPIKey == "") {
-		return "", "", fmt.Errorf("Specify %s and %s in env if %s is %s",
-			mailgunDomainKey,
+	if mode == AccountVerificationModeEmailVerify && (sendingDomain == "" || serverDomain == "" || privateAPIKey == "") {
+		return "", "", false, "", fmt.Errorf("Specify %s, %s and %s in env if %s is %s",
+			mailgunSendingDomainKey,
+			mailgunServerDomainKey,
 			mailgunPrivateAPIKeyKey,
 			verificationModeKey,
 			AccountVerificationModeEmailVerify,
 		)
 	}
 
-	return domain, privateAPIKey, nil
+	if isDomainEUStr != "true" && isDomainEUStr != "false" && isDomainEUStr != "" {
+		return "", "", false, "", fmt.Errorf("%s must be 'true' or 'false'", mailgunIsDomainEUKey)
+	}
+
+	return sendingDomain, serverDomain, isDomainEUStr == "true", privateAPIKey, nil
 }

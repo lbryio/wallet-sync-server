@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"lbryio/lbry-id/auth"
+	"lbryio/lbry-id/server/paths"
 	"lbryio/lbry-id/store"
 	"lbryio/lbry-id/wallet"
 )
@@ -100,7 +101,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	env := map[string]string{
 		"ACCOUNT_WHITELIST": "abc@example.com",
 	}
-	s := Server{&auth.Auth{}, &st, &TestEnv{env}, &TestMail{}}
+	s := Server{&auth.Auth{}, &st, &TestEnv{env}, &TestMail{}, TestPort}
 
 	////////////////////
 	t.Log("Request: Register email address - any device")
@@ -111,7 +112,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 		t,
 		http.MethodPost,
 		s.register,
-		PathRegister,
+		paths.PathRegister,
 		&registerResponse,
 		`{"email": "abc@example.com", "password": "123", "clientSaltSeed": "1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd"}`,
 	)
@@ -127,7 +128,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 		t,
 		http.MethodPost,
 		s.getAuthToken,
-		PathAuthToken,
+		paths.PathAuthToken,
 		&authToken1,
 		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`,
 	)
@@ -155,7 +156,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 		t,
 		http.MethodPost,
 		s.getAuthToken,
-		PathAuthToken,
+		paths.PathAuthToken,
 		&authToken2,
 		`{"deviceId": "dev-2", "email": "abc@example.com", "password": "123"}`,
 	)
@@ -175,7 +176,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 		t,
 		http.MethodPost,
 		s.postWallet,
-		PathWallet,
+		paths.PathWallet,
 		&walletPostResponse,
 		fmt.Sprintf(`{
       "token": "%s",
@@ -196,7 +197,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 		t,
 		http.MethodGet,
 		s.getWallet,
-		fmt.Sprintf("%s?token=%s", PathWallet, authToken2.Token),
+		fmt.Sprintf("%s?token=%s", paths.PathWallet, authToken2.Token),
 		&walletGetResponse,
 		"",
 	)
@@ -221,7 +222,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 		t,
 		http.MethodPost,
 		s.postWallet,
-		PathWallet,
+		paths.PathWallet,
 		&walletPostResponse,
 		fmt.Sprintf(`{
       "token": "%s",
@@ -241,7 +242,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 		t,
 		http.MethodGet,
 		s.getWallet,
-		fmt.Sprintf("%s?token=%s", PathWallet, authToken1.Token),
+		fmt.Sprintf("%s?token=%s", paths.PathWallet, authToken1.Token),
 		&walletGetResponse,
 		"",
 	)
@@ -270,7 +271,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 	env := map[string]string{
 		"ACCOUNT_WHITELIST": "abc@example.com",
 	}
-	s := Server{&auth.Auth{}, &st, &TestEnv{env}, &TestMail{}}
+	s := Server{&auth.Auth{}, &st, &TestEnv{env}, &TestMail{}, TestPort}
 
 	////////////////////
 	t.Log("Request: Register email address")
@@ -281,7 +282,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 		t,
 		http.MethodPost,
 		s.register,
-		PathRegister,
+		paths.PathRegister,
 		&registerResponse,
 		`{"email": "abc@example.com", "password": "123", "clientSaltSeed": "1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd"}`,
 	)
@@ -297,7 +298,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 		t,
 		http.MethodGet,
 		s.getClientSaltSeed,
-		fmt.Sprintf("%s?email=%s", PathClientSaltSeed, base64.StdEncoding.EncodeToString([]byte("abc@example.com"))),
+		fmt.Sprintf("%s?email=%s", paths.PathClientSaltSeed, base64.StdEncoding.EncodeToString([]byte("abc@example.com"))),
 		&clientSaltSeedResponse,
 		"",
 	)
@@ -319,7 +320,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 		t,
 		http.MethodPost,
 		s.getAuthToken,
-		PathAuthToken,
+		paths.PathAuthToken,
 		&authToken,
 		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`,
 	)
@@ -347,7 +348,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 		t,
 		http.MethodPost,
 		s.changePassword,
-		PathPassword,
+		paths.PathPassword,
 		&changePasswordResponse,
 		`{"email": "abc@example.com", "oldPassword": "123", "newPassword": "456", "clientSaltSeed": "8678def95678def98678def95678def98678def95678def98678def95678def9"}`,
 	)
@@ -362,7 +363,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 		t,
 		http.MethodGet,
 		s.getClientSaltSeed,
-		fmt.Sprintf("%s?email=%s", PathClientSaltSeed, base64.StdEncoding.EncodeToString([]byte("abc@example.com"))),
+		fmt.Sprintf("%s?email=%s", paths.PathClientSaltSeed, base64.StdEncoding.EncodeToString([]byte("abc@example.com"))),
 		&clientSaltSeedResponse,
 		"",
 	)
@@ -382,7 +383,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 		t,
 		http.MethodPost,
 		s.postWallet,
-		PathWallet,
+		paths.PathWallet,
 		&walletPostResponse,
 		fmt.Sprintf(`{
       "token": "%s",
@@ -402,7 +403,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 		t,
 		http.MethodPost,
 		s.getAuthToken,
-		PathAuthToken,
+		paths.PathAuthToken,
 		&authToken,
 		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "456"}`,
 	)
@@ -429,7 +430,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 		t,
 		http.MethodPost,
 		s.postWallet,
-		PathWallet,
+		paths.PathWallet,
 		&walletPostResponse,
 		fmt.Sprintf(`{
       "token": "%s",
@@ -449,7 +450,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 		t,
 		http.MethodPost,
 		s.changePassword,
-		PathPassword,
+		paths.PathPassword,
 		&changePasswordResponse,
 		fmt.Sprintf(`{
       "encryptedWallet": "my-encrypted-wallet-2",
@@ -472,7 +473,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 		t,
 		http.MethodGet,
 		s.getClientSaltSeed,
-		fmt.Sprintf("%s?email=%s", PathClientSaltSeed, base64.StdEncoding.EncodeToString([]byte("abc@example.com"))),
+		fmt.Sprintf("%s?email=%s", paths.PathClientSaltSeed, base64.StdEncoding.EncodeToString([]byte("abc@example.com"))),
 		&clientSaltSeedResponse,
 		"",
 	)
@@ -492,7 +493,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 		t,
 		http.MethodGet,
 		s.getWallet,
-		fmt.Sprintf("%s?token=%s", PathWallet, authToken.Token),
+		fmt.Sprintf("%s?token=%s", paths.PathWallet, authToken.Token),
 		&walletGetResponse,
 		"",
 	)
@@ -507,7 +508,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 		t,
 		http.MethodPost,
 		s.getAuthToken,
-		PathAuthToken,
+		paths.PathAuthToken,
 		&authToken,
 		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "789"}`,
 	)
@@ -534,7 +535,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 		t,
 		http.MethodGet,
 		s.getWallet,
-		fmt.Sprintf("%s?token=%s", PathWallet, authToken.Token),
+		fmt.Sprintf("%s?token=%s", paths.PathWallet, authToken.Token),
 		&walletGetResponse,
 		"",
 	)
@@ -561,7 +562,7 @@ func TestIntegrationVerifyAccount(t *testing.T) {
 		"ACCOUNT_VERIFICATION_MODE": "EmailVerify",
 	}
 	testMail := TestMail{}
-	s := Server{&auth.Auth{}, &st, &TestEnv{env}, &testMail}
+	s := Server{&auth.Auth{}, &st, &TestEnv{env}, &testMail, TestPort}
 
 	////////////////////
 	t.Log("Request: Register email address")
@@ -572,7 +573,7 @@ func TestIntegrationVerifyAccount(t *testing.T) {
 		t,
 		http.MethodPost,
 		s.register,
-		PathRegister,
+		paths.PathRegister,
 		&registerResponse,
 		`{"email": "abc@example.com", "password": "123", "clientSaltSeed": "1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd"}`,
 	)
@@ -594,7 +595,7 @@ func TestIntegrationVerifyAccount(t *testing.T) {
 		t,
 		http.MethodPost,
 		s.resendVerifyEmail,
-		PathResendVerify,
+		paths.PathResendVerify,
 		&resendVerifyResponse,
 		`{"email": "abc@example.com"}`,
 	)
@@ -616,7 +617,7 @@ func TestIntegrationVerifyAccount(t *testing.T) {
 		t,
 		http.MethodPost,
 		s.getAuthToken,
-		PathAuthToken,
+		paths.PathAuthToken,
 		&authToken,
 		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`,
 	)
@@ -631,7 +632,7 @@ func TestIntegrationVerifyAccount(t *testing.T) {
 		t,
 		http.MethodGet,
 		s.verify,
-		PathVerify+"?verifyToken="+string(testMail.SendVerificationEmailCall.Token),
+		paths.PathVerify+"?verifyToken="+string(testMail.SendVerificationEmailCall.Token),
 		nil,
 		``,
 	)
@@ -649,7 +650,7 @@ func TestIntegrationVerifyAccount(t *testing.T) {
 		t,
 		http.MethodPost,
 		s.getAuthToken,
-		PathAuthToken,
+		paths.PathAuthToken,
 		&authToken,
 		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`,
 	)
