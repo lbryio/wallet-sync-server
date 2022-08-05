@@ -118,18 +118,18 @@ func TestMailgunConfigs(t *testing.T) {
 	tt := []struct {
 		name string
 
-		domain     string
+		domain        string
 		privateAPIKey string
-		mode       AccountVerificationMode
+		mode          AccountVerificationMode
 
 		expectErr bool
 	}{
 		{
-			name:       "success",
-			mode:       AccountVerificationModeEmailVerify,
-			domain:     "www.example.com",
+			name:          "success",
+			mode:          AccountVerificationModeEmailVerify,
+			domain:        "www.example.com",
 			privateAPIKey: "my-private-api-key",
-			expectErr:  false,
+			expectErr:     false,
 		},
 		{
 			name:      "wrong mode with domain",
@@ -138,16 +138,16 @@ func TestMailgunConfigs(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			name:       "wrong mode with private api key",
-			mode:       AccountVerificationModeWhitelist,
+			name:          "wrong mode with private api key",
+			mode:          AccountVerificationModeWhitelist,
 			privateAPIKey: "my-private-api-key",
-			expectErr:  true,
+			expectErr:     true,
 		},
 		{
-			name:       "missing domain",
-			mode:       AccountVerificationModeEmailVerify,
+			name:          "missing domain",
+			mode:          AccountVerificationModeEmailVerify,
 			privateAPIKey: "my-private-api-key",
-			expectErr:  true,
+			expectErr:     true,
 		},
 		{
 			name:      "missing private api key",

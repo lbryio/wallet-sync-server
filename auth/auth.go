@@ -81,13 +81,21 @@ func (at *AuthToken) ScopeValid(required AuthScope) bool {
 const ServerSaltLength = 16
 const ClientSaltSeedLength = 32
 
+const passwordScryptN = 1 << 15
+const passwordScryptR = 8
+const passwordScryptP = 1
+const passwordScryptKeyLen = 32
+
 // https://words.filippo.io/the-scrypt-parameters/
 func passwordScrypt(p Password, saltBytes []byte) ([]byte, error) {
-	scryptN := 32768
-	scryptR := 8
-	scryptP := 1
-	keyLen := 32
-	return scrypt.Key([]byte(p), saltBytes, scryptN, scryptR, scryptP, keyLen)
+	return scrypt.Key(
+		[]byte(p),
+		saltBytes,
+		passwordScryptN,
+		passwordScryptR,
+		passwordScryptP,
+		passwordScryptKeyLen,
+	)
 }
 
 // Given a password (in the same format submitted via request), generate a
