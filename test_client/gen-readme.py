@@ -1,3 +1,5 @@
+#!/bin/python3
+
 # Generate the README since I want real behavior interspersed with comments
 # Come to think of it, this is accidentally a pretty okay integration test for client and server
 # NOTE - delete the database before running this, or else you'll get an error for registering. also we want the wallet to start empty

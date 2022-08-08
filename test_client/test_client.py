@@ -248,7 +248,7 @@ def derive_secrets(root_password, email, salt_seed):
     scrypt_p = 1
 
     key_length = 32
-    num_keys = 3
+    num_keys = 2
 
     salt = generate_salt(email, salt_seed)
 
@@ -268,14 +268,12 @@ def derive_secrets(root_password, email, salt_seed):
     parts = (
       kdf_output[:key_length],
       kdf_output[key_length:key_length * 2],
-      kdf_output[key_length * 2:],
     )
 
     lbry_id_password = base64.b64encode(parts[0]).decode('utf-8')
-    sync_password = base64.b64encode(parts[1]).decode('utf-8')
-    hmac_key = parts[2]
+    hmac_key = parts[1]
 
-    return lbry_id_password, sync_password, hmac_key
+    return lbry_id_password, hmac_key
 
 def create_hmac(wallet_state, hmac_key):
     input_str = str(wallet_state.sequence) + ':' + wallet_state.encrypted_wallet
@@ -324,7 +322,7 @@ class Client():
     # be a new seed if it's a new server.
 
     self.salt_seed = generate_salt_seed()
-    self.lbry_id_password, self.sync_password, self.hmac_key = derive_secrets(
+    self.lbry_id_password, self.hmac_key = derive_secrets(
       self.root_password, self.email, self.salt_seed)
 
     success = self.wallet_sync_api.register(
@@ -350,7 +348,7 @@ class Client():
     locally.
     """
     self.salt_seed = self.wallet_sync_api.get_salt_seed(self.email)
-    self.lbry_id_password, self.sync_password, self.hmac_key = derive_secrets(
+    self.lbry_id_password, self.hmac_key = derive_secrets(
       self.root_password, self.email, self.salt_seed)
 
   # TODO - This does not deal with the question of tying accounts to wallets.
@@ -495,7 +493,7 @@ class Client():
       return "Error"
 
     submitted_wallet_state = WalletState(
-      encrypted_wallet=self.get_local_encrypted_wallet(self.sync_password),
+      encrypted_wallet=self.get_local_encrypted_wallet(self.root_password),
       sequence=self.synced_wallet_state.sequence + 1
     )
     hmac = create_hmac(submitted_wallet_state, self.hmac_key)
@@ -525,8 +523,14 @@ class Client():
 
     # Auditor - Should we be generating a *new* seed for every password change?
     self.salt_seed = generate_salt_seed()
-    new_lbry_id_password, new_sync_password, new_hmac_key = derive_secrets(
+    new_lbry_id_password, new_hmac_key = derive_secrets(
       new_root_password, self.email, self.salt_seed)
+    def set_secrets():
+      # Only do this once we got a good response from the server.
+      # In a function because it can happen in two different places.
+      self.root_password, self.lbry_id_password, self.hmac_key = (
+        new_root_password, new_lbry_id_password, new_hmac_key)
+
     # TODO - Think of failure sequence in case of who knows what. We
     # could just get the old salt seed back from the server?
     # We can't lose it though. Keep the old one around? Kinda sucks.
@@ -553,7 +557,7 @@ class Client():
       # accepted by the server.
 
       submitted_wallet_state = WalletState(
-        encrypted_wallet=self.get_local_encrypted_wallet(new_sync_password),
+        encrypted_wallet=self.get_local_encrypted_wallet(new_root_password),
         sequence=self.synced_wallet_state.sequence + 1
       )
       hmac = create_hmac(submitted_wallet_state, new_hmac_key)
@@ -562,9 +566,9 @@ class Client():
       updated = self.wallet_sync_api.change_password_with_wallet(submitted_wallet_state, hmac, self.email, self.lbry_id_password, new_lbry_id_password, self.salt_seed)
 
       if updated:
-        # We updated it. Now it's synced and we mark it as such. Update everything in one command to keep local changes in sync!
-        self.synced_wallet_state, self.lbry_id_password, self.sync_password, self.hmac_key = (
-          submitted_wallet_state, new_lbry_id_password, new_sync_password, new_hmac_key)
+        # We updated it. Now it's synced and we mark it as such. Update everything at once to keep local changes in sync!
+        self.synced_wallet_state = submitted_wallet_state
+        set_secrets()
 
         print ("Synced walletState:")
         pprint(self.synced_wallet_state)
@@ -574,9 +578,8 @@ class Client():
       updated = self.wallet_sync_api.change_password_no_wallet(self.email, self.lbry_id_password, new_lbry_id_password, self.salt_seed)
 
       if updated:
-        # We updated it. Now we mark it as such. Update everything in one command to keep local changes in sync!
-        self.lbry_id_password, self.sync_password, self.hmac_key = (
-          new_lbry_id_password, new_sync_password, new_hmac_key)
+        # We updated it. Now we mark it as such. Update everything at once to keep local changes in sync!
+        set_secrets()
         return "Success"
 
     print ("Could not update wallet and password. Perhaps need to get new wallet and merge, perhaps something else.")
@@ -603,7 +606,7 @@ class Client():
 
   def update_local_encrypted_wallet(self, encrypted_wallet):
     # TODO - error checking
-    return LBRYSDK.update_wallet(self.wallet_id, self.sync_password, encrypted_wallet)
+    return LBRYSDK.update_wallet(self.wallet_id, self.root_password, encrypted_wallet)
 
   def get_local_encrypted_wallet(self, sync_password):
     # TODO - error checking
