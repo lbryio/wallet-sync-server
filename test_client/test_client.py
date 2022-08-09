@@ -609,5 +609,15 @@ class Client():
     return LBRYSDK.update_wallet(self.wallet_id, self.root_password, encrypted_wallet)
 
   def get_local_encrypted_wallet(self, sync_password):
+    # Note for auditor: sync_password here is now the root_password. The SDK
+    # has its own KDF (though with different Scrypt parameters as of this
+    # writing). So in all:
+    # root password -> APP KDF -> (HMAC, wallet sync server password)
+    # root password -> SDK KDF -> (wallet encryption for remote storage, wallet "locking" (encryption) for local storage)
+    # The App uses the Salt Seed system from Standard Notes, the SDK creates a
+    # random salt every encryption. So (for now) we're not sharing salts
+    # between the KDFs. The question is, is it safe to use the same root
+    # password on two two different KDFs like this?
+
     # TODO - error checking
     return LBRYSDK.get_wallet(self.wallet_id, sync_password)
