@@ -339,9 +339,9 @@ class Client():
     """
     # TODO - is UTF-8 appropriate for root_password? based on characters used etc.
     self.root_password = root_password
-    self.update_secrets()
+    self.update_derived_secrets()
 
-  def update_secrets(self):
+  def update_derived_secrets(self):
     """
     For clients other than the one that most recently registered or changed the
     password, use this to get the salt seed from the server and generate keys
@@ -404,9 +404,9 @@ class Client():
     if not token:
       # In a real client, this is where you may consider
       # a) Offering to have the user change their password
-      # b) Try update_secrets() and get_auth_token() silently, for the unlikely case that the user changed their password back and forth
+      # b) Try update_derived_secrets() and get_auth_token() silently, for the unlikely case that the user changed their password back and forth
       print ("Failed to get the auth token. Do you need to update this client's password (set_local_password())?")
-      print ("Or, in the off-chance the user changed their password back and forth, try updating secrets (update_secrets()) to get the latest salt seed.")
+      print ("Or, in the off-chance the user changed their password back and forth, try updating secrets (update_derived_secrets()) to get the latest salt seed.")
       return
     self.auth_token = token
     print ("Got auth token: ", self.auth_token)

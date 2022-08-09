@@ -30,7 +30,7 @@ Registered
 Set up the other client. See that it got the same salt seed from the server in the process, which it needs to make sure we have the correct encryption key and login password.
 
 ```
->>> c2.update_secrets()
+>>> c2.update_derived_secrets()
 Generating keys...
 Done generating keys
 >>> c2.salt_seed
@@ -276,7 +276,7 @@ Got auth token:  68a3db244e21709429e69e67352d02a3b26542c5ef2ac3377e19b17de71942d
 Error 401
 b'{"error":"Unauthorized: No match for email and/or password"}\n'
 Failed to get the auth token. Do you need to update this client's password (set_local_password())?
-Or, in the off-chance the user changed their password back and forth, try updating secrets (update_secrets()) to get the latest salt seed.
+Or, in the off-chance the user changed their password back and forth, try updating secrets (update_derived_secrets()) to get the latest salt seed.
 >>> c2.set_local_password("eggsandwich")
 Generating keys...
 Done generating keys

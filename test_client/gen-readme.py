@@ -62,7 +62,7 @@ Set up the other client. See that it got the same salt seed from the server in t
 """)
 
 code_block("""
-c2.update_secrets()
+c2.update_derived_secrets()
 c2.salt_seed
 """)
 
