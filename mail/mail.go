@@ -23,8 +23,7 @@ type MailInterface interface {
 }
 
 type Mail struct {
-	ServerPort int
-	Env        env.EnvInterface
+	Env env.EnvInterface
 }
 
 // Split out everything I can to make it testable. Right now
@@ -58,7 +57,7 @@ func (m *Mail) prepareMessage(token auth.VerifyTokenString) (
 
 	sender = fmt.Sprintf("wallet-sync@%s", sendingDomain)
 	subject = fmt.Sprintf("Verify your wallet sync account on %s", serverDomain)
-	url := fmt.Sprintf("https://%s:%d%s?verifyToken=%s", serverDomain, m.ServerPort, paths.PathVerify, token)
+	url := fmt.Sprintf("https://%s%s?verifyToken=%s", serverDomain, paths.PathVerify, token)
 
 	text = fmt.Sprintf("Click here to verify your account:\n\n%s", url)
 	html = fmt.Sprintf("Click here to verify your account:\n\n<a href=\"%s\">%s</a>", url, url)

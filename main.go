@@ -65,11 +65,6 @@ func main() {
 	// The port that the sync server serves from.
 	internalPort := 8090
 
-	// The port that the webserver (Caddy recommended), which reverse proxies to
-	// the sync server, should use to serve to the outside world. This will be
-	// used for links in emails.
-	externalPort := 8091
-
-	srv := server.Init(&auth.Auth{}, &store, &e, &mail.Mail{externalPort, &e}, internalPort)
+	srv := server.Init(&auth.Auth{}, &store, &e, &mail.Mail{&e}, internalPort)
 	srv.Serve()
 }

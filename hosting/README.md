@@ -4,14 +4,14 @@ Install the latest version of golang. Check out this repository, and run `go bui
 
 Insteall the [caddy web server](https://caddyserver.com/). The website has its own debian repos. You can also install from source (golang). Which ever (if either) you feel comfortable with. No specific recommendations here.
 
-You'll need to adjust your firewall to allow http (port 80) for caddy to obtain an SSL cert via ACME (ZeroSSL or LetsEncrypt) and also allow the port you set to have caddy serve on (we use 8091, but it probably also be 80). If you use `ufw`:
+You'll need to adjust your firewall to allow http (port 80) for caddy to obtain an SSL cert via ACME (ZeroSSL or LetsEncrypt) and also allow https (port 443) to have caddy serve our wallet sync server. If you use `ufw`:
 
 ```
 sudo ufw allow http
-sudo ufw allow 8091
+sudo ufw allow https
 ```
 
-To avoid running Caddy as root, you'll need to allow it to serve from port 80 ([see here](https://superuser.com/a/892391)):
+To avoid running Caddy as root, you'll need to allow it to serve from ports 80 and 443 ([see here](https://superuser.com/a/892391)):
 
 ```
 sudo setcap 'cap_net_bind_service=+ep' /home/lbry/caddy/cmd/caddy/caddy

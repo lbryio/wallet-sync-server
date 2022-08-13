@@ -74,7 +74,7 @@ class WalletSync():
     if local:
       BASE_URL = 'http://localhost:8090'
     else:
-      BASE_URL = 'https://dev.lbry.id:8091'
+      BASE_URL = 'https://dev.lbry.id'
 
     # Avoid confusion. I sometimes forget, at any rate.
     print ("Connecting to Wallet API at " + BASE_URL)
