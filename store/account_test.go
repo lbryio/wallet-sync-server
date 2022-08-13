@@ -131,6 +131,37 @@ func TestStoreCreateAccount(t *testing.T) {
 	expectAccountMatch(t, &s, normEmail, email, password, seed, "", nil)
 }
 
+// Test that I can call CreateAccount twice
+// Try CreateAccount twice with different emails and different password, succeed both times
+// This is in response to https://github.com/lbryio/wallet-sync-server/issues/13
+func TestStoreCreateTwoAccounts(t *testing.T) {
+	s, sqliteTmpFile := StoreTestInit(t)
+	defer StoreTestCleanup(sqliteTmpFile)
+
+	email, normEmail := auth.Email("Abc@Example.Com"), auth.NormalizedEmail("abc@example.com")
+	password, seed := auth.Password("123"), auth.ClientSaltSeed("abcd1234abcd1234")
+
+	// Create an account. Make it verified (i.e. no token) for the usual
+	// case. We'll test unverified (with token) separately.
+	if err := s.CreateAccount(email, password, seed, ""); err != nil {
+		t.Fatalf("Unexpected error in CreateAccount: %+v", err)
+	}
+
+	email, normEmail = auth.Email("Abc2@Example.Com"), auth.NormalizedEmail("abc2@example.com")
+	password, seed = auth.Password("123"), auth.ClientSaltSeed("abcd1234abcd1234")
+
+	// Create another account. Don't care if it has the same password as the first one.
+	// Make it verified (i.e. no token) for the usual
+	// case. We'll test unverified (with token) separately.
+	if err := s.CreateAccount(email, password, seed, ""); err != nil {
+		t.Fatalf("Unexpected error in CreateAccount: %+v", err)
+	}
+
+	// Get and confirm the account we just put in
+	expectAccountMatch(t, &s, normEmail, email, password, seed, "", nil)
+
+}
+
 // Try CreateAccount with a verification string, thus unverified
 func TestStoreCreateAccountUnverified(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)

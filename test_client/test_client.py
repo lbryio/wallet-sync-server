@@ -87,6 +87,9 @@ class WalletSync():
     self.WALLET_URL = API_URL + '/wallet'
     self.CLIENT_SALT_SEED_URL = API_URL + '/client-salt-seed'
 
+  # def resend_registration_email():
+  # also rename this to __init__.py later
+
   def register(self, email, password, salt_seed):
     body = json.dumps({
       'email': email,
