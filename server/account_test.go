@@ -243,7 +243,7 @@ func TestServerRegisterAccountVerification(t *testing.T) {
 				if testStore.Called.CreateAccount == nil {
 					t.Fatalf("Expected CreateAccount to be called")
 				}
-				tokenPassedIn := testStore.Called.CreateAccount.VerifyToken != ""
+				tokenPassedIn := testStore.Called.CreateAccount.VerifyToken != nil
 				if tc.expectedVerified && tokenPassedIn {
 					t.Errorf("Expected new account to be verified, thus expected verifyToken *not to be passed in* to call to CreateAccount.")
 				}

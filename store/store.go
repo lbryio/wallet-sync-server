@@ -46,7 +46,7 @@ type StoreInterface interface {
 	SetWallet(auth.UserId, wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac) error
 	GetWallet(auth.UserId) (wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac, error)
 	GetUserId(auth.Email, auth.Password) (auth.UserId, error)
-	CreateAccount(auth.Email, auth.Password, auth.ClientSaltSeed, auth.VerifyTokenString) error
+	CreateAccount(auth.Email, auth.Password, auth.ClientSaltSeed, *auth.VerifyTokenString) error
 	UpdateVerifyTokenString(auth.Email, auth.VerifyTokenString) error
 	VerifyAccount(auth.VerifyTokenString) error
 	ChangePasswordWithWallet(auth.Email, auth.Password, auth.Password, auth.ClientSaltSeed, wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac) error
@@ -125,7 +125,13 @@ func (s *Store) Migrate() error {
 			key TEXT NOT NULL,
 			client_salt_seed TEXT NOT NULL,
 			server_salt TEXT NOT NULL,
-			verify_token TEXT NOT NULL UNIQUE, -- will query by token when verifying
+
+			-- UNIQUE because we will query by token when verifying
+			--
+			-- Nullable because we want to use null to represent verified users. We can't use empty string
+			-- because multiple accounts with empty string will trigger the unique constraint, unlike null.
+			verify_token TEXT UNIQUE,
+
 			verify_expiration DATETIME,
 			user_id INTEGER PRIMARY KEY AUTOINCREMENT,
 			CHECK (
@@ -358,7 +364,7 @@ func (s *Store) GetUserId(email auth.Email, password auth.Password) (userId auth
 	var verified bool
 
 	err = s.db.QueryRow(
-		`SELECT user_id, key, server_salt, verify_token="" from accounts WHERE normalized_email=?`,
+		`SELECT user_id, key, server_salt, verify_token is null from accounts WHERE normalized_email=?`,
 		email.Normalize(),
 	).Scan(&userId, &key, &salt, &verified)
 	if err == sql.ErrNoRows {
@@ -383,14 +389,14 @@ func (s *Store) GetUserId(email auth.Email, password auth.Password) (userId auth
 // Account //
 /////////////
 
-func (s *Store) CreateAccount(email auth.Email, password auth.Password, seed auth.ClientSaltSeed, verifyToken auth.VerifyTokenString) (err error) {
+func (s *Store) CreateAccount(email auth.Email, password auth.Password, seed auth.ClientSaltSeed, verifyToken *auth.VerifyTokenString) (err error) {
 	key, salt, err := password.Create()
 	if err != nil {
 		return
 	}
 
 	var verifyExpiration *time.Time
-	if len(verifyToken) > 0 {
+	if verifyToken != nil {
 		verifyExpiration = new(time.Time)
 		*verifyExpiration = time.Now().UTC().Add(VerifyTokenLifespan)
 	}
@@ -420,7 +426,7 @@ func (s *Store) UpdateVerifyTokenString(email auth.Email, verifyTokenString auth
 	expiration := time.Now().UTC().Add(VerifyTokenLifespan)
 
 	res, err := s.db.Exec(
-		`UPDATE accounts SET verify_token=?, verify_expiration=? WHERE normalized_email=? and verify_token!=""`,
+		`UPDATE accounts SET verify_token=?, verify_expiration=? WHERE normalized_email=? and verify_token is not null`,
 		verifyTokenString, expiration, email.Normalize(),
 	)
 	if err != nil {
@@ -451,8 +457,8 @@ func (s *Store) UpdateVerifyTokenString(email auth.Email, verifyTokenString auth
 
 func (s *Store) VerifyAccount(verifyTokenString auth.VerifyTokenString) (err error) {
 	res, err := s.db.Exec(
-		"UPDATE accounts SET verify_token=?, verify_expiration=? WHERE verify_token=?",
-		"", nil, verifyTokenString,
+		"UPDATE accounts SET verify_token=null, verify_expiration=null WHERE verify_token=?",
+		verifyTokenString,
 	)
 	if err != nil {
 		return
@@ -553,7 +559,7 @@ func (s *Store) changePassword(
 	var verified bool
 
 	err = tx.QueryRow(
-		`SELECT user_id, key, server_salt, verify_token="" from accounts WHERE normalized_email=?`,
+		`SELECT user_id, key, server_salt, verify_token is null from accounts WHERE normalized_email=?`,
 		email.Normalize(),
 	).Scan(&userId, &oldKey, &oldSalt, &verified)
 	if err == sql.ErrNoRows {

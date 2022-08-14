@@ -54,7 +54,7 @@ func (s *Server) register(w http.ResponseWriter, req *http.Request) {
 
 	var registerResponse RegisterResponse
 
-	var token auth.VerifyTokenString
+	var token *auth.VerifyTokenString
 
 modes:
 	switch verificationMode {
@@ -78,7 +78,8 @@ modes:
 	case env.AccountVerificationModeEmailVerify:
 		// Not verified until they click their email link.
 		registerResponse.Verified = false
-		token, err = s.auth.NewVerifyTokenString()
+		newToken, err := s.auth.NewVerifyTokenString()
+		token = &newToken
 
 		if err != nil {
 			internalServiceErrorJson(w, err, "Error generating verify token string")
@@ -102,8 +103,8 @@ modes:
 		return
 	}
 
-	if len(token) > 0 {
-		err = s.mail.SendVerificationEmail(registerRequest.Email, token)
+	if token != nil {
+		err = s.mail.SendVerificationEmail(registerRequest.Email, *token)
 	}
 
 	if err != nil {

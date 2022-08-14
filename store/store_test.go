@@ -37,7 +37,7 @@ func StoreTestCleanup(tmpFile *os.File) {
 func makeTestUser(
 	t *testing.T,
 	s *Store,
-	verifyToken auth.VerifyTokenString,
+	verifyToken *auth.VerifyTokenString,
 	verifyExpiration *time.Time,
 ) (userId auth.UserId, email auth.Email, password auth.Password, seed auth.ClientSaltSeed) {
 	// email with caps to trigger possible problems

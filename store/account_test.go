@@ -18,14 +18,14 @@ func expectAccountMatch(
 	expectedEmail auth.Email,
 	password auth.Password,
 	seed auth.ClientSaltSeed,
-	expectedVerifyTokenString auth.VerifyTokenString,
+	expectedVerifyTokenString *auth.VerifyTokenString,
 	approxVerifyExpiration *time.Time,
 ) {
 	var key auth.KDFKey
 	var salt auth.ServerSalt
 	var email auth.Email
 	var verifyExpiration *time.Time
-	var verifyTokenString auth.VerifyTokenString
+	var verifyTokenString *auth.VerifyTokenString
 
 	err := s.db.QueryRow(
 		`SELECT key, server_salt, email, verify_token, verify_expiration from accounts WHERE normalized_email=? AND client_salt_seed=?`,
@@ -47,12 +47,22 @@ func expectAccountMatch(
 		t.Fatalf("Email case not as expected. Want: %s Got: %s", email, expectedEmail)
 	}
 
-	if verifyTokenString != expectedVerifyTokenString {
+	if (verifyTokenString == nil) != (expectedVerifyTokenString == nil) {
 		t.Fatalf(
-			"Verify token string not as expected. Want: %s Got: %s",
-			expectedVerifyTokenString,
-			verifyTokenString,
+			"Verify token string nil-ness not as expected. Want: %v Got: %v",
+			expectedVerifyTokenString == nil,
+			verifyTokenString == nil,
 		)
+	}
+
+	if expectedVerifyTokenString != nil {
+		if *verifyTokenString != *expectedVerifyTokenString {
+			t.Fatalf(
+				"Verify token string not as expected. Want: %s Got: %s",
+				*expectedVerifyTokenString,
+				*verifyTokenString,
+			)
+		}
 	}
 
 	if approxVerifyExpiration != nil {
@@ -104,18 +114,18 @@ func TestStoreCreateAccount(t *testing.T) {
 
 	// Create an account. Make it verified (i.e. no token) for the usual
 	// case. We'll test unverified (with token) separately.
-	if err := s.CreateAccount(email, password, seed, ""); err != nil {
+	if err := s.CreateAccount(email, password, seed, nil); err != nil {
 		t.Fatalf("Unexpected error in CreateAccount: %+v", err)
 	}
 
 	// Get and confirm the account we just put in
-	expectAccountMatch(t, &s, normEmail, email, password, seed, "", nil)
+	expectAccountMatch(t, &s, normEmail, email, password, seed, nil, nil)
 
 	newPassword := auth.Password("xyz")
 
 	// Try to create a new account with the same email and different password,
 	// fail because email already exists
-	if err := s.CreateAccount(email, newPassword, seed, ""); err != ErrDuplicateAccount {
+	if err := s.CreateAccount(email, newPassword, seed, nil); err != ErrDuplicateAccount {
 		t.Fatalf(`CreateAccount err: wanted "%+v", got "%+v"`, ErrDuplicateAccount, err)
 	}
 
@@ -123,43 +133,79 @@ func TestStoreCreateAccount(t *testing.T) {
 
 	// Try to create a new account with the same email different capitalization.
 	// fail because email already exists
-	if err := s.CreateAccount(differentCaseEmail, password, seed, ""); err != ErrDuplicateAccount {
+	if err := s.CreateAccount(differentCaseEmail, password, seed, nil); err != ErrDuplicateAccount {
 		t.Fatalf(`CreateAccount err (for case insensitivity check): wanted "%+v", got "%+v"`, ErrDuplicateAccount, err)
 	}
 
 	// Get the email and same *first* password we successfully put in
-	expectAccountMatch(t, &s, normEmail, email, password, seed, "", nil)
+	expectAccountMatch(t, &s, normEmail, email, password, seed, nil, nil)
 }
 
-// Test that I can call CreateAccount twice
-// Try CreateAccount twice with different emails and different password, succeed both times
-// This is in response to https://github.com/lbryio/wallet-sync-server/issues/13
-func TestStoreCreateTwoAccounts(t *testing.T) {
+// Test that I can use CreateAccount twice for different emails with no veriy token
+// This is related to https://github.com/lbryio/wallet-sync-server/issues/13
+func TestStoreCreateAccountTwoVerifiedSucceed(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	email, normEmail := auth.Email("Abc@Example.Com"), auth.NormalizedEmail("abc@example.com")
-	password, seed := auth.Password("123"), auth.ClientSaltSeed("abcd1234abcd1234")
+	email1, normEmail1 := auth.Email("Abc@Example.Com"), auth.NormalizedEmail("abc@example.com")
+	password1, seed1 := auth.Password("123"), auth.ClientSaltSeed("abcd1234abcd1234")
 
-	// Create an account. Make it verified (i.e. no token) for the usual
+	email2, normEmail2 := auth.Email("Abc2@Example.Com"), auth.NormalizedEmail("abc2@example.com")
+	password2, seed2 := auth.Password("123"), auth.ClientSaltSeed("abcd1234abcd1234")
+
+	// Create a couple accounts. Don't care if they have the same password.
+	// Make them verified (i.e. no token) for the usual
 	// case. We'll test unverified (with token) separately.
-	if err := s.CreateAccount(email, password, seed, ""); err != nil {
+	if err := s.CreateAccount(email1, password1, seed1, nil); err != nil {
 		t.Fatalf("Unexpected error in CreateAccount: %+v", err)
 	}
 
-	email, normEmail = auth.Email("Abc2@Example.Com"), auth.NormalizedEmail("abc2@example.com")
-	password, seed = auth.Password("123"), auth.ClientSaltSeed("abcd1234abcd1234")
-
-	// Create another account. Don't care if it has the same password as the first one.
-	// Make it verified (i.e. no token) for the usual
-	// case. We'll test unverified (with token) separately.
-	if err := s.CreateAccount(email, password, seed, ""); err != nil {
+	if err := s.CreateAccount(email2, password2, seed2, nil); err != nil {
 		t.Fatalf("Unexpected error in CreateAccount: %+v", err)
 	}
 
-	// Get and confirm the account we just put in
-	expectAccountMatch(t, &s, normEmail, email, password, seed, "", nil)
+	// Get and confirm the accounts we just put in
+	expectAccountMatch(t, &s, normEmail1, email1, password1, seed1, nil, nil)
+	expectAccountMatch(t, &s, normEmail2, email2, password2, seed2, nil, nil)
+}
 
+// Test that I cannot use CreateAccount twice with the same verify token, but
+//   I can with different verify tokens
+// This is related to https://github.com/lbryio/wallet-sync-server/issues/13
+func TestStoreCreateAccountTwoSameVerfiyTokenFail(t *testing.T) {
+	s, sqliteTmpFile := StoreTestInit(t)
+	defer StoreTestCleanup(sqliteTmpFile)
+
+	email1, normEmail1 := auth.Email("Abc@Example.Com"), auth.NormalizedEmail("abc@example.com")
+	password1, seed1 := auth.Password("123"), auth.ClientSaltSeed("abcd1234abcd1234")
+	verifyToken1 := auth.VerifyTokenString("abcd1234abcd1234abcd1234abcd1234")
+
+	email2, normEmail2 := auth.Email("Abc2@Example.Com"), auth.NormalizedEmail("abc2@example.com")
+	password2, seed2 := auth.Password("xyz"), auth.ClientSaltSeed("abcd1234abcd1234")
+	verifyToken2 := auth.VerifyTokenString("00001234abcd1234abcd123400000000")
+
+	// Create the first account
+	if err := s.CreateAccount(email1, password1, seed1, &verifyToken1); err != nil {
+		t.Fatalf("Unexpected error in CreateAccount: %+v", err)
+	}
+
+	// Try to create the second account with the same verify token, fail
+	if err := s.CreateAccount(email2, password2, seed2, &verifyToken1); err != ErrDuplicateAccount {
+		t.Fatalf(`CreateAccount err: wanted "%+v", got "%+v"`, ErrDuplicateAccount, err)
+	}
+
+	// Confirm that it didn't save
+	expectAccountNotExists(t, &s, normEmail2)
+
+	// Create the second account with a different verify token
+	if err := s.CreateAccount(email2, password2, seed2, &verifyToken2); err != nil {
+		t.Fatalf("Unexpected error in CreateAccount: %+v", err)
+	}
+
+	// Get and confirm the accounts we just put in
+	approxVerifyExpiration := time.Now().Add(time.Hour * 24 * 2).UTC()
+	expectAccountMatch(t, &s, normEmail1, email1, password1, seed1, &verifyToken1, &approxVerifyExpiration)
+	expectAccountMatch(t, &s, normEmail2, email2, password2, seed2, &verifyToken2, &approxVerifyExpiration)
 }
 
 // Try CreateAccount with a verification string, thus unverified
@@ -171,13 +217,14 @@ func TestStoreCreateAccountUnverified(t *testing.T) {
 	password, seed := auth.Password("123"), auth.ClientSaltSeed("abcd1234abcd1234")
 
 	// Create an account
-	if err := s.CreateAccount(email, password, seed, "abcd1234abcd1234abcd1234abcd1234"); err != nil {
+	verifyToken := auth.VerifyTokenString("abcd1234abcd1234abcd1234abcd1234")
+	if err := s.CreateAccount(email, password, seed, &verifyToken); err != nil {
 		t.Fatalf("Unexpected error in CreateAccount: %+v", err)
 	}
 
 	// Get and confirm the account we just put in
 	approxVerifyExpiration := time.Now().Add(time.Hour * 24 * 2).UTC()
-	expectAccountMatch(t, &s, normEmail, email, password, seed, "abcd1234abcd1234abcd1234abcd1234", &approxVerifyExpiration)
+	expectAccountMatch(t, &s, normEmail, email, password, seed, &verifyToken, &approxVerifyExpiration)
 }
 
 // Test GetUserId for nonexisting email
@@ -197,7 +244,7 @@ func TestStoreGetUserIdAccountExists(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	createdUserId, email, password, _ := makeTestUser(t, &s, "", nil)
+	createdUserId, email, password, _ := makeTestUser(t, &s, nil, nil)
 
 	// Check that the userId is correct for the email, irrespective of the case of
 	// the characters in the email.
@@ -225,7 +272,8 @@ func TestStoreGetUserIdAccountUnverified(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	_, email, password, _ := makeTestUser(t, &s, "abcd1234abcd1234abcd1234abcd1234", &time.Time{})
+	verifyToken := auth.VerifyTokenString("abcd1234abcd1234abcd1234abcd1234")
+	_, email, password, _ := makeTestUser(t, &s, &verifyToken, &time.Time{})
 
 	// Check that it won't return if the account is unverified
 	if userId, err := s.GetUserId(email, password); err != ErrNotVerified || userId != 0 {
@@ -264,7 +312,7 @@ func TestStoreAccountEmptyFields(t *testing.T) {
 
 			var sqliteErr sqlite3.Error
 
-			err := s.CreateAccount(tc.email, tc.password, tc.clientSaltSeed, "")
+			err := s.CreateAccount(tc.email, tc.password, tc.clientSaltSeed, nil)
 			if errors.As(err, &sqliteErr) {
 				if errors.Is(sqliteErr.ExtendedCode, sqlite3.ErrConstraintCheck) {
 					return // We got the error we expected
@@ -280,7 +328,7 @@ func TestStoreGetClientSaltSeedAccountExists(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	_, email, _, createdSeed := makeTestUser(t, &s, "", nil)
+	_, email, _, createdSeed := makeTestUser(t, &s, nil, nil)
 
 	// Check that the seed is correct for the email, irrespective of the case of
 	// the characters in the email.
@@ -315,7 +363,7 @@ func TestUpdateVerifyTokenStringSuccess(t *testing.T) {
 	verifyTokenString1 := auth.VerifyTokenString("00000000000000000000000000000000")
 	time1 := time.Time{}
 
-	_, email, password, createdSeed := makeTestUser(t, &s, verifyTokenString1, &time1)
+	_, email, password, createdSeed := makeTestUser(t, &s, &verifyTokenString1, &time1)
 
 	// we're not testing normalization features so we'll just use this here
 	normEmail := email.Normalize()
@@ -332,12 +380,12 @@ func TestUpdateVerifyTokenStringSuccess(t *testing.T) {
 	if err := s.UpdateVerifyTokenString(lowerEmail, verifyTokenString2); err != nil {
 		t.Fatalf("Unexpected error in UpdateVerifyTokenString: err: %+v", err)
 	}
-	expectAccountMatch(t, &s, normEmail, email, password, createdSeed, verifyTokenString2, &approxVerifyExpiration)
+	expectAccountMatch(t, &s, normEmail, email, password, createdSeed, &verifyTokenString2, &approxVerifyExpiration)
 
 	if err := s.UpdateVerifyTokenString(upperEmail, verifyTokenString3); err != nil {
 		t.Fatalf("Unexpected error in UpdateVerifyTokenString: err: %+v", err)
 	}
-	expectAccountMatch(t, &s, normEmail, email, password, createdSeed, verifyTokenString3, &approxVerifyExpiration)
+	expectAccountMatch(t, &s, normEmail, email, password, createdSeed, &verifyTokenString3, &approxVerifyExpiration)
 }
 
 // Test UpdateVerifyTokenString for nonexisting email
@@ -357,7 +405,7 @@ func TestStoreUpdateVerifyTokenStringAccountVerified(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	_, email, _, _ := makeTestUser(t, &s, "", nil)
+	_, email, _, _ := makeTestUser(t, &s, nil, nil)
 
 	if err := s.UpdateVerifyTokenString(email, "abcd1234abcd1234abcd1234abcd1234"); err != ErrNoTokenForUser {
 		t.Fatalf(`UpdateVerifyTokenString error for already verified account: wanted "%+v", got "%+v."`, ErrNoTokenForUser, err)
@@ -372,7 +420,7 @@ func TestUpdateVerifyAccountSuccess(t *testing.T) {
 	verifyTokenString := auth.VerifyTokenString("abcd1234abcd1234abcd1234abcd1234")
 	time1 := time.Time{}
 
-	_, email, password, createdSeed := makeTestUser(t, &s, verifyTokenString, &time1)
+	_, email, password, createdSeed := makeTestUser(t, &s, &verifyTokenString, &time1)
 
 	// we're not testing normalization features so we'll just use this here
 	normEmail := email.Normalize()
@@ -380,7 +428,7 @@ func TestUpdateVerifyAccountSuccess(t *testing.T) {
 	if err := s.VerifyAccount(verifyTokenString); err != nil {
 		t.Fatalf("Unexpected error in VerifyAccount: err: %+v", err)
 	}
-	expectAccountMatch(t, &s, normEmail, email, password, createdSeed, "", nil)
+	expectAccountMatch(t, &s, normEmail, email, password, createdSeed, nil, nil)
 }
 
 // Test VerifyAccount for nonexisting token

@@ -77,7 +77,7 @@ func TestStoreInsertToken(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	userId, _, _, _ := makeTestUser(t, &s, "", nil)
+	userId, _, _, _ := makeTestUser(t, &s, nil, nil)
 
 	// created for addition to the DB (no expiration attached)
 	authToken1 := auth.AuthToken{
@@ -123,7 +123,7 @@ func TestStoreUpdateToken(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	userId, _, _, _ := makeTestUser(t, &s, "", nil)
+	userId, _, _, _ := makeTestUser(t, &s, nil, nil)
 
 	// created for addition to the DB (no expiration attached)
 	authTokenUpdate := auth.AuthToken{
@@ -181,7 +181,7 @@ func TestStoreSaveToken(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	userId, _, _, _ := makeTestUser(t, &s, "", nil)
+	userId, _, _, _ := makeTestUser(t, &s, nil, nil)
 
 	// Version 1 of the token for both devices
 	// created for addition to the DB (no expiration attached)
@@ -274,7 +274,7 @@ func TestStoreGetToken(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	userId, _, _, _ := makeTestUser(t, &s, "", nil)
+	userId, _, _, _ := makeTestUser(t, &s, nil, nil)
 
 	// created for addition to the DB (no expiration attached)
 	authToken := auth.AuthToken{
@@ -327,7 +327,7 @@ func TestStoreTokenUTC(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	userId, _, _, _ := makeTestUser(t, &s, "", nil)
+	userId, _, _, _ := makeTestUser(t, &s, nil, nil)
 
 	authToken := auth.AuthToken{
 		Token:    "seekrit-1",
@@ -394,7 +394,7 @@ func TestStoreTokenEmptyFields(t *testing.T) {
 			s, sqliteTmpFile := StoreTestInit(t)
 			defer StoreTestCleanup(sqliteTmpFile)
 
-			tc.authToken.UserId, _, _, _ = makeTestUser(t, &s, "", nil)
+			tc.authToken.UserId, _, _, _ = makeTestUser(t, &s, nil, nil)
 
 			var sqliteErr sqlite3.Error
 

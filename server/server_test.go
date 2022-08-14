@@ -90,7 +90,7 @@ type CreateAccountCall struct {
 	Email          auth.Email
 	Password       auth.Password
 	ClientSaltSeed auth.ClientSaltSeed
-	VerifyToken    auth.VerifyTokenString
+	VerifyToken    *auth.VerifyTokenString
 }
 
 // Whether functions are called, and sometimes what they're called with
@@ -154,7 +154,7 @@ func (s *TestStore) GetUserId(auth.Email, auth.Password) (auth.UserId, error) {
 	return 0, s.Errors.GetUserId
 }
 
-func (s *TestStore) CreateAccount(email auth.Email, password auth.Password, seed auth.ClientSaltSeed, verifyToken auth.VerifyTokenString) error {
+func (s *TestStore) CreateAccount(email auth.Email, password auth.Password, seed auth.ClientSaltSeed, verifyToken *auth.VerifyTokenString) error {
 	s.Called.CreateAccount = &CreateAccountCall{
 		Email:          email,
 		Password:       password,

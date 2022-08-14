@@ -16,7 +16,7 @@ func TestStoreChangePasswordSuccess(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	userId, email, oldPassword, _ := makeTestUser(t, &s, "", nil)
+	userId, email, oldPassword, _ := makeTestUser(t, &s, nil, nil)
 	token := auth.AuthTokenString("my-token")
 
 	_, err := s.db.Exec(
@@ -47,7 +47,7 @@ func TestStoreChangePasswordSuccess(t *testing.T) {
 		t.Errorf("ChangePasswordWithWallet (lower case email): unexpected error: %+v", err)
 	}
 
-	expectAccountMatch(t, &s, email.Normalize(), email, newPassword, newSeed, "", nil)
+	expectAccountMatch(t, &s, email.Normalize(), email, newPassword, newSeed, nil, nil)
 	expectWalletExists(t, &s, userId, encryptedWallet, sequence, hmac)
 	expectTokenNotExists(t, &s, token)
 
@@ -63,17 +63,18 @@ func TestStoreChangePasswordSuccess(t *testing.T) {
 		t.Errorf("ChangePasswordWithWallet (upper case email): unexpected error: %+v", err)
 	}
 
-	expectAccountMatch(t, &s, email.Normalize(), email, newNewPassword, newNewSeed, "", nil)
+	expectAccountMatch(t, &s, email.Normalize(), email, newNewPassword, newNewSeed, nil, nil)
 }
 
 func TestStoreChangePasswordErrors(t *testing.T) {
+	verifyToken := auth.VerifyTokenString("aoeu1234aoeu1234aoeu1234aoeu1234")
 	tt := []struct {
 		name              string
 		hasWallet         bool
 		sequence          wallet.Sequence
 		emailSuffix       auth.Email
 		oldPasswordSuffix auth.Password
-		verifyToken       auth.VerifyTokenString
+		verifyToken       *auth.VerifyTokenString
 		verifyExpiration  *time.Time
 		expectedError     error
 	}{
@@ -90,7 +91,7 @@ func TestStoreChangePasswordErrors(t *testing.T) {
 			sequence:          wallet.Sequence(2), // sequence is correct
 			emailSuffix:       auth.Email(""),     // the email is correct
 			oldPasswordSuffix: auth.Password(""),  // the password is correct
-			verifyToken:       auth.VerifyTokenString("aoeu1234aoeu1234aoeu1234aoeu1234"),
+			verifyToken:       &verifyToken,
 			verifyExpiration:  &time.Time{},
 			expectedError:     ErrNotVerified,
 		}, {
@@ -187,7 +188,7 @@ func TestStoreChangePasswordNoWalletSuccess(t *testing.T) {
 	s, sqliteTmpFile := StoreTestInit(t)
 	defer StoreTestCleanup(sqliteTmpFile)
 
-	userId, email, oldPassword, _ := makeTestUser(t, &s, "", nil)
+	userId, email, oldPassword, _ := makeTestUser(t, &s, nil, nil)
 	token := auth.AuthTokenString("my-token")
 
 	_, err := s.db.Exec(
@@ -207,7 +208,7 @@ func TestStoreChangePasswordNoWalletSuccess(t *testing.T) {
 		t.Errorf("ChangePasswordNoWallet (lower case email): unexpected error: %+v", err)
 	}
 
-	expectAccountMatch(t, &s, email.Normalize(), email, newPassword, newSeed, "", nil)
+	expectAccountMatch(t, &s, email.Normalize(), email, newPassword, newSeed, nil, nil)
 	expectWalletNotExists(t, &s, userId)
 	expectTokenNotExists(t, &s, token)
 
@@ -220,16 +221,18 @@ func TestStoreChangePasswordNoWalletSuccess(t *testing.T) {
 		t.Errorf("ChangePasswordNoWallet (upper case email): unexpected error: %+v", err)
 	}
 
-	expectAccountMatch(t, &s, email.Normalize(), email, newNewPassword, newNewSeed, "", nil)
+	expectAccountMatch(t, &s, email.Normalize(), email, newNewPassword, newNewSeed, nil, nil)
 }
 
 func TestStoreChangePasswordNoWalletErrors(t *testing.T) {
+	verifyToken := auth.VerifyTokenString("aoeu1234aoeu1234aoeu1234aoeu1234")
+
 	tt := []struct {
 		name              string
 		hasWallet         bool
 		emailSuffix       auth.Email
 		oldPasswordSuffix auth.Password
-		verifyToken       auth.VerifyTokenString
+		verifyToken       *auth.VerifyTokenString
 		verifyExpiration  *time.Time
 		expectedError     error
 	}{
@@ -250,7 +253,7 @@ func TestStoreChangePasswordNoWalletErrors(t *testing.T) {
 			hasWallet:         false,             // we don't have the wallet, as expected for this function
 			emailSuffix:       auth.Email(""),    // the email is correct
 			oldPasswordSuffix: auth.Password(""), // the password is correct
-			verifyToken:       auth.VerifyTokenString("aoeu1234aoeu1234aoeu1234aoeu1234"),
+			verifyToken:       &verifyToken,
 			verifyExpiration:  &time.Time{},
 			expectedError:     ErrNotVerified,
 		}, {
