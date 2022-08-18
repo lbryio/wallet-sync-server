@@ -63,6 +63,8 @@ func TestServerGetWallet(t *testing.T) {
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 
+			t.Errorf("lol.")
+
 			testAuth := TestAuth{}
 			testStore := TestStore{
 				TestAuthToken: auth.AuthToken{
