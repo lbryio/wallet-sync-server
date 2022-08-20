@@ -17,6 +17,9 @@ jobs:
       - name: Test
         run: go test -v ./...
 
+      - name: Install sqlite3
+        run: sudo apt-get install -y sqlite3
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
         with:
