@@ -1,12 +1,22 @@
-# Running
+This software is in the pre-testing phase as of now.
+
+# Getting The Binary
+
+## Prebuilt
+
+Get the latest [release](https://github.com/lbryio/wallet-sync-server/releases).
+
+## Building
 
 Install Golang, at least version 1.17. (Please report any dependencies we seemed to have forgotten)
 
 Check out the repo and run:
 
 ```
-go run .
+go build .
 ```
+
+The binary should show up as `wallet-sync-server`.
 
 # Account Creation Settings
 
@@ -70,17 +80,10 @@ You'll get this in your Mailgun dashboard.
 
 Whether your sending domain is in the EU. This is related to GDPR stuff I think. Valid values are `true` or `false`, defaulting to `false`.
 
-# You could make a script
+# Deployment
 
-For now you could store the stuff in a script:
+A setup that works is [Caddy server](https://caddyserver.com) and Systemd.
 
-```
-#!/usr/bin/bash
+Make sure Caddy is set to port 443, because the LBRY clients will expect that.
 
-export ACCOUNT_WHITELIST="my-email@example.com"
-go run .
-```
-
-**NOTE**: If you're using Mailgun, set the file permissions on this script such that only the administrator can read it, since it will contain the Mailgun private API key
-
-_Side note: Eventually we'll create systemd configurations, at which point we will be able to put the env vars in an `EnvironmentFile` instead of a script like this._
+If you're using Mailgun, take care to keep the environmental vars secure. [See here](https://serverfault.com/questions/413397/how-to-set-environment-variable-in-systemd-service/910655#910655) for how to do this with systemd.
