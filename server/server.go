@@ -15,6 +15,8 @@ import (
 	"lbryio/wallet-sync-server/store"
 )
 
+const maxBodySize = 100000
+
 type Server struct {
 	auth  auth.AuthInterface
 	store store.StoreInterface
@@ -105,7 +107,7 @@ func getPostData(w http.ResponseWriter, req *http.Request, reqStruct PostRequest
 	// Make the limit 100k. Increase from there as needed. I'd rather block some
 	// people's large wallets and increase the limit than OOM for everybody and
 	// decrease the limit.
-	req.Body = http.MaxBytesReader(w, req.Body, 100000)
+	req.Body = http.MaxBytesReader(w, req.Body, maxBodySize)
 	err := json.NewDecoder(req.Body).Decode(&reqStruct)
 	switch {
 	case err == nil:
