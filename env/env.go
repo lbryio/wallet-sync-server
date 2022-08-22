@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"lbryio/lbry-id/auth"
+	"lbryio/wallet-sync-server/auth"
 )
 
 // NOTE for users: If you have weird characters in your email address, please

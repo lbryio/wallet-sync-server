@@ -3,11 +3,11 @@ package main
 import (
 	"log"
 
-	"lbryio/lbry-id/auth"
-	"lbryio/lbry-id/env"
-	"lbryio/lbry-id/mail"
-	"lbryio/lbry-id/server"
-	"lbryio/lbry-id/store"
+	"lbryio/wallet-sync-server/auth"
+	"lbryio/wallet-sync-server/env"
+	"lbryio/wallet-sync-server/mail"
+	"lbryio/wallet-sync-server/server"
+	"lbryio/wallet-sync-server/store"
 )
 
 func storeInit() (s store.Store) {

@@ -1,4 +1,4 @@
-module lbryio/lbry-id
+module lbryio/wallet-sync-server
 
 go 1.17
 

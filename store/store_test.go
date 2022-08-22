@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"lbryio/lbry-id/auth"
+	"lbryio/wallet-sync-server/auth"
 )
 
 func StoreTestInit(t *testing.T) (s Store, tmpFile *os.File) {

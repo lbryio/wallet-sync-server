@@ -8,9 +8,9 @@ import (
 
 	"github.com/mailgun/mailgun-go/v4"
 
-	"lbryio/lbry-id/auth"
-	"lbryio/lbry-id/env"
-	"lbryio/lbry-id/server/paths"
+	"lbryio/wallet-sync-server/auth"
+	"lbryio/wallet-sync-server/env"
+	"lbryio/wallet-sync-server/server/paths"
 )
 
 const MAILGUN_DEBUG = false

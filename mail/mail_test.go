@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"lbryio/lbry-id/auth"
+	"lbryio/wallet-sync-server/auth"
 )
 
 type TestEnv struct {

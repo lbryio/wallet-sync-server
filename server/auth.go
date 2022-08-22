@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"lbryio/lbry-id/auth"
-	"lbryio/lbry-id/store"
+	"lbryio/wallet-sync-server/auth"
+	"lbryio/wallet-sync-server/store"
 )
 
 // DeviceId is decided by the device. UserId is decided by the server, and is

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"lbryio/lbry-id/auth"
-	"lbryio/lbry-id/store"
+	"lbryio/wallet-sync-server/auth"
+	"lbryio/wallet-sync-server/store"
 )
 
 // Thanks to Standard Notes. See:

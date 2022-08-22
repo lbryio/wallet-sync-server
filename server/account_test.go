@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"lbryio/lbry-id/server/paths"
-	"lbryio/lbry-id/store"
+	"lbryio/wallet-sync-server/server/paths"
+	"lbryio/wallet-sync-server/store"
 )
 
 // TODO - maybe this test could just be one of the TestServerRegisterAccountVerification tests now

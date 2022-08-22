@@ -8,7 +8,7 @@ import (
 
 	"github.com/mattn/go-sqlite3"
 
-	"lbryio/lbry-id/auth"
+	"lbryio/wallet-sync-server/auth"
 )
 
 func expectAccountMatch(

@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"lbryio/lbry-id/auth"
+	"lbryio/wallet-sync-server/auth"
 )
 
 func TestAccountVerificationMode(t *testing.T) {

@@ -6,9 +6,9 @@ import (
 	"log"
 	"net/http"
 
-	"lbryio/lbry-id/auth"
-	"lbryio/lbry-id/env"
-	"lbryio/lbry-id/store"
+	"lbryio/wallet-sync-server/auth"
+	"lbryio/wallet-sync-server/env"
+	"lbryio/wallet-sync-server/store"
 )
 
 type RegisterRequest struct {

@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"lbryio/lbry-id/auth"
-	"lbryio/lbry-id/server/paths"
-	"lbryio/lbry-id/store"
-	"lbryio/lbry-id/wallet"
+	"lbryio/wallet-sync-server/auth"
+	"lbryio/wallet-sync-server/server/paths"
+	"lbryio/wallet-sync-server/store"
+	"lbryio/wallet-sync-server/wallet"
 )
 
 func TestServerChangePassword(t *testing.T) {
