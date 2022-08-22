@@ -21,8 +21,8 @@ func (r *AuthRequest) validate() error {
 	if !r.Email.Validate() {
 		return fmt.Errorf("Invalid 'email'")
 	}
-	if r.Password == "" {
-		return fmt.Errorf("Missing 'password'")
+	if !r.Password.Validate() {
+		return fmt.Errorf("Invalid or missing 'password'")
 	}
 	if r.DeviceId == "" {
 		return fmt.Errorf("Missing 'deviceId'")

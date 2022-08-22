@@ -152,6 +152,10 @@ func (c ClientSaltSeed) Validate() bool {
 	return len(c) == seedHexLength && err == nil
 }
 
+func (p Password) Validate() bool {
+	return len(p) >= 8 // Should be much longer but it's a sanity check.
+}
+
 // TODO consider unicode. Also some providers might be case sensitive, and/or
 // may have other ways of having email addresses be equivalent (which we may
 // not care about though)

@@ -24,7 +24,7 @@ func TestServerRegisterSuccess(t *testing.T) {
 	testAuth := TestAuth{TestNewVerifyTokenString: "abcd1234abcd1234abcd1234abcd1234"}
 	s := Server{&testAuth, testStore, &TestEnv{env}, &testMail, TestPort}
 
-	requestBody := []byte(`{"email": "abc@example.com", "password": "123", "clientSaltSeed": "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234" }`)
+	requestBody := []byte(`{"email": "abc@example.com", "password": "12345678", "clientSaltSeed": "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234" }`)
 
 	req := httptest.NewRequest(http.MethodPost, paths.PathRegister, bytes.NewBuffer(requestBody))
 	w := httptest.NewRecorder()
@@ -132,7 +132,7 @@ func TestServerRegisterErrors(t *testing.T) {
 			s := Server{&testAuth, &testStore, &TestEnv{env}, &testMail, TestPort}
 
 			// Make request
-			requestBody := fmt.Sprintf(`{"email": "%s", "password": "123", "clientSaltSeed": "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"}`, tc.email)
+			requestBody := fmt.Sprintf(`{"email": "%s", "password": "12345678", "clientSaltSeed": "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"}`, tc.email)
 			req := httptest.NewRequest(http.MethodPost, paths.PathAuthToken, bytes.NewBuffer([]byte(requestBody)))
 			w := httptest.NewRecorder()
 
@@ -229,7 +229,7 @@ func TestServerRegisterAccountVerification(t *testing.T) {
 			testMail := TestMail{}
 			s := Server{&testAuth, testStore, &TestEnv{tc.env}, &testMail, TestPort}
 
-			requestBody := []byte(`{"email": "abc@example.com", "password": "123", "clientSaltSeed": "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234" }`)
+			requestBody := []byte(`{"email": "abc@example.com", "password": "12345678", "clientSaltSeed": "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234" }`)
 
 			req := httptest.NewRequest(http.MethodPost, paths.PathRegister, bytes.NewBuffer(requestBody))
 			w := httptest.NewRecorder()
@@ -274,12 +274,12 @@ func TestServerRegisterAccountVerification(t *testing.T) {
 }
 
 func TestServerValidateRegisterRequest(t *testing.T) {
-	registerRequest := RegisterRequest{Email: "joe@example.com", Password: "aoeu", ClientSaltSeed: "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"}
+	registerRequest := RegisterRequest{Email: "joe@example.com", Password: "12345678", ClientSaltSeed: "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"}
 	if registerRequest.validate() != nil {
 		t.Errorf("Expected valid RegisterRequest to successfully validate")
 	}
 
-	registerRequest = RegisterRequest{Email: "joe-example.com", Password: "aoeu", ClientSaltSeed: "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"}
+	registerRequest = RegisterRequest{Email: "joe-example.com", Password: "12345678", ClientSaltSeed: "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"}
 	err := registerRequest.validate()
 	if !strings.Contains(err.Error(), "email") {
 		t.Errorf("Expected RegisterRequest with invalid email to return an appropriate error")
@@ -288,13 +288,13 @@ func TestServerValidateRegisterRequest(t *testing.T) {
 	// Note that Golang's email address parser, which I use, will accept
 	// "Joe <joe@example.com>" so we need to make sure to avoid accepting it. See
 	// the implementation.
-	registerRequest = RegisterRequest{Email: "Joe <joe@example.com>", Password: "aoeu", ClientSaltSeed: "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"}
+	registerRequest = RegisterRequest{Email: "Joe <joe@example.com>", Password: "12345678", ClientSaltSeed: "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"}
 	err = registerRequest.validate()
 	if !strings.Contains(err.Error(), "email") {
 		t.Errorf("Expected RegisterRequest with email with unexpected formatting to return an appropriate error")
 	}
 
-	registerRequest = RegisterRequest{Password: "aoeu", ClientSaltSeed: "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"}
+	registerRequest = RegisterRequest{Password: "12345678", ClientSaltSeed: "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234"}
 	err = registerRequest.validate()
 	if !strings.Contains(err.Error(), "email") {
 		t.Errorf("Expected RegisterRequest with missing email to return an appropriate error")
@@ -306,19 +306,19 @@ func TestServerValidateRegisterRequest(t *testing.T) {
 		t.Errorf("Expected RegisterRequest with missing password to return an appropriate error")
 	}
 
-	registerRequest = RegisterRequest{Email: "joe@example.com", Password: "aoeu"}
+	registerRequest = RegisterRequest{Email: "joe@example.com", Password: "12345678"}
 	err = registerRequest.validate()
 	if !strings.Contains(err.Error(), "clientSaltSeed") {
 		t.Errorf("Expected RegisterRequest with missing clientSaltSeed to return an appropriate error")
 	}
 
-	registerRequest = RegisterRequest{Email: "joe@example.com", Password: "aoeu", ClientSaltSeed: "abcd1234abcd1234abcd1234abcd1234"}
+	registerRequest = RegisterRequest{Email: "joe@example.com", Password: "12345678", ClientSaltSeed: "abcd1234abcd1234abcd1234abcd1234"}
 	err = registerRequest.validate()
 	if !strings.Contains(err.Error(), "clientSaltSeed") {
 		t.Errorf("Expected RegisterRequest with clientSaltSeed of wrong length to return an appropriate error")
 	}
 
-	registerRequest = RegisterRequest{Email: "joe@example.com", Password: "aoeu", ClientSaltSeed: "xxxx1234xxxx1234xxxx1234xxxx1234xxxx1234xxxx1234xxxx1234xxxx1234"}
+	registerRequest = RegisterRequest{Email: "joe@example.com", Password: "12345678", ClientSaltSeed: "xxxx1234xxxx1234xxxx1234xxxx1234xxxx1234xxxx1234xxxx1234xxxx1234"}
 	err = registerRequest.validate()
 	if !strings.Contains(err.Error(), "clientSaltSeed") {
 		t.Errorf("Expected RegisterRequest with clientSaltSeed with a non-hex string to return an appropriate error")

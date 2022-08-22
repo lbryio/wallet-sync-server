@@ -20,7 +20,7 @@ func TestServerAuthHandlerSuccess(t *testing.T) {
 	testStore := TestStore{}
 	s := Server{&testAuth, &testStore, &TestEnv{}, &TestMail{}, TestPort}
 
-	requestBody := []byte(`{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`)
+	requestBody := []byte(`{"deviceId": "dev-1", "email": "abc@example.com", "password": "12345678"}`)
 
 	req := httptest.NewRequest(http.MethodPost, paths.PathAuthToken, bytes.NewBuffer(requestBody))
 	w := httptest.NewRecorder()
@@ -108,7 +108,7 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 
 			// Make request
 			// So long as the JSON is well-formed, the content doesn't matter here since the password check will be stubbed out
-			requestBody := fmt.Sprintf(`{"deviceId": "dev-1", "email": "%s", "password": "123"}`, tc.email)
+			requestBody := fmt.Sprintf(`{"deviceId": "dev-1", "email": "%s", "password": "12345678"}`, tc.email)
 			req := httptest.NewRequest(http.MethodPost, paths.PathAuthToken, bytes.NewBuffer([]byte(requestBody)))
 			w := httptest.NewRecorder()
 
@@ -123,7 +123,7 @@ func TestServerAuthHandlerErrors(t *testing.T) {
 }
 
 func TestServerValidateAuthRequest(t *testing.T) {
-	authRequest := AuthRequest{DeviceId: "dId", Email: "joe@example.com", Password: "aoeu"}
+	authRequest := AuthRequest{DeviceId: "dId", Email: "joe@example.com", Password: "12345678"}
 	if authRequest.validate() != nil {
 		t.Errorf("Expected valid AuthRequest to successfully validate")
 	}
@@ -134,22 +134,22 @@ func TestServerValidateAuthRequest(t *testing.T) {
 		failureDescription  string
 	}{
 		{
-			AuthRequest{Email: "joe@example.com", Password: "aoeu"},
+			AuthRequest{Email: "joe@example.com", Password: "12345678"},
 			"deviceId",
 			"Expected AuthRequest with missing device to not successfully validate",
 		}, {
-			AuthRequest{DeviceId: "dId", Email: "joe-example.com", Password: "aoeu"},
+			AuthRequest{DeviceId: "dId", Email: "joe-example.com", Password: "12345678"},
 			"email",
 			"Expected AuthRequest with invalid email to not successfully validate",
 		}, {
 			// Note that Golang's email address parser, which I use, will accept
 			// "Joe <joe@example.com>" so we need to make sure to avoid accepting it. See
 			// the implementation.
-			AuthRequest{DeviceId: "dId", Email: "Joe <joe@example.com>", Password: "aoeu"},
+			AuthRequest{DeviceId: "dId", Email: "Joe <joe@example.com>", Password: "12345678"},
 			"email",
 			"Expected AuthRequest with email with unexpected formatting to not successfully validate",
 		}, {
-			AuthRequest{DeviceId: "dId", Password: "aoeu"},
+			AuthRequest{DeviceId: "dId", Password: "12345678"},
 			"email",
 			"Expected AuthRequest with missing email to not successfully validate",
 		}, {

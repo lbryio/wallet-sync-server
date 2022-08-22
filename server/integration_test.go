@@ -114,7 +114,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 		s.register,
 		paths.PathRegister,
 		&registerResponse,
-		`{"email": "abc@example.com", "password": "123", "clientSaltSeed": "1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd"}`,
+		`{"email": "abc@example.com", "password": "12345678", "clientSaltSeed": "1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd"}`,
 	)
 
 	checkStatusCode(t, statusCode, responseBody, http.StatusCreated)
@@ -130,7 +130,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 		s.getAuthToken,
 		paths.PathAuthToken,
 		&authToken1,
-		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`,
+		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "12345678"}`,
 	)
 
 	checkStatusCode(t, statusCode, responseBody)
@@ -158,7 +158,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 		s.getAuthToken,
 		paths.PathAuthToken,
 		&authToken2,
-		`{"deviceId": "dev-2", "email": "abc@example.com", "password": "123"}`,
+		`{"deviceId": "dev-2", "email": "abc@example.com", "password": "12345678"}`,
 	)
 
 	checkStatusCode(t, statusCode, responseBody)
@@ -284,7 +284,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 		s.register,
 		paths.PathRegister,
 		&registerResponse,
-		`{"email": "abc@example.com", "password": "123", "clientSaltSeed": "1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd"}`,
+		`{"email": "abc@example.com", "password": "12345678", "clientSaltSeed": "1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd"}`,
 	)
 
 	checkStatusCode(t, statusCode, responseBody, http.StatusCreated)
@@ -322,7 +322,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 		s.getAuthToken,
 		paths.PathAuthToken,
 		&authToken,
-		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`,
+		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "12345678"}`,
 	)
 
 	checkStatusCode(t, statusCode, responseBody)
@@ -350,7 +350,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 		s.changePassword,
 		paths.PathPassword,
 		&changePasswordResponse,
-		`{"email": "abc@example.com", "oldPassword": "123", "newPassword": "456", "clientSaltSeed": "8678def95678def98678def95678def98678def95678def98678def95678def9"}`,
+		`{"email": "abc@example.com", "oldPassword": "12345678", "newPassword": "45678901", "clientSaltSeed": "8678def95678def98678def95678def98678def95678def98678def95678def9"}`,
 	)
 
 	checkStatusCode(t, statusCode, responseBody)
@@ -405,7 +405,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 		s.getAuthToken,
 		paths.PathAuthToken,
 		&authToken,
-		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "456"}`,
+		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "45678901"}`,
 	)
 
 	checkStatusCode(t, statusCode, responseBody)
@@ -457,8 +457,8 @@ func TestIntegrationChangePassword(t *testing.T) {
       "sequence": 2,
       "hmac": "my-hmac-2",
       "email": "abc@example.com",
-      "oldPassword": "456",
-      "newPassword": "789",
+      "oldPassword": "45678901",
+      "newPassword": "78901234",
       "clientSaltSeed": "0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff"
     }`),
 	)
@@ -510,7 +510,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 		s.getAuthToken,
 		paths.PathAuthToken,
 		&authToken,
-		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "789"}`,
+		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "78901234"}`,
 	)
 
 	checkStatusCode(t, statusCode, responseBody)
@@ -575,7 +575,7 @@ func TestIntegrationVerifyAccount(t *testing.T) {
 		s.register,
 		paths.PathRegister,
 		&registerResponse,
-		`{"email": "abc@example.com", "password": "123", "clientSaltSeed": "1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd"}`,
+		`{"email": "abc@example.com", "password": "12345678", "clientSaltSeed": "1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd"}`,
 	)
 
 	checkStatusCode(t, statusCode, responseBody, http.StatusCreated)
@@ -619,7 +619,7 @@ func TestIntegrationVerifyAccount(t *testing.T) {
 		s.getAuthToken,
 		paths.PathAuthToken,
 		&authToken,
-		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`,
+		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "12345678"}`,
 	)
 
 	checkStatusCode(t, statusCode, responseBody, http.StatusUnauthorized)
@@ -652,7 +652,7 @@ func TestIntegrationVerifyAccount(t *testing.T) {
 		s.getAuthToken,
 		paths.PathAuthToken,
 		&authToken,
-		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "123"}`,
+		`{"deviceId": "dev-1", "email": "abc@example.com", "password": "12345678"}`,
 	)
 
 	checkStatusCode(t, statusCode, responseBody)

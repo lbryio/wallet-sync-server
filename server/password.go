@@ -28,11 +28,11 @@ func (r *ChangePasswordRequest) validate() error {
 	if !r.Email.Validate() {
 		return fmt.Errorf("Invalid or missing 'email'")
 	}
-	if r.OldPassword == "" {
-		return fmt.Errorf("Missing 'oldPassword'")
+	if !r.OldPassword.Validate() {
+		return fmt.Errorf("Invalid or missing 'oldPassword'")
 	}
-	if r.NewPassword == "" {
-		return fmt.Errorf("Missing 'newPassword'")
+	if !r.NewPassword.Validate() {
+		return fmt.Errorf("Invalid or missing 'newPassword'")
 	}
 	// Too bad we can't do this so easily with clientSaltSeed
 	if r.OldPassword == r.NewPassword {
