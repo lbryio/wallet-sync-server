@@ -111,6 +111,8 @@ func (s *Store) Migrate() error {
 			encrypted_wallet TEXT NOT NULL,
 			sequence INTEGER NOT NULL,
 			hmac TEXT NOT NULL,
+			updated DATETIME NOT NULL,
+
 			PRIMARY KEY (user_id)
 			FOREIGN KEY (user_id) REFERENCES accounts(user_id)
 			CHECK (
@@ -134,6 +136,8 @@ func (s *Store) Migrate() error {
 
 			verify_expiration DATETIME,
 			user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+			created DATETIME DEFAULT (DATETIME('now')),
+			updated DATETIME NOT NULL,
 			CHECK (
 			  email <> '' AND
 			  normalized_email <> '' AND
@@ -281,7 +285,7 @@ func (s *Store) insertFirstWallet(
 	//   The database will enforce that this will not be set if this user already
 	//   has a wallet.
 	_, err = s.db.Exec(
-		"INSERT INTO wallets (user_id, encrypted_wallet, sequence, hmac) VALUES(?,?,?,?)",
+		"INSERT INTO wallets (user_id, encrypted_wallet, sequence, hmac, updated) VALUES(?,?,?,?, datetime('now'))",
 		userId, encryptedWallet, 1, hmac,
 	)
 
@@ -310,7 +314,7 @@ func (s *Store) updateWalletToSequence(
 	// This way, if two clients attempt to update at the same time, it will return
 	// an error for the second one.
 	res, err := s.db.Exec(
-		"UPDATE wallets SET encrypted_wallet=?, sequence=?, hmac=? WHERE user_id=? AND sequence=?",
+		"UPDATE wallets SET encrypted_wallet=?, sequence=?, hmac=?, updated=datetime('now') WHERE user_id=? AND sequence=?",
 		encryptedWallet, sequence, hmac, userId, sequence-1,
 	)
 	if err != nil {
@@ -403,7 +407,7 @@ func (s *Store) CreateAccount(email auth.Email, password auth.Password, seed aut
 
 	// userId auto-increments
 	_, err = s.db.Exec(
-		"INSERT INTO accounts (normalized_email, email, key, server_salt, client_salt_seed, verify_token, verify_expiration) VALUES(?,?,?,?,?,?,?)",
+		"INSERT INTO accounts (normalized_email, email, key, server_salt, client_salt_seed, verify_token, verify_expiration, updated) VALUES(?,?,?,?,?,?,?, datetime('now'))",
 		email.Normalize(), email, key, salt, seed, verifyToken, verifyExpiration,
 	)
 	var sqliteErr sqlite3.Error
@@ -426,7 +430,7 @@ func (s *Store) UpdateVerifyTokenString(email auth.Email, verifyTokenString auth
 	expiration := time.Now().UTC().Add(VerifyTokenLifespan)
 
 	res, err := s.db.Exec(
-		`UPDATE accounts SET verify_token=?, verify_expiration=? WHERE normalized_email=? and verify_token is not null`,
+		`UPDATE accounts SET verify_token=?, verify_expiration=?, updated=datetime('now') WHERE normalized_email=? and verify_token is not null`,
 		verifyTokenString, expiration, email.Normalize(),
 	)
 	if err != nil {
@@ -457,7 +461,7 @@ func (s *Store) UpdateVerifyTokenString(email auth.Email, verifyTokenString auth
 
 func (s *Store) VerifyAccount(verifyTokenString auth.VerifyTokenString) (err error) {
 	res, err := s.db.Exec(
-		"UPDATE accounts SET verify_token=null, verify_expiration=null WHERE verify_token=?",
+		"UPDATE accounts SET verify_token=null, verify_expiration=null, updated=datetime('now') WHERE verify_token=?",
 		verifyTokenString,
 	)
 	if err != nil {
@@ -585,7 +589,7 @@ func (s *Store) changePassword(
 	}
 
 	res, err := tx.Exec(
-		"UPDATE accounts SET key=?, server_salt=?, client_salt_seed=? WHERE user_id=?",
+		"UPDATE accounts SET key=?, server_salt=?, client_salt_seed=?, updated=datetime('now') WHERE user_id=?",
 		newKey, newSalt, clientSaltSeed, userId,
 	)
 	if err != nil {
@@ -605,7 +609,7 @@ func (s *Store) changePassword(
 		// With a wallet expected: update it.
 
 		res, err = tx.Exec(
-			`UPDATE wallets SET encrypted_wallet=?, sequence=?, hmac=?
+			`UPDATE wallets SET encrypted_wallet=?, sequence=?, hmac=?, updated=datetime('now')
 			 WHERE user_id=? AND sequence=?`,
 			encryptedWallet, sequence, hmac, userId, sequence-1,
 		)

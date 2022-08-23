@@ -28,11 +28,11 @@ func TestStoreChangePasswordSuccess(t *testing.T) {
 	}
 
 	_, err = s.db.Exec(
-		"INSERT INTO wallets (user_id, encrypted_wallet, sequence, hmac) VALUES(?,?,?,?)",
+		"INSERT INTO wallets (user_id, encrypted_wallet, sequence, hmac, updated) VALUES(?,?,?,?,datetime('now'))",
 		userId, "my-enc-wallet", 1, "my-hmac",
 	)
 	if err != nil {
-		t.Fatalf("Error creating test wallet")
+		t.Fatalf("Error creating test wallet: %s", err.Error())
 	}
 
 	newPassword := oldPassword + auth.Password("_new")
@@ -47,8 +47,8 @@ func TestStoreChangePasswordSuccess(t *testing.T) {
 		t.Errorf("ChangePasswordWithWallet (lower case email): unexpected error: %+v", err)
 	}
 
-	expectAccountMatch(t, &s, email.Normalize(), email, newPassword, newSeed, nil, nil)
-	expectWalletExists(t, &s, userId, encryptedWallet, sequence, hmac)
+	expectAccountMatch(t, &s, email.Normalize(), email, newPassword, newSeed, nil, nil, time.Now().UTC(), time.Now().UTC())
+	expectWalletExists(t, &s, userId, encryptedWallet, sequence, hmac, time.Now().UTC())
 	expectTokenNotExists(t, &s, token)
 
 	newNewPassword := newPassword + auth.Password("_new")
@@ -63,7 +63,7 @@ func TestStoreChangePasswordSuccess(t *testing.T) {
 		t.Errorf("ChangePasswordWithWallet (upper case email): unexpected error: %+v", err)
 	}
 
-	expectAccountMatch(t, &s, email.Normalize(), email, newNewPassword, newNewSeed, nil, nil)
+	expectAccountMatch(t, &s, email.Normalize(), email, newNewPassword, newNewSeed, nil, nil, time.Now().UTC(), time.Now().UTC())
 }
 
 func TestStoreChangePasswordErrors(t *testing.T) {
@@ -152,11 +152,11 @@ func TestStoreChangePasswordErrors(t *testing.T) {
 
 			if tc.hasWallet {
 				_, err := s.db.Exec(
-					"INSERT INTO wallets (user_id, encrypted_wallet, sequence, hmac) VALUES(?,?,?,?)",
+					"INSERT INTO wallets (user_id, encrypted_wallet, sequence, hmac, updated) VALUES(?,?,?,?,datetime('now'))",
 					userId, oldEncryptedWallet, oldSequence, oldHmac,
 				)
 				if err != nil {
-					t.Fatalf("Error creating test wallet")
+					t.Fatalf("Error creating test wallet: %s", err.Error())
 				}
 			}
 
@@ -173,9 +173,9 @@ func TestStoreChangePasswordErrors(t *testing.T) {
 			// This tests the transaction rollbacks in particular, given the errors
 			// that are at a couple different stages of the txn, triggered by these
 			// tests.
-			expectAccountMatch(t, &s, email.Normalize(), email, oldPassword, oldSeed, tc.verifyToken, tc.verifyExpiration)
+			expectAccountMatch(t, &s, email.Normalize(), email, oldPassword, oldSeed, tc.verifyToken, tc.verifyExpiration, time.Now().UTC(), time.Now().UTC())
 			if tc.hasWallet {
-				expectWalletExists(t, &s, userId, oldEncryptedWallet, oldSequence, oldHmac)
+				expectWalletExists(t, &s, userId, oldEncryptedWallet, oldSequence, oldHmac, time.Now().UTC())
 			} else {
 				expectWalletNotExists(t, &s, userId)
 			}
@@ -208,7 +208,7 @@ func TestStoreChangePasswordNoWalletSuccess(t *testing.T) {
 		t.Errorf("ChangePasswordNoWallet (lower case email): unexpected error: %+v", err)
 	}
 
-	expectAccountMatch(t, &s, email.Normalize(), email, newPassword, newSeed, nil, nil)
+	expectAccountMatch(t, &s, email.Normalize(), email, newPassword, newSeed, nil, nil, time.Now().UTC(), time.Now().UTC())
 	expectWalletNotExists(t, &s, userId)
 	expectTokenNotExists(t, &s, token)
 
@@ -221,7 +221,7 @@ func TestStoreChangePasswordNoWalletSuccess(t *testing.T) {
 		t.Errorf("ChangePasswordNoWallet (upper case email): unexpected error: %+v", err)
 	}
 
-	expectAccountMatch(t, &s, email.Normalize(), email, newNewPassword, newNewSeed, nil, nil)
+	expectAccountMatch(t, &s, email.Normalize(), email, newNewPassword, newNewSeed, nil, nil, time.Now().UTC(), time.Now().UTC())
 }
 
 func TestStoreChangePasswordNoWalletErrors(t *testing.T) {
@@ -295,11 +295,11 @@ func TestStoreChangePasswordNoWalletErrors(t *testing.T) {
 
 			if tc.hasWallet {
 				_, err := s.db.Exec(
-					"INSERT INTO wallets (user_id, encrypted_wallet, sequence, hmac) VALUES(?,?,?,?)",
+					"INSERT INTO wallets (user_id, encrypted_wallet, sequence, hmac, updated) VALUES(?,?,?,?,datetime('now'))",
 					userId, encryptedWallet, sequence, hmac,
 				)
 				if err != nil {
-					t.Fatalf("Error creating test wallet")
+					t.Fatalf("Error creating test wallet: %s", err.Error())
 				}
 			}
 
@@ -316,9 +316,9 @@ func TestStoreChangePasswordNoWalletErrors(t *testing.T) {
 			// deleted. This tests the transaction rollbacks in particular, given the
 			// errors that are at a couple different stages of the txn, triggered by
 			// these tests.
-			expectAccountMatch(t, &s, email.Normalize(), email, oldPassword, oldSeed, tc.verifyToken, tc.verifyExpiration)
+			expectAccountMatch(t, &s, email.Normalize(), email, oldPassword, oldSeed, tc.verifyToken, tc.verifyExpiration, time.Now().UTC(), time.Now().UTC())
 			if tc.hasWallet {
-				expectWalletExists(t, &s, userId, encryptedWallet, sequence, hmac)
+				expectWalletExists(t, &s, userId, encryptedWallet, sequence, hmac, time.Now().UTC())
 			} else {
 				expectWalletNotExists(t, &s, userId)
 			}

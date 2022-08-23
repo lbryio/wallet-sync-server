@@ -20,17 +20,21 @@ func expectAccountMatch(
 	seed auth.ClientSaltSeed,
 	expectedVerifyTokenString *auth.VerifyTokenString,
 	approxVerifyExpiration *time.Time,
+	approxCreated time.Time,
+	approxUpdated time.Time,
 ) {
 	var key auth.KDFKey
 	var salt auth.ServerSalt
 	var email auth.Email
 	var verifyExpiration *time.Time
 	var verifyTokenString *auth.VerifyTokenString
+	var created time.Time
+	var updated time.Time
 
 	err := s.db.QueryRow(
-		`SELECT key, server_salt, email, verify_token, verify_expiration from accounts WHERE normalized_email=? AND client_salt_seed=?`,
+		`SELECT key, server_salt, email, verify_token, verify_expiration, created, updated from accounts WHERE normalized_email=? AND client_salt_seed=?`,
 		normEmail, seed,
-	).Scan(&key, &salt, &email, &verifyTokenString, &verifyExpiration)
+	).Scan(&key, &salt, &email, &verifyTokenString, &verifyExpiration, &created, &updated)
 	if err != nil {
 		t.Fatalf("Error finding account for: %s %s - %+v", normEmail, password, err)
 	}
@@ -73,13 +77,31 @@ func expectAccountMatch(
 		if time.Second < expDiff || expDiff < -time.Second {
 			t.Fatalf(
 				"Verify expiration not as expected. Want approximately: %s Got: %s",
-				verifyExpiration,
 				approxVerifyExpiration,
+				verifyExpiration,
 			)
 		}
 	}
 	if approxVerifyExpiration == nil && verifyExpiration != nil {
 		t.Fatalf("Expected verify expiration to be nil. Got: %+v", verifyExpiration)
+	}
+
+	expDiff := approxCreated.Sub(created)
+	if time.Second*2 < expDiff || expDiff < -time.Second*2 {
+		t.Fatalf(
+			"Created timestamp not as expected. Want approximately: %s Got: %s",
+			approxCreated,
+			created,
+		)
+	}
+
+	expDiff = approxUpdated.Sub(updated)
+	if time.Second*2 < expDiff || expDiff < -time.Second*2 {
+		t.Fatalf(
+			"Updated timestamp not as expected. Want approximately: %s Got: %s",
+			approxUpdated,
+			updated,
+		)
 	}
 }
 
@@ -119,7 +141,7 @@ func TestStoreCreateAccount(t *testing.T) {
 	}
 
 	// Get and confirm the account we just put in
-	expectAccountMatch(t, &s, normEmail, email, password, seed, nil, nil)
+	expectAccountMatch(t, &s, normEmail, email, password, seed, nil, nil, time.Now().UTC(), time.Now().UTC())
 
 	newPassword := auth.Password("xyz")
 
@@ -138,7 +160,7 @@ func TestStoreCreateAccount(t *testing.T) {
 	}
 
 	// Get the email and same *first* password we successfully put in
-	expectAccountMatch(t, &s, normEmail, email, password, seed, nil, nil)
+	expectAccountMatch(t, &s, normEmail, email, password, seed, nil, nil, time.Now().UTC(), time.Now().UTC())
 }
 
 // Test that I can use CreateAccount twice for different emails with no veriy token
@@ -165,8 +187,8 @@ func TestStoreCreateAccountTwoVerifiedSucceed(t *testing.T) {
 	}
 
 	// Get and confirm the accounts we just put in
-	expectAccountMatch(t, &s, normEmail1, email1, password1, seed1, nil, nil)
-	expectAccountMatch(t, &s, normEmail2, email2, password2, seed2, nil, nil)
+	expectAccountMatch(t, &s, normEmail1, email1, password1, seed1, nil, nil, time.Now().UTC(), time.Now().UTC())
+	expectAccountMatch(t, &s, normEmail2, email2, password2, seed2, nil, nil, time.Now().UTC(), time.Now().UTC())
 }
 
 // Test that I cannot use CreateAccount twice with the same verify token, but
@@ -204,8 +226,8 @@ func TestStoreCreateAccountTwoSameVerfiyTokenFail(t *testing.T) {
 
 	// Get and confirm the accounts we just put in
 	approxVerifyExpiration := time.Now().Add(time.Hour * 24 * 2).UTC()
-	expectAccountMatch(t, &s, normEmail1, email1, password1, seed1, &verifyToken1, &approxVerifyExpiration)
-	expectAccountMatch(t, &s, normEmail2, email2, password2, seed2, &verifyToken2, &approxVerifyExpiration)
+	expectAccountMatch(t, &s, normEmail1, email1, password1, seed1, &verifyToken1, &approxVerifyExpiration, time.Now().UTC(), time.Now().UTC())
+	expectAccountMatch(t, &s, normEmail2, email2, password2, seed2, &verifyToken2, &approxVerifyExpiration, time.Now().UTC(), time.Now().UTC())
 }
 
 // Try CreateAccount with a verification string, thus unverified
@@ -224,7 +246,7 @@ func TestStoreCreateAccountUnverified(t *testing.T) {
 
 	// Get and confirm the account we just put in
 	approxVerifyExpiration := time.Now().Add(time.Hour * 24 * 2).UTC()
-	expectAccountMatch(t, &s, normEmail, email, password, seed, &verifyToken, &approxVerifyExpiration)
+	expectAccountMatch(t, &s, normEmail, email, password, seed, &verifyToken, &approxVerifyExpiration, time.Now().UTC(), time.Now().UTC())
 }
 
 // Test GetUserId for nonexisting email
@@ -380,12 +402,12 @@ func TestUpdateVerifyTokenStringSuccess(t *testing.T) {
 	if err := s.UpdateVerifyTokenString(lowerEmail, verifyTokenString2); err != nil {
 		t.Fatalf("Unexpected error in UpdateVerifyTokenString: err: %+v", err)
 	}
-	expectAccountMatch(t, &s, normEmail, email, password, createdSeed, &verifyTokenString2, &approxVerifyExpiration)
+	expectAccountMatch(t, &s, normEmail, email, password, createdSeed, &verifyTokenString2, &approxVerifyExpiration, time.Now().UTC(), time.Now().UTC())
 
 	if err := s.UpdateVerifyTokenString(upperEmail, verifyTokenString3); err != nil {
 		t.Fatalf("Unexpected error in UpdateVerifyTokenString: err: %+v", err)
 	}
-	expectAccountMatch(t, &s, normEmail, email, password, createdSeed, &verifyTokenString3, &approxVerifyExpiration)
+	expectAccountMatch(t, &s, normEmail, email, password, createdSeed, &verifyTokenString3, &approxVerifyExpiration, time.Now().UTC(), time.Now().UTC())
 }
 
 // Test UpdateVerifyTokenString for nonexisting email
@@ -428,7 +450,7 @@ func TestUpdateVerifyAccountSuccess(t *testing.T) {
 	if err := s.VerifyAccount(verifyTokenString); err != nil {
 		t.Fatalf("Unexpected error in VerifyAccount: err: %+v", err)
 	}
-	expectAccountMatch(t, &s, normEmail, email, password, createdSeed, nil, nil)
+	expectAccountMatch(t, &s, normEmail, email, password, createdSeed, nil, nil, time.Now().UTC(), time.Now().UTC())
 }
 
 // Test VerifyAccount for nonexisting token
