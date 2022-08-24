@@ -4,9 +4,11 @@ This software is in the pre-testing phase as of now.
 
 ## Prebuilt
 
-Get the latest [release](https://github.com/lbryio/wallet-sync-server/releases).
+Linux Only. Get the latest [release](https://github.com/lbryio/wallet-sync-server/releases).
 
 ## Building
+
+Only tried on Linux. Might work for Windows and Mac. No expectations.
 
 Install Golang, at least version 1.17. (Please report any dependencies we seemed to have forgotten)
 
