@@ -8,7 +8,6 @@ import secrets
 WalletState = namedtuple('WalletState', ['sequence', 'encrypted_wallet'])
 
 class LBRYSDK():
-  # TODO - error checking
   @staticmethod
   def get_wallet(wallet_id, password):
     response = requests.post('http://localhost:5279', json.dumps({
@@ -30,7 +29,6 @@ class LBRYSDK():
     }))
     return response.json()['result']
 
-  # TODO - error checking
   @staticmethod
   def update_wallet(wallet_id, password, data):
     response = requests.post('http://localhost:5279', json.dumps({
@@ -43,7 +41,6 @@ class LBRYSDK():
     }))
     return response.json()['result']['data']
 
-  # TODO - error checking
   @staticmethod
   def set_preference(wallet_id, key, value):
     response = requests.post('http://localhost:5279', json.dumps({
@@ -56,7 +53,6 @@ class LBRYSDK():
     }))
     return response.json()['result']
 
-  # TODO - error checking
   @staticmethod
   def get_preferences(wallet_id):
     response = requests.post('http://localhost:5279', json.dumps({
@@ -450,8 +446,6 @@ class Client():
 
   # Returns: status
   def get_remote_wallet(self):
-    # TODO - Do try/catch for other calls I guess. I needed it here in
-    # particular for the README
     try:
       new_wallet_state, hmac = self.wallet_sync_api.get_wallet(self.auth_token)
     except Exception:
@@ -589,11 +583,9 @@ class Client():
     return "Failure"
 
   def set_preference(self, key, value):
-    # TODO - error checking
     return LBRYSDK.set_preference(self.wallet_id, key, value)
 
   def get_preferences(self):
-    # TODO - error checking
     return LBRYSDK.get_preferences(self.wallet_id)
 
   def has_unsynced_local_changes(self):
@@ -608,7 +600,6 @@ class Client():
     self.lbry_sdk_last_synced_hash = ""
 
   def update_local_encrypted_wallet(self, encrypted_wallet):
-    # TODO - error checking
     return LBRYSDK.update_wallet(self.wallet_id, self.root_password, encrypted_wallet)
 
   def get_local_encrypted_wallet(self, sync_password):
@@ -622,5 +613,4 @@ class Client():
     # between the KDFs. The question is, is it safe to use the same root
     # password on two two different KDFs like this?
 
-    # TODO - error checking
     return LBRYSDK.get_wallet(self.wallet_id, sync_password)
