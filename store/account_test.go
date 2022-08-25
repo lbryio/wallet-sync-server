@@ -440,9 +440,9 @@ func TestUpdateVerifyAccountSuccess(t *testing.T) {
 	defer StoreTestCleanup(sqliteTmpFile)
 
 	verifyTokenString := auth.VerifyTokenString("abcd1234abcd1234abcd1234abcd1234")
-	time1 := time.Time{}
+	verifyExpiration := time.Now().Add(time.Second * 10).UTC() // expires in one second
 
-	_, email, password, createdSeed := makeTestUser(t, &s, &verifyTokenString, &time1)
+	_, email, password, createdSeed := makeTestUser(t, &s, &verifyTokenString, &verifyExpiration)
 
 	// we're not testing normalization features so we'll just use this here
 	normEmail := email.Normalize()
@@ -461,4 +461,24 @@ func TestStoreVerifyAccountTokenNotExists(t *testing.T) {
 	if err := s.VerifyAccount("abcd1234abcd1234abcd1234abcd1234"); err != ErrNoTokenForUser {
 		t.Fatalf(`VerifyAccount error for nonexistant token: wanted "%+v", got "%+v."`, ErrNoTokenForUser, err)
 	}
+}
+
+// Test VerifyAccount for expired token
+func TestUpdateVerifyAccountTokenExpired(t *testing.T) {
+	s, sqliteTmpFile := StoreTestInit(t)
+	defer StoreTestCleanup(sqliteTmpFile)
+
+	verifyTokenString := auth.VerifyTokenString("abcd1234abcd1234abcd1234abcd1234")
+	verifyExpiration := time.Now().Add(time.Second * (-1)).UTC() // expired one second ago
+
+	_, email, password, createdSeed := makeTestUser(t, &s, &verifyTokenString, &verifyExpiration)
+
+	// we're not testing normalization features so we'll just use this here
+	normEmail := email.Normalize()
+
+	if err := s.VerifyAccount(verifyTokenString); err != ErrNoTokenForUser {
+		t.Fatalf(`VerifyAccount error for expired token: wanted "%+v", got "%+v."`, ErrNoTokenForUser, err)
+	}
+
+	expectAccountMatch(t, &s, normEmail, email, password, createdSeed, &verifyTokenString, &verifyExpiration, time.Now().UTC(), time.Now().UTC())
 }

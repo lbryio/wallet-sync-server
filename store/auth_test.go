@@ -310,7 +310,7 @@ func TestStoreGetToken(t *testing.T) {
 	}
 
 	// Update the token to be expired
-	expirationOld := time.Now().Add(time.Second * (-1))
+	expirationOld := time.Now().Add(time.Second * (-1)).UTC()
 	if err := s.updateToken(&authToken, expirationOld); err != nil {
 		t.Fatalf("Unexpected error in updateToken: %+v", err)
 	}

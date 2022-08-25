@@ -464,9 +464,11 @@ func (s *Store) UpdateVerifyTokenString(email auth.Email, verifyTokenString auth
 }
 
 func (s *Store) VerifyAccount(verifyTokenString auth.VerifyTokenString) (err error) {
+	expirationCutoff := time.Now().UTC()
+
 	res, err := s.db.Exec(
-		"UPDATE accounts SET verify_token=null, verify_expiration=null, updated=datetime('now') WHERE verify_token=?",
-		verifyTokenString,
+		"UPDATE accounts SET verify_token=null, verify_expiration=null, updated=datetime('now') WHERE verify_token=? AND verify_expiration>?",
+		verifyTokenString, expirationCutoff,
 	)
 	if err != nil {
 		return
