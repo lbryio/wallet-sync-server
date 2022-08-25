@@ -417,6 +417,13 @@ func TestServerHelperGetPostDataErrors(t *testing.T) {
 			expectedStatusCode:  http.StatusBadRequest,
 			expectedErrorString: http.StatusText(http.StatusBadRequest) + ": Request failed validation: TestReq Error",
 		},
+		{
+			name:                "body JSON has unknown field",
+			method:              http.MethodPost,
+			requestBody:         `{"lol": "wut"}`,
+			expectedStatusCode:  http.StatusBadRequest,
+			expectedErrorString: http.StatusText(http.StatusBadRequest) + `: json: unknown field "lol"`,
+		},
 	}
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {

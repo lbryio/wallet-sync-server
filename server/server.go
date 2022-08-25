@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -101,16 +102,25 @@ func getPostData(w http.ResponseWriter, req *http.Request, reqStruct PostRequest
 	// people's large wallets and increase the limit than OOM for everybody and
 	// decrease the limit.
 	req.Body = http.MaxBytesReader(w, req.Body, maxBodySize)
-	err := json.NewDecoder(req.Body).Decode(&reqStruct)
+	decoder := json.NewDecoder(req.Body)
+	decoder.DisallowUnknownFields()
+	err := decoder.Decode(&reqStruct)
 	switch {
 	case err == nil:
 		break
 	case err.Error() == "http: request body too large":
 		errorJson(w, http.StatusRequestEntityTooLarge, "")
 		return false
+	case strings.HasPrefix(err.Error(), "json: unknown field"):
+		// The error is coming straight out of the json decoder. I think the prefix
+		// we check for determines what it is pretty reliably. I'd think it's safe
+		// to give back to the requesting client (unlike an arbitrary error
+		// message).
+		errorJson(w, http.StatusBadRequest, err.Error())
+		return false
 	default:
-		// Maybe we can suss out specific errors later. Need to study what errors
-		// come from Decode.
+		// Maybe we can suss out more specific errors later. Need to study what
+		// errors come from Decode.
 		errorJson(w, http.StatusBadRequest, "Error parsing JSON")
 		return false
 	}
