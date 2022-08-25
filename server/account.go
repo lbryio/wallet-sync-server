@@ -122,6 +122,7 @@ modes:
 	// TODO StatusCreated also for first wallet and/or for get auth token?
 	w.WriteHeader(http.StatusCreated)
 	fmt.Fprintf(w, string(response))
+	log.Printf("User %s has registered", registerRequest.Email)
 }
 
 // TODO - There's probably a struct-based solution here like with POST/PUT.
@@ -228,4 +229,8 @@ func (s *Server) verify(w http.ResponseWriter, req *http.Request) {
 	}
 
 	fmt.Fprintf(w, "Your account has been verified.")
+
+	// if we really want to log the user's email at some point
+	// we can put in the effort then to fetch it
+	log.Printf("User has been verified with token %s", token)
 }

@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -30,7 +31,7 @@ func (r *WalletRequest) validate() error {
 	if r.Hmac == "" {
 		return fmt.Errorf("Missing 'hmac'")
 	}
-	if r.Sequence < 1 {
+	if r.Sequence < store.InitialWalletSequence {
 		return fmt.Errorf("Missing or zero-value 'sequence'")
 	}
 	return nil
@@ -156,4 +157,7 @@ func (s *Server) postWallet(w http.ResponseWriter, req *http.Request) {
 	}
 
 	fmt.Fprintf(w, string(response))
+	if walletRequest.Sequence == store.InitialWalletSequence {
+		log.Printf("Initial wallet created for user id %d", authToken.UserId)
+	}
 }

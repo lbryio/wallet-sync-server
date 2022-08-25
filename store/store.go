@@ -37,6 +37,10 @@ var (
 const (
 	AuthTokenLifespan   = time.Hour * 24 * 14
 	VerifyTokenLifespan = time.Hour * 24 * 2
+
+	// Eventually it could become variable when we introduce server switching. A user
+	// might be on a later sequence when they switch from another server.
+	InitialWalletSequence = 1
 )
 
 // For test stubs
@@ -281,12 +285,12 @@ func (s *Store) insertFirstWallet(
 	encryptedWallet wallet.EncryptedWallet,
 	hmac wallet.WalletHmac,
 ) (err error) {
-	// This will only be used to attempt to insert the first wallet (sequence=1).
+	// This will only be used to attempt to insert the first wallet (sequence=InitialWalletSequence).
 	//   The database will enforce that this will not be set if this user already
 	//   has a wallet.
 	_, err = s.db.Exec(
 		"INSERT INTO wallets (user_id, encrypted_wallet, sequence, hmac, updated) VALUES(?,?,?,?, datetime('now'))",
-		userId, encryptedWallet, 1, hmac,
+		userId, encryptedWallet, InitialWalletSequence, hmac,
 	)
 
 	var sqliteErr sqlite3.Error
@@ -309,7 +313,7 @@ func (s *Store) updateWalletToSequence(
 	sequence wallet.Sequence,
 	hmac wallet.WalletHmac,
 ) (err error) {
-	// This will be used for wallets with sequence > 1.
+	// This will be used for wallets with sequence > InitialWalletSequence.
 	// Use the database to enforce that we only update if we are incrementing the sequence.
 	// This way, if two clients attempt to update at the same time, it will return
 	// an error for the second one.
@@ -333,22 +337,22 @@ func (s *Store) updateWalletToSequence(
 	return
 }
 
-// Assumption: Sequence has been validated (>=1)
+// Assumption: Sequence has been validated (>=InitialWalletSequence)
 // Assumption: Auth token has been checked (thus account is verified)
 func (s *Store) SetWallet(userId auth.UserId, encryptedWallet wallet.EncryptedWallet, sequence wallet.Sequence, hmac wallet.WalletHmac) (err error) {
-	if sequence == 1 {
-		// If sequence == 1, the client assumed that this is our first
+	if sequence == InitialWalletSequence {
+		// If sequence == InitialWalletSequence, the client assumed that this is our first
 		// wallet. Try to insert. If we get a conflict, the client
 		// assumed incorrectly and we proceed below to return the latest
 		// wallet from the db.
 		err = s.insertFirstWallet(userId, encryptedWallet, hmac)
 		if err == ErrDuplicateWallet {
-			// A wallet already exists. That means the input sequence should not be 1.
+			// A wallet already exists. That means the input sequence should not be InitialWalletSequence.
 			// To the caller, this means the sequence was wrong.
 			err = ErrWrongSequence
 		}
 	} else {
-		// If sequence > 1, the client assumed that it is replacing wallet
+		// If sequence > InitialWalletSequence, the client assumed that it is replacing wallet
 		// with sequence - 1. Explicitly try to update the wallet with
 		// sequence - 1. If we updated no rows, the client assumed incorrectly
 		// and we proceed below to return the latest wallet from the db.

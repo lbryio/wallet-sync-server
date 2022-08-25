@@ -174,7 +174,7 @@ func TestStoreUpdateWallet(t *testing.T) {
 // NOTE - the "behind the scenes" comments give a view of what we're expecting
 // to happen, and why we're testing what we are. Sometimes it should insert,
 // sometimes it should update. It depends on whether it's the first wallet
-// submitted, and that's easily determined by sequence=1. However, if we switch
+// submitted, and that's easily determined by sequence=store.InitialWalletSequence. However, if we switch
 // to a database with "upserts" and take advantage of it, what happens behind
 // the scenes will change a little, so the comments should be updated. Though,
 // we'd probably best test the same cases.
