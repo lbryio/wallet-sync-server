@@ -1,7 +1,5 @@
 package paths
 
-// TODO proper doc comments!
-
 const ApiVersion = "3"
 const PathPrefix = "/api/" + ApiVersion
 

@@ -27,7 +27,6 @@ const ScopeFull = AuthScope("*")
 
 // For test stubs
 type AuthInterface interface {
-	// TODO maybe have a "refresh token" thing if the client won't have email available all the time?
 	NewAuthToken(UserId, DeviceId, AuthScope) (*AuthToken, error)
 	NewVerifyTokenString() (VerifyTokenString, error)
 }
@@ -46,7 +45,7 @@ const TokenLength = 32
 
 func (a *Auth) NewAuthToken(userId UserId, deviceId DeviceId, scope AuthScope) (*AuthToken, error) {
 	b := make([]byte, TokenLength)
-	// TODO - Is this is a secure random function? (Maybe audit)
+	// TODO - Audit: Is this is a secure random function?
 	if _, err := rand.Read(b); err != nil {
 		return nil, fmt.Errorf("Error generating token: %+v", err)
 	}
@@ -62,7 +61,7 @@ func (a *Auth) NewAuthToken(userId UserId, deviceId DeviceId, scope AuthScope) (
 
 func (a *Auth) NewVerifyTokenString() (VerifyTokenString, error) {
 	b := make([]byte, TokenLength)
-	// TODO - Is this is a secure random function? (Maybe audit)
+	// TODO - Audit: Is this is a secure random function?
 	if _, err := rand.Read(b); err != nil {
 		return "", fmt.Errorf("Error generating token: %+v", err)
 	}

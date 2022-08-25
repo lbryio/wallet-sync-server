@@ -21,8 +21,6 @@ import (
 
 // Whereas sever_test.go stubs out auth store and wallet, these will use the real thing, but test fewer paths.
 
-// TODO - test some unhappy paths? Don't want to retest all the unit tests though.
-
 // Integration test requires a real sqlite database
 func storeTestInit(t *testing.T) (s store.Store, tmpFile *os.File) {
 	s = store.Store{}

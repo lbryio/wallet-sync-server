@@ -25,8 +25,6 @@ type Server struct {
 	port  int
 }
 
-// TODO If I capitalize the `auth` `store` and `env` fields of Store{} I can
-// create Store{} structs directly from main.go.
 func Init(
 	auth auth.AuthInterface,
 	store store.StoreInterface,
@@ -77,7 +75,6 @@ func internalServiceErrorJson(w http.ResponseWriter, serverErr error, errContext
 
 // Cut down on code repetition. No need to return errors since it can all be
 // handled here. Just return a bool to indicate success.
-// TODO the names `getPostData` and `getGetData` don't fully describe what they do
 
 func requestOverhead(w http.ResponseWriter, req *http.Request, method string) bool {
 	if req.Method != method {
@@ -93,10 +90,6 @@ func requestOverhead(w http.ResponseWriter, req *http.Request, method string) bo
 type PostRequest interface {
 	validate() error
 }
-
-// TODO decoder.DisallowUnknownFields?
-// TODO GET params too large (like StatusRequestEntityTooLarge)? Or is that
-//   somehow handled by the http library due to a size limit in the http spec?
 
 // Confirm it's a Post request, various overhead, decode the json, validate the struct
 func getPostData(w http.ResponseWriter, req *http.Request, reqStruct PostRequest) bool {
@@ -137,7 +130,7 @@ func getGetData(w http.ResponseWriter, req *http.Request) bool {
 }
 
 // TODO - probably don't return all of authToken since we only need userId and
-// deviceId. Also this is apparently not idiomatic go error handling.
+// deviceId.
 func (s *Server) checkAuth(
 	w http.ResponseWriter,
 	token auth.AuthTokenString,
