@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"lbryio/wallet-sync-server/auth"
 	"lbryio/wallet-sync-server/server/paths"
@@ -24,6 +25,8 @@ func TestServerChangePassword(t *testing.T) {
 
 		// Whether we expect the call to ChangePassword*Wallet to happen
 		expectChangePasswordCall bool
+
+		expectWsMsg bool
 
 		// `new...` refers to what is being passed into the via POST request (and
 		//   what we expect to get passed into SetWallet for the *non-error* cases
@@ -42,6 +45,7 @@ func TestServerChangePassword(t *testing.T) {
 			expectedStatusCode: http.StatusOK,
 
 			expectChangePasswordCall: true,
+			expectWsMsg:              true,
 
 			newEncryptedWallet: "my-enc-wallet",
 			newSequence:        2,
@@ -54,6 +58,7 @@ func TestServerChangePassword(t *testing.T) {
 			expectedStatusCode: http.StatusOK,
 
 			expectChangePasswordCall: true,
+			expectWsMsg:              true,
 
 			email: "abc@example.com",
 		}, {
@@ -168,8 +173,9 @@ func TestServerChangePassword(t *testing.T) {
 	}
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			testStore := TestStore{Errors: tc.storeErrors}
-			s := Server{&TestAuth{}, &testStore, &TestEnv{}, &TestMail{}, TestPort}
+			testStore := TestStore{Errors: tc.storeErrors, TestUserId: 37}
+			s := Init(&TestAuth{}, &testStore, &TestEnv{}, &TestMail{}, TestPort)
+			wsmm := wsMockManager{s: s, done: make(chan bool)}
 
 			// Whether we passed in wallet fields (these test cases should be passing
 			// in all of them or none of them, so we only test EncryptedWallet). This
@@ -196,7 +202,15 @@ func TestServerChangePassword(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, paths.PathPassword, bytes.NewBuffer(requestBody))
 			w := httptest.NewRecorder()
 
+			go wsmm.getOneMessage(100 * time.Millisecond)
 			s.changePassword(w, req)
+			<-wsmm.done
+			if tc.expectWsMsg && wsmm.removedUserId != testStore.TestUserId {
+				t.Error("Expected websocket message to remove user id")
+			}
+			if !tc.expectWsMsg && !wsmm.noMessage {
+				t.Error("Expected no websocket message to remove user id")
+			}
 
 			body, _ := ioutil.ReadAll(w.Body)
 

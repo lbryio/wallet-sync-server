@@ -1,8 +1,9 @@
 module lbryio/wallet-sync-server
 
-go 1.17
+go 1.18
 
 require (
+	github.com/gorilla/websocket v1.5.0
 	github.com/mailgun/mailgun-go/v4 v4.8.1
 	github.com/mattn/go-sqlite3 v1.14.9
 	github.com/prometheus/client_golang v1.11.0

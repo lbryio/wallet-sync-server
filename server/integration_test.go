@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"lbryio/wallet-sync-server/auth"
 	"lbryio/wallet-sync-server/server/paths"
@@ -99,7 +100,7 @@ func TestIntegrationWalletUpdates(t *testing.T) {
 	env := map[string]string{
 		"ACCOUNT_WHITELIST": "abc@example.com",
 	}
-	s := Server{&auth.Auth{}, &st, &TestEnv{env}, &TestMail{}, TestPort}
+	s := Init(&auth.Auth{}, &st, &TestEnv{env}, &TestMail{}, TestPort)
 
 	////////////////////
 	t.Log("Request: Register email address - any device")
@@ -269,7 +270,13 @@ func TestIntegrationChangePassword(t *testing.T) {
 	env := map[string]string{
 		"ACCOUNT_WHITELIST": "abc@example.com",
 	}
-	s := Server{&auth.Auth{}, &st, &TestEnv{env}, &TestMail{}, TestPort}
+	s := Init(&auth.Auth{}, &st, &TestEnv{env}, &TestMail{}, TestPort)
+
+	// Still need to mock this until we're doing a real integration test
+	// where we call Serve(), which brings up the real websocket manager.
+	// Note that in the integration test, we're only using this for requests
+	// that would get blocked without it.
+	wsmm := wsMockManager{s: s, done: make(chan bool)}
 
 	////////////////////
 	t.Log("Request: Register email address")
@@ -341,6 +348,9 @@ func TestIntegrationChangePassword(t *testing.T) {
 	t.Log("Request: Change password")
 	////////////////////
 
+	// Giving it a whole second of timeout because this request seems to be a bit
+	// slow.
+	go wsmm.getOneMessage(time.Second)
 	var changePasswordResponse struct{}
 	responseBody, statusCode = request(
 		t,
@@ -350,6 +360,7 @@ func TestIntegrationChangePassword(t *testing.T) {
 		&changePasswordResponse,
 		`{"email": "abc@example.com", "oldPassword": "12345678", "newPassword": "45678901", "clientSaltSeed": "8678def95678def98678def95678def98678def95678def98678def95678def9"}`,
 	)
+	<-wsmm.done
 
 	checkStatusCode(t, statusCode, responseBody)
 
@@ -444,6 +455,9 @@ func TestIntegrationChangePassword(t *testing.T) {
 	t.Log("Request: Change password again, this time including a wallet (since there is a wallet to update)")
 	////////////////////
 
+	// Giving it a whole second of timeout because this request seems to be a bit
+	// slow.
+	go wsmm.getOneMessage(time.Second)
 	responseBody, statusCode = request(
 		t,
 		http.MethodPost,
@@ -460,6 +474,7 @@ func TestIntegrationChangePassword(t *testing.T) {
       "clientSaltSeed": "0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff0000ffff"
     }`),
 	)
+	<-wsmm.done
 
 	checkStatusCode(t, statusCode, responseBody)
 
@@ -560,7 +575,7 @@ func TestIntegrationVerifyAccount(t *testing.T) {
 		"ACCOUNT_VERIFICATION_MODE": "EmailVerify",
 	}
 	testMail := TestMail{}
-	s := Server{&auth.Auth{}, &st, &TestEnv{env}, &testMail, TestPort}
+	s := Init(&auth.Auth{}, &st, &TestEnv{env}, &testMail, TestPort)
 
 	////////////////////
 	t.Log("Request: Register email address")

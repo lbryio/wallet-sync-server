@@ -3,11 +3,16 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"time"
 
 	"lbryio/wallet-sync-server/auth"
+	"lbryio/wallet-sync-server/metrics"
 	"lbryio/wallet-sync-server/store"
 	"lbryio/wallet-sync-server/wallet"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type ChangePasswordRequest struct {
@@ -69,8 +74,9 @@ func (s *Server) changePassword(w http.ResponseWriter, req *http.Request) {
 	// unverified accounts here for simplicity.
 
 	var err error
+	var userId auth.UserId
 	if changePasswordRequest.EncryptedWallet != "" {
-		err = s.store.ChangePasswordWithWallet(
+		userId, err = s.store.ChangePasswordWithWallet(
 			changePasswordRequest.Email,
 			changePasswordRequest.OldPassword,
 			changePasswordRequest.NewPassword,
@@ -83,7 +89,7 @@ func (s *Server) changePassword(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 	} else {
-		err = s.store.ChangePasswordNoWallet(
+		userId, err = s.store.ChangePasswordNoWallet(
 			changePasswordRequest.Email,
 			changePasswordRequest.OldPassword,
 			changePasswordRequest.NewPassword,
@@ -107,6 +113,42 @@ func (s *Server) changePassword(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// TODO - A socket connection request using an old auth token could still
+	// succeed in a race condition:
+	// * websocket handler: checkAuth passes with token
+	// * password change handler: change password, invalidate token
+	// * password change handler: send userRemove message
+	// * websocket manager: process userRemove message, ending all websocket connections for user
+	// * websocket handler: new websocket connection is established
+	//
+	// It would require the websocket handler to be very slow, but I don't want to
+	// rule it out.
+	//
+	// But a much more likely scenario could happen: the buffer on the userRemove
+	// channel could get full and it could time out, and not boot any of the
+	// users' clients.
+	//
+	// These aren't horribly important now since the only message is a
+	// notification that a new wallet version exists, but who knows what we
+	// could use websockets for. Maybe we start doing something crazy like
+	// updating the wallet over the channel, in which case we absolutely want
+	// to prevent an old client from doing so after a password change on
+	// another client.
+	//
+	// We'd have to think a fair amount about how to make these foolproof if it
+	// becomes important. Maybe we just pass the auth token to the websocket
+	// writer, and pass it to every wallet update db call, and have it check
+	// the auth token within the same transaction as the wallet update.
+
+	timeout := time.NewTicker(100 * time.Millisecond)
+	select {
+	case s.userRemove <- wsClientForUser{userId, nil}:
+	case <-timeout.C:
+		metrics.ErrorsCount.With(prometheus.Labels{"details": "websocket user remove chan buffer full"}).Inc()
+		return
+	}
+	timeout.Stop()
+
 	var changePasswordResponse struct{} // no data to respond with, but keep it JSON
 	var response []byte
 	response, err = json.Marshal(changePasswordResponse)
@@ -118,4 +160,5 @@ func (s *Server) changePassword(w http.ResponseWriter, req *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, string(response))
+	log.Printf("User %s has changed their password", changePasswordRequest.Email)
 }

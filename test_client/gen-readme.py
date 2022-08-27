@@ -2,7 +2,6 @@
 
 # Generate the README since I want real behavior interspersed with comments
 # Come to think of it, this is accidentally a pretty okay integration test for client and server
-# NOTE - delete the database before running this, or else you'll get an error for registering. also we want the wallet to start empty
 # NOTE - in the SDK, create wallets called "test_wallet_1" and "test_wallet_2"
 
 import time
@@ -44,8 +43,10 @@ For this example we will be working with a locally running server so that we don
 
 code_block("""
 from test_client import Client
-c1 = Client("joe2@example.com", "123abc2", 'test_wallet_1', local=True)
-c2 = Client("joe2@example.com", "123abc2", 'test_wallet_2', local=True)
+import time
+email = "joe-%s@example.com" % int(time.time())
+c1 = Client("c1", email, "123abc2", 'test_wallet_1', local=True)
+c2 = Client("c2", email, "123abc2", 'test_wallet_2', local=True)
 """)
 
 print("""
@@ -263,6 +264,61 @@ We don't allow password changes if we have pending wallet changes to push. This 
 code_block("""
 c1.set_preference('animal', 'leemur')
 c1.change_password("starboard")
+""")
+
+print("""
+If we update the wallet first, we can do it.
+""")
+
+code_block("""
 c1.update_remote_wallet()
 c1.change_password("starboard")
+c1.get_auth_token()
+c2.set_local_password("starboard")
+c2.get_auth_token()
 """)
+
+print("""
+# Websockets
+
+A client can make a websocket connection to the server and receive notifications whenever another client updates the wallet on the server. The message will contain the sequence number so that the client can know whether they happen to be up to date. (The client that made the update will of course be up to date).
+
+This test client will have a thread listening to the websocket which just prints info about new messages as they come in. A real client would likely choose to get the latest wallet from the server as soon as a messag ecomes through, assuming the sequence is newer than what the client has.
+""")
+
+code_block("""
+c1.start_websocket()
+c2.start_websocket()
+""")
+
+time.sleep(.1) # make sure the messages in the other thread have time to print
+
+print("""
+Now make an update and see:
+""")
+
+code_block("""
+c1.update_remote_wallet()
+""")
+
+time.sleep(.1) # make sure the messages in the other thread have time to print
+
+print("""
+Update again and we'll see the new sequence number:
+""")
+
+code_block("""
+c1.update_remote_wallet()
+""")
+
+time.sleep(.1) # make sure the messages in the other thread have time to print
+
+print("""
+When we change a password, just as all auth tokens are invalidated, all sockets are also disconnected.
+""")
+
+code_block("""
+c1.change_password("ihatesockets")
+""")
+
+time.sleep(.1) # make sure the messages in the other thread have time to print

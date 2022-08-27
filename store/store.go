@@ -53,8 +53,8 @@ type StoreInterface interface {
 	CreateAccount(auth.Email, auth.Password, auth.ClientSaltSeed, *auth.VerifyTokenString) error
 	UpdateVerifyTokenString(auth.Email, auth.VerifyTokenString) error
 	VerifyAccount(auth.VerifyTokenString) error
-	ChangePasswordWithWallet(auth.Email, auth.Password, auth.Password, auth.ClientSaltSeed, wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac) error
-	ChangePasswordNoWallet(auth.Email, auth.Password, auth.Password, auth.ClientSaltSeed) error
+	ChangePasswordWithWallet(auth.Email, auth.Password, auth.Password, auth.ClientSaltSeed, wallet.EncryptedWallet, wallet.Sequence, wallet.WalletHmac) (auth.UserId, error)
+	ChangePasswordNoWallet(auth.Email, auth.Password, auth.Password, auth.ClientSaltSeed) (auth.UserId, error)
 	GetClientSaltSeed(auth.Email) (auth.ClientSaltSeed, error)
 }
 
@@ -492,6 +492,22 @@ func (s *Store) VerifyAccount(verifyTokenString auth.VerifyTokenString) (err err
 // Also delete all auth tokens to force clients to update their root password
 // to get a new token. This prevents other clients from posting a wallet
 // encrypted with the old key.
+//
+// Return userId as a pure convenience for the calling request handler.
+//
+// TODO - A wallet encrypted with the old key could still save successfully in
+//   a race condition:
+// 1) get auth token request passes old password check
+// 2) password change transaction begins and ends
+// 3) get auth token request saves and returns a new token
+// 4) post wallet using the auth token that snuck by
+// One obvious solution would be to integrate everything into one database
+//   transaction. This problem could apply to other requests as well. Not just
+//   database ones: there's a similar potential race condition trying to boot
+//   users from all of their websockets on password change. We should think
+//   about it. Maybe we could have a counter for password changes, similar to
+//   Sequence? And the tokens have that number attached to it. We can check it
+//   as an extra validation of the token.
 func (s *Store) ChangePasswordWithWallet(
 	email auth.Email,
 	oldPassword auth.Password,
@@ -500,7 +516,7 @@ func (s *Store) ChangePasswordWithWallet(
 	encryptedWallet wallet.EncryptedWallet,
 	sequence wallet.Sequence,
 	hmac wallet.WalletHmac,
-) (err error) {
+) (userId auth.UserId, err error) {
 	return s.changePassword(
 		email,
 		oldPassword,
@@ -518,12 +534,14 @@ func (s *Store) ChangePasswordWithWallet(
 // Also delete all auth tokens to force clients to update their root password
 // to get a new token. This prevents other clients from posting a wallet
 // encrypted with the old key.
+//
+// Return userId as a pure convenience for the calling request handler.
 func (s *Store) ChangePasswordNoWallet(
 	email auth.Email,
 	oldPassword auth.Password,
 	newPassword auth.Password,
 	clientSaltSeed auth.ClientSaltSeed,
-) (err error) {
+) (userId auth.UserId, err error) {
 	return s.changePassword(
 		email,
 		oldPassword,
@@ -544,8 +562,7 @@ func (s *Store) changePassword(
 	encryptedWallet wallet.EncryptedWallet,
 	sequence wallet.Sequence,
 	hmac wallet.WalletHmac,
-) (err error) {
-	var userId auth.UserId
+) (userId auth.UserId, err error) {
 
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -646,8 +663,10 @@ func (s *Store) changePassword(
 		}
 	}
 
-	// Don't care how many I delete here. Might even be zero. No login token while
-	// changing password seems plausible.
+	// Don't care how many I delete here. Might even be zero (no login token
+	// while changing password seems plausible). The main reason for this is
+	// that we want to prevent any client from saving a subsequent wallet
+	// without changing its password first.
 	_, err = tx.Exec("DELETE FROM auth_tokens WHERE user_id=?", userId)
 	return
 }

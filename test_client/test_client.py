@@ -4,8 +4,12 @@ import base64, json, uuid, requests, hashlib, hmac
 from pprint import pprint
 from hashlib import scrypt, sha256 # TODO - audit! Should I use hazmat `Scrypt` instead for some reason?
 import secrets
+import threading
 
 WalletState = namedtuple('WalletState', ['sequence', 'encrypted_wallet'])
+
+import asyncio, time
+from websockets import connect as websockets_connect
 
 class LBRYSDK():
   @staticmethod
@@ -68,20 +72,25 @@ class WalletSync():
     self.API_VERSION = 3
 
     if local:
-      BASE_URL = 'http://localhost:8090'
+      BASE_HTTP_URL = 'http://localhost:8090'
+      BASE_WS_URL = 'ws://localhost:8090'
     else:
-      BASE_URL = 'https://dev.lbry.id'
+      BASE_HTTP_URL = 'https://dev.lbry.id'
+      BASE_WS_URL = 'wss://dev.lbry.id'
 
     # Avoid confusion. I sometimes forget, at any rate.
-    print ("Connecting to Wallet API at " + BASE_URL)
+    print ("Connecting to Wallet API at " + BASE_HTTP_URL)
 
-    API_URL = BASE_URL + '/api/%d' % self.API_VERSION
+    API_HTTP_URL = BASE_HTTP_URL + '/api/%d' % self.API_VERSION
+    API_WS_URL = BASE_WS_URL + '/api/%d' % self.API_VERSION
 
-    self.AUTH_URL = API_URL + '/auth/full'
-    self.REGISTER_URL = API_URL + '/signup'
-    self.PASSWORD_URL = API_URL + '/password'
-    self.WALLET_URL = API_URL + '/wallet'
-    self.CLIENT_SALT_SEED_URL = API_URL + '/client-salt-seed'
+    self.AUTH_URL = API_HTTP_URL + '/auth/full'
+    self.REGISTER_URL = API_HTTP_URL + '/signup'
+    self.PASSWORD_URL = API_HTTP_URL + '/password'
+    self.WALLET_URL = API_HTTP_URL + '/wallet'
+    self.CLIENT_SALT_SEED_URL = API_HTTP_URL + '/client-salt-seed'
+
+    self.WEBSOCKET_URL = API_WS_URL + '/websocket'
 
   # def resend_registration_email():
   # also rename this to __init__.py later
@@ -115,7 +124,7 @@ class WalletSync():
 
   def get_salt_seed(self, email):
     params = {
-      'email': base64.encodestring(bytes(email.encode('utf-8'))),
+      'email': base64.encodebytes(bytes(email.encode('utf-8'))),
     }
     response = requests.get(self.CLIENT_SALT_SEED_URL, params=params)
 
@@ -219,6 +228,46 @@ class WalletSync():
       print (response.content)
       raise Exception("Unexpected status code")
 
+  # NOTE this doesn't have a way to explicitly disconnect! Hopefully the real
+  # thing is designed better.
+  # NOTE - if you change your password, the server will kick off all existing
+  # websocket connections for that user. each client will need to change their
+  # password to connect again.
+  def start_websocket(self, client_name, token):
+      DEBUG = False
+      # Poor man's debug log
+      debugLog = lambda *x: print(*x) if DEBUG else None
+      self.try_connect_websocket = True
+      async def connection():
+          while self.try_connect_websocket:
+              debugLog (client_name, "trying to connect")
+              try:
+                  async with websockets_connect(self.WEBSOCKET_URL + "?token=" + token) as websocket:
+                      print (client_name, "connected for now")
+                      while True:
+                          try:
+                              msg = await websocket.recv()
+                              # ex: 'wallet-update:5'
+                              if msg.startswith('wallet-update'):
+                                  sequence = int(msg.split(':')[-1])
+                                  print (client_name, "got notified of a wallet update, sequence=" + str(sequence) + ". If your client is behind this sequence, you should get the latest from the server.")
+                              else:
+                                  debugLog (client_name, "got an unknown message:", msg)
+                          except Exception as e:
+                              print (client_name, "disconnected for now:", e)
+                              time.sleep(1)
+                              break
+              except Exception as e:
+                  debugLog (client_name, "failed to connect:", e)
+                  time.sleep(1)
+
+      asyncio.run(connection())
+
+  # NOTE - this only stops retrying connections and sending messages. If a
+  # socket is happily connected this won't stop it.
+  def stop_try_reconnect_websocket(self):
+      self.try_connect_websocket = False
+
 # Thanks to Standard Notes. See:
 # https://docs.standardnotes.com/specification/encryption/
 
@@ -299,18 +348,21 @@ class Client():
 
     return True
 
-  def __init__(self, email, root_password, wallet_id='default_wallet', local=False):
+  def __init__(self, client_name, email, root_password, wallet_id='default_wallet', local=False):
     self.wallet_sync_api = WalletSync(local=local)
+    self.client_name = client_name # Just for async output so we know who's talking
 
     # Represents normal client behavior (though a real client will of course save device id)
     self.device_id = str(uuid.uuid4())
-    self.auth_token = 'bad token'
+    self.auth_token = 'bad-token'
     self.synced_wallet_state = None
 
     self.email = email
     self.root_password = root_password
 
     self.wallet_id = wallet_id
+
+    self.ws_thread = None
 
   def register(self):
     # Note that for each registration, i.e. for each domain, we generate a
@@ -393,6 +445,29 @@ class Client():
     # changes were made before the wallet state was initialized.
     # TODO - actually set the right hash
     self.mark_local_changes_synced_to_empty()
+
+  def start_websocket(self):
+      # NOTE - Not putting any effort into here responsible thread programming
+      # here. Not accounting for errors, logging out and logging into other
+      # servers, etc. Only going so far as to make sure we don't start two at
+      # once.
+
+      if self.ws_thread is None:
+          self.ws_thread = threading.Thread(
+             target=self.wallet_sync_api.start_websocket,
+             args=(self.client_name, self.auth_token),
+             daemon=True,
+          )
+          self.ws_thread.start()
+      else:
+          print("Websocket already connected (or trying to).")
+
+  def stop_try_reconnect_websocket(self):
+      self.wallet_sync_api.stop_try_reconnect_websocket()
+
+      # Not trying to be a responsible thread programmer here, this is just a
+      # demo, and not a threading demo
+      self.ws_thread = None
 
   def get_auth_token(self):
     token = self.wallet_sync_api.get_auth_token(

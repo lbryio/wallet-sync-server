@@ -43,8 +43,12 @@ func TestStoreChangePasswordSuccess(t *testing.T) {
 
 	lowerEmail := auth.Email(strings.ToLower(string(email)))
 
-	if err := s.ChangePasswordWithWallet(lowerEmail, oldPassword, newPassword, newSeed, encryptedWallet, sequence, hmac); err != nil {
+	pwUserId, err := s.ChangePasswordWithWallet(lowerEmail, oldPassword, newPassword, newSeed, encryptedWallet, sequence, hmac)
+	if err != nil {
 		t.Errorf("ChangePasswordWithWallet (lower case email): unexpected error: %+v", err)
+	}
+	if userId != pwUserId {
+		t.Errorf("Expected ChangePasswordWithWallet to return correct user Id. Want %d got %d", userId, pwUserId)
 	}
 
 	expectAccountMatch(t, &s, email.Normalize(), email, newPassword, newSeed, nil, nil, time.Now().UTC(), time.Now().UTC())
@@ -59,8 +63,12 @@ func TestStoreChangePasswordSuccess(t *testing.T) {
 
 	upperEmail := auth.Email(strings.ToUpper(string(email)))
 
-	if err := s.ChangePasswordWithWallet(upperEmail, newPassword, newNewPassword, newNewSeed, newEncryptedWallet, newSequence, newHmac); err != nil {
+	pwUserId, err = s.ChangePasswordWithWallet(upperEmail, newPassword, newNewPassword, newNewSeed, newEncryptedWallet, newSequence, newHmac)
+	if err != nil {
 		t.Errorf("ChangePasswordWithWallet (upper case email): unexpected error: %+v", err)
+	}
+	if userId != pwUserId {
+		t.Errorf("Expected ChangePasswordWithWallet to return correct user Id. Want %d got %d", userId, pwUserId)
 	}
 
 	expectAccountMatch(t, &s, email.Normalize(), email, newNewPassword, newNewSeed, nil, nil, time.Now().UTC(), time.Now().UTC())
@@ -165,7 +173,7 @@ func TestStoreChangePasswordErrors(t *testing.T) {
 			newPassword := oldPassword + auth.Password("_new")         // Make the new password different (as it should be)
 			newSeed := auth.ClientSaltSeed("edf98765edf98765edf98765edf98765edf98765edf98765edf98765edf98765")
 
-			if err := s.ChangePasswordWithWallet(submittedEmail, submittedOldPassword, newPassword, newSeed, newEncryptedWallet, tc.sequence, newHmac); err != tc.expectedError {
+			if _, err := s.ChangePasswordWithWallet(submittedEmail, submittedOldPassword, newPassword, newSeed, newEncryptedWallet, tc.sequence, newHmac); err != tc.expectedError {
 				t.Errorf("ChangePasswordWithWallet: unexpected value for err. want: %+v, got: %+v", tc.expectedError, err)
 			}
 
@@ -204,8 +212,12 @@ func TestStoreChangePasswordNoWalletSuccess(t *testing.T) {
 
 	lowerEmail := auth.Email(strings.ToLower(string(email)))
 
-	if err := s.ChangePasswordNoWallet(lowerEmail, oldPassword, newPassword, newSeed); err != nil {
+	pwUserId, err := s.ChangePasswordNoWallet(lowerEmail, oldPassword, newPassword, newSeed)
+	if err != nil {
 		t.Errorf("ChangePasswordNoWallet (lower case email): unexpected error: %+v", err)
+	}
+	if userId != pwUserId {
+		t.Errorf("Expected ChangePasswordNoWallet to return correct user Id. Want %d got %d", userId, pwUserId)
 	}
 
 	expectAccountMatch(t, &s, email.Normalize(), email, newPassword, newSeed, nil, nil, time.Now().UTC(), time.Now().UTC())
@@ -217,8 +229,13 @@ func TestStoreChangePasswordNoWalletSuccess(t *testing.T) {
 
 	upperEmail := auth.Email(strings.ToUpper(string(email)))
 
-	if err := s.ChangePasswordNoWallet(upperEmail, newPassword, newNewPassword, newNewSeed); err != nil {
+	pwUserId, err = s.ChangePasswordNoWallet(upperEmail, newPassword, newNewPassword, newNewSeed)
+
+	if err != nil {
 		t.Errorf("ChangePasswordNoWallet (upper case email): unexpected error: %+v", err)
+	}
+	if userId != pwUserId {
+		t.Errorf("Expected ChangePasswordNoWallet to return correct user Id. Want %d got %d", userId, pwUserId)
 	}
 
 	expectAccountMatch(t, &s, email.Normalize(), email, newNewPassword, newNewSeed, nil, nil, time.Now().UTC(), time.Now().UTC())
@@ -308,7 +325,7 @@ func TestStoreChangePasswordNoWalletErrors(t *testing.T) {
 			newPassword := oldPassword + auth.Password("_new")         // Possibly make the new password different (as it should be)
 			newSeed := auth.ClientSaltSeed("edf98765edf98765edf98765edf98765edf98765edf98765edf98765edf98765")
 
-			if err := s.ChangePasswordNoWallet(submittedEmail, submittedOldPassword, newPassword, newSeed); err != tc.expectedError {
+			if _, err := s.ChangePasswordNoWallet(submittedEmail, submittedOldPassword, newPassword, newSeed); err != tc.expectedError {
 				t.Errorf("ChangePasswordNoWallet: unexpected value for err. want: %+v, got: %+v", tc.expectedError, err)
 			}
 

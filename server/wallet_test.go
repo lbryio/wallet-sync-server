@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"lbryio/wallet-sync-server/auth"
 	"lbryio/wallet-sync-server/server/paths"
@@ -78,7 +79,7 @@ func TestServerGetWallet(t *testing.T) {
 			}
 
 			testEnv := TestEnv{}
-			s := Server{&testAuth, &testStore, &testEnv, &TestMail{}, TestPort}
+			s := Init(&testAuth, &testStore, &testEnv, &TestMail{}, TestPort)
 
 			req := httptest.NewRequest(http.MethodGet, paths.PathWallet, nil)
 			q := req.URL.Query()
@@ -135,6 +136,7 @@ func TestServerPostWallet(t *testing.T) {
 		expectedStatusCode  int
 		expectedErrorString string
 		expectSetWalletCall bool
+		expectWsMsg         bool
 
 		// This is getting messy, but in the case of validation failures, we don't
 		// even get around to trying to get an auth token, since the token string is
@@ -155,6 +157,7 @@ func TestServerPostWallet(t *testing.T) {
 			name:                "success",
 			expectedStatusCode:  http.StatusOK,
 			expectSetWalletCall: true,
+			expectWsMsg:         true,
 
 			// Simulates a situation where the existing sequence is 1, the new
 			// sequence is 2.
@@ -225,18 +228,19 @@ func TestServerPostWallet(t *testing.T) {
 	}
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-
 			testAuth := TestAuth{}
 			testStore := TestStore{
 				TestAuthToken: auth.AuthToken{
-					Token: auth.AuthTokenString("seekrit"),
-					Scope: auth.ScopeFull,
+					Token:  auth.AuthTokenString("seekrit"),
+					Scope:  auth.ScopeFull,
+					UserId: auth.UserId(37),
 				},
 
 				Errors: tc.storeErrors,
 			}
 
-			s := Server{&testAuth, &testStore, &TestEnv{}, &TestMail{}, TestPort}
+			s := Init(&testAuth, &testStore, &TestEnv{}, &TestMail{}, TestPort)
+			wsmm := wsMockManager{s: s, done: make(chan bool)}
 
 			requestBody := []byte(
 				fmt.Sprintf(`{
@@ -252,7 +256,15 @@ func TestServerPostWallet(t *testing.T) {
 
 			// test handleWallet while we're at it, which is a dispatch for get and post
 			// wallet
+			go wsmm.getOneMessage(100 * time.Millisecond)
 			s.handleWallet(w, req)
+			<-wsmm.done
+			if tc.expectWsMsg && wsmm.walletUpdateUserId != testStore.TestAuthToken.UserId {
+				t.Error("Expected websocket message to update wallet")
+			}
+			if !tc.expectWsMsg && wsmm.walletUpdateUserId == testStore.TestAuthToken.UserId {
+				t.Error("Expected no websocket message to update wallet")
+			}
 
 			// Make sure we tried to get an auth based on the `token` param (whether or
 			// not it was a valid `token`)

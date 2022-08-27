@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"lbryio/wallet-sync-server/auth"
 	"lbryio/wallet-sync-server/server/paths"
@@ -131,6 +132,7 @@ type TestStore struct {
 	Errors TestStoreFunctionsErrors
 
 	TestAuthToken auth.AuthToken
+	TestUserId    auth.UserId
 
 	TestEncryptedWallet wallet.EncryptedWallet
 	TestSequence        wallet.Sequence
@@ -203,7 +205,7 @@ func (s *TestStore) ChangePasswordWithWallet(
 	encryptedWallet wallet.EncryptedWallet,
 	sequence wallet.Sequence,
 	hmac wallet.WalletHmac,
-) (err error) {
+) (auth.UserId, error) {
 	s.Called.ChangePasswordWithWallet = ChangePasswordWithWalletCall{
 		EncryptedWallet: encryptedWallet,
 		Sequence:        sequence,
@@ -213,7 +215,7 @@ func (s *TestStore) ChangePasswordWithWallet(
 		NewPassword:     newPassword,
 		ClientSaltSeed:  clientSaltSeed,
 	}
-	return s.Errors.ChangePasswordWithWallet
+	return s.TestUserId, s.Errors.ChangePasswordWithWallet
 }
 
 func (s *TestStore) ChangePasswordNoWallet(
@@ -221,14 +223,14 @@ func (s *TestStore) ChangePasswordNoWallet(
 	oldPassword auth.Password,
 	newPassword auth.Password,
 	clientSaltSeed auth.ClientSaltSeed,
-) (err error) {
+) (auth.UserId, error) {
 	s.Called.ChangePasswordNoWallet = ChangePasswordNoWalletCall{
 		Email:          email,
 		OldPassword:    oldPassword,
 		NewPassword:    newPassword,
 		ClientSaltSeed: clientSaltSeed,
 	}
-	return s.Errors.ChangePasswordNoWallet
+	return s.TestUserId, s.Errors.ChangePasswordNoWallet
 }
 
 func (s *TestStore) GetClientSaltSeed(email auth.Email) (seed auth.ClientSaltSeed, err error) {
@@ -267,6 +269,35 @@ func expectErrorString(t *testing.T, body []byte, expectedErrorString string) {
 	if want, got := expectedErrorString, result.Error; want != got {
 		t.Errorf("Error String: expected %s, got %s", want, got)
 	}
+}
+
+type wsMockManager struct {
+	s    *Server
+	done chan bool
+
+	addedClientUserId   auth.UserId
+	removedClientUserId auth.UserId
+	removedUserId       auth.UserId
+	walletUpdateUserId  auth.UserId
+	noMessage           bool
+}
+
+func (m *wsMockManager) getOneMessage(timeout time.Duration) {
+	t := time.NewTicker(timeout)
+	select {
+	case msg := <-m.s.clientAdd:
+		m.addedClientUserId = msg.userId
+	case msg := <-m.s.clientRemove:
+		m.removedClientUserId = msg.userId
+	case msg := <-m.s.userRemove:
+		m.removedUserId = msg.userId
+	case msg := <-m.s.walletUpdates:
+		m.walletUpdateUserId = msg.userId
+	case <-t.C:
+		m.noMessage = true
+	}
+	t.Stop()
+	m.done <- true
 }
 
 func TestServerHelperCheckAuth(t *testing.T) {
@@ -324,7 +355,7 @@ func TestServerHelperCheckAuth(t *testing.T) {
 				Errors:        tc.storeErrors,
 				TestAuthToken: auth.AuthToken{Token: auth.AuthTokenString("seekrit"), Scope: tc.userScope},
 			}
-			s := Server{&TestAuth{}, &testStore, &TestEnv{}, &TestMail{}, TestPort}
+			s := Init(&TestAuth{}, &testStore, &TestEnv{}, &TestMail{}, TestPort)
 
 			w := httptest.NewRecorder()
 			authToken := s.checkAuth(w, testStore.TestAuthToken.Token, tc.requiredScope)

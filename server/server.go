@@ -1,10 +1,13 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -14,9 +17,18 @@ import (
 	"lbryio/wallet-sync-server/mail"
 	"lbryio/wallet-sync-server/server/paths"
 	"lbryio/wallet-sync-server/store"
+	"lbryio/wallet-sync-server/wallet"
 )
 
 const maxBodySize = 100000
+
+// Message sent from the wallet POST request handler to the websocket manager,
+// indicating that a user's client should receive a (different) message that
+// their wallet has an update on the server.
+type walletUpdateMsg struct {
+	userId   auth.UserId
+	sequence wallet.Sequence
+}
 
 type Server struct {
 	auth  auth.AuthInterface
@@ -24,16 +36,36 @@ type Server struct {
 	env   env.EnvInterface
 	mail  mail.MailInterface
 	port  int
+
+	clientAdd     chan wsClientForUser
+	clientRemove  chan wsClientForUser
+	userRemove    chan wsClientForUser
+	walletUpdates chan walletUpdateMsg
 }
 
 func Init(
-	auth auth.AuthInterface,
-	store store.StoreInterface,
-	env env.EnvInterface,
-	mail mail.MailInterface,
+	authInterface auth.AuthInterface,
+	storeInterface store.StoreInterface,
+	envInterface env.EnvInterface,
+	mailInterface mail.MailInterface,
 	port int,
 ) *Server {
-	return &Server{auth, store, env, mail, port}
+	return &Server{
+		auth:  authInterface,
+		store: storeInterface,
+		env:   envInterface,
+		mail:  mailInterface,
+		port:  port,
+
+		// Anything that could get backed up by a lot of requests, let's just
+		// give it a buffer. Starting small until we start to see dashboard
+		// stats on this. I want a sense of how this grows with the number of
+		// users or whatnot.
+		clientAdd:     make(chan wsClientForUser),
+		clientRemove:  make(chan wsClientForUser),
+		userRemove:    make(chan wsClientForUser, 5),
+		walletUpdates: make(chan walletUpdateMsg, 5),
+	}
 }
 
 type ErrorResponse struct {
@@ -164,6 +196,22 @@ func (s *Server) checkAuth(
 	return authToken
 }
 
+// Useful for any request where token is the only GET param to get
+// TODO - There's probably a struct-based solution here like with POST/PUT.
+func getTokenParam(req *http.Request) (token auth.AuthTokenString, err error) {
+	tokenSlice, hasTokenSlice := req.URL.Query()["token"]
+
+	if !hasTokenSlice || tokenSlice[0] == "" {
+		err = fmt.Errorf("Missing token parameter")
+	}
+
+	if err == nil {
+		token = auth.AuthTokenString(tokenSlice[0])
+	}
+
+	return
+}
+
 // TODO - both wallet and token requests should be PUT, not POST.
 // PUT = "...creates a new resource or replaces a representation of the target resource with the request payload."
 
@@ -177,6 +225,14 @@ func (s *Server) wrongApiVersion(w http.ResponseWriter, req *http.Request) {
 	return
 }
 
+func serve(server *http.Server, done chan bool) {
+	log.Print("Server start")
+	server.ListenAndServe()
+	log.Print("Server finish")
+
+	done <- true
+}
+
 func (s *Server) Serve() {
 	http.HandleFunc(paths.PathAuthToken, s.getAuthToken)
 	http.HandleFunc(paths.PathWallet, s.handleWallet)
@@ -185,6 +241,7 @@ func (s *Server) Serve() {
 	http.HandleFunc(paths.PathVerify, s.verify)
 	http.HandleFunc(paths.PathResendVerify, s.resendVerifyEmail)
 	http.HandleFunc(paths.PathClientSaltSeed, s.getClientSaltSeed)
+	http.HandleFunc(paths.PathWebsocket, s.websocket)
 
 	http.HandleFunc(paths.PathUnknownEndpoint, s.unknownEndpoint)
 	http.HandleFunc(paths.PathWrongApiVersion, s.wrongApiVersion)
@@ -192,5 +249,38 @@ func (s *Server) Serve() {
 	http.Handle(paths.PathPrometheus, promhttp.Handler())
 
 	log.Printf("Serving at localhost:%d\n", s.port)
-	http.ListenAndServe(fmt.Sprintf("localhost:%d", s.port), nil)
+
+	// Signal *to* socket manager that it should finish (we use server.Shutdown
+	// to tell the server to finish)
+	socketsFinish := make(chan bool)
+
+	// Signal *from* server and socket manager that they are done:
+	serverDone := make(chan bool)
+	socketsDone := make(chan bool)
+
+	go s.manageSockets(socketsDone, socketsFinish)
+
+	server := http.Server{Addr: fmt.Sprintf("localhost:%d", s.port)}
+	go serve(&server, serverDone)
+
+	// Make sure that both the server and the websocket manager close properly on interrupt
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt)
+
+	// Wait for the interrupt signal
+	<-interrupt
+
+	// Tell the server to finish and wait for it to do so. We want it to finish
+	// to guarantee no more incoming sockets before we turn off the socket
+	// manager.
+	server.Shutdown(context.Background())
+	<-serverDone
+
+	// The socket manager's cleanup procedure assumes that there will be no new
+	// socket connections. Now that the server is done, no new socket
+	// connections will be coming in, so we can close the socket manager.
+	socketsFinish <- true
+	<-socketsDone
+
+	log.Printf("All done")
 }

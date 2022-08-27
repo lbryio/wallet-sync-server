@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -53,22 +54,6 @@ func (s *Server) handleWallet(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// TODO - There's probably a struct-based solution here like with POST/PUT.
-// We could put that struct up top as well.
-func getWalletParams(req *http.Request) (token auth.AuthTokenString, err error) {
-	tokenSlice, hasTokenSlice := req.URL.Query()["token"]
-
-	if !hasTokenSlice || tokenSlice[0] == "" {
-		err = fmt.Errorf("Missing token parameter")
-	}
-
-	if err == nil {
-		token = auth.AuthTokenString(tokenSlice[0])
-	}
-
-	return
-}
-
 func (s *Server) getWallet(w http.ResponseWriter, req *http.Request) {
 	metrics.RequestsCount.With(prometheus.Labels{"method": "GET wallet"}).Inc()
 
@@ -76,7 +61,7 @@ func (s *Server) getWallet(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	token, paramsErr := getWalletParams(req)
+	token, paramsErr := getTokenParam(req)
 
 	if paramsErr != nil {
 		// In this specific case, the error is limited to values that are safe to
@@ -160,4 +145,17 @@ func (s *Server) postWallet(w http.ResponseWriter, req *http.Request) {
 	if walletRequest.Sequence == store.InitialWalletSequence {
 		log.Printf("Initial wallet created for user id %d", authToken.UserId)
 	}
+
+	// Inform the other clients over websockets. If we can't do it within 100
+	// milliseconds, don't bother. It's a nice-to-have, not mission critical.
+	// But, count the misses on the dashboard. If it happens a lot we should
+	// probably increase the buffer on the notify chans for the clients. Those
+	// will be a bottleneck within the socket manager.
+	timeout := time.NewTicker(100 * time.Millisecond)
+	select {
+	case s.walletUpdates <- walletUpdateMsg{authToken.UserId, walletRequest.Sequence}:
+	case <-timeout.C:
+		metrics.ErrorsCount.With(prometheus.Labels{"details": "client notify chan buffer full"}).Inc()
+	}
+	timeout.Stop()
 }

@@ -15,8 +15,16 @@ var (
 		},
 		[]string{"method"},
 	)
+	ErrorsCount = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "wallet_sync_error_count",
+			Help: "Total number of various kinds of errors",
+		},
+		[]string{"details"},
+	)
 )
 
 func init() {
 	prometheus.MustRegister(RequestsCount)
+	prometheus.MustRegister(ErrorsCount)
 }
