@@ -1,3 +1,5 @@
 /sql.db
 
 dist/
+
+/wallet-sync-server
