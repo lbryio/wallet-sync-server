@@ -14,7 +14,7 @@ for wallet in ['test_wallet_1', 'test_wallet_2']:
 # Make sure the next preference changes have a later timestamp!
 time.sleep(1.1)
 
-def code_block(code):
+def code_block(code, stall=0):
   print ("```")
   for line in code.strip().split('\n'):
     print(">>> " + line)
@@ -24,9 +24,7 @@ def code_block(code):
       result = eval(line)
       if result is not None:
         print(repr(result))
-      if 'set_preference' in line:
-        # Make sure the next preference changes have a later timestamp!
-        time.sleep(1.1)
+      time.sleep(stall) # Some commands we want to give some async aspect to finish before continuing
   print ("```")
 
 print("""# Test Client
@@ -121,7 +119,9 @@ c1.get_preferences()
 c2.get_preferences()
 c1.set_preference('animal', 'cow')
 c1.get_preferences()
-""")
+""",
+stall=1.1, # Make sure the next preference changes have a later timestamp!
+)
 
 print("""
 The wallet is synced between the clients. The client with the changed preference sends its wallet to the server, and the other one GETs it locally.
@@ -144,7 +144,9 @@ c1.set_preference('car', 'Audi')
 c2.set_preference('animal', 'horse')
 c1.get_preferences()
 c2.get_preferences()
-""")
+""",
+stall=1.1, # Make sure the next preference changes have a later timestamp!
+)
 
 print("""
 One client POSTs its change first.
@@ -192,7 +194,9 @@ _ = c2.set_preference('animal', 'beaver')
 _ = c1.set_preference('car', 'Toyota')
 c2.get_preferences()
 c1.get_preferences()
-""")
+""",
+stall=1.1, # Make sure the next preference changes have a later timestamp!
+)
 
 print("""
 We try to POST both of them to the server. The second one fails because of the conflict, and we see that its preferences don't change yet.
@@ -264,7 +268,9 @@ We don't allow password changes if we have pending wallet changes to push. This 
 code_block("""
 c1.set_preference('animal', 'leemur')
 c1.change_password("starboard")
-""")
+""",
+stall=1.1, # Make sure the next preference changes have a later timestamp!
+)
 
 print("""
 If we update the wallet first, we can do it.
@@ -289,9 +295,9 @@ This test client will have a thread listening to the websocket which just prints
 code_block("""
 c1.start_websocket()
 c2.start_websocket()
-""")
-
-time.sleep(.1) # make sure the messages in the other thread have time to print
+""",
+stall=0.1, # Make sure the messages in the other thread have time to print
+)
 
 print("""
 Now make an update and see:
@@ -299,9 +305,9 @@ Now make an update and see:
 
 code_block("""
 c1.update_remote_wallet()
-""")
-
-time.sleep(.1) # make sure the messages in the other thread have time to print
+""",
+stall=0.1, # Make sure the messages in the other thread have time to print
+)
 
 print("""
 Update again and we'll see the new sequence number:
@@ -309,9 +315,9 @@ Update again and we'll see the new sequence number:
 
 code_block("""
 c1.update_remote_wallet()
-""")
-
-time.sleep(.1) # make sure the messages in the other thread have time to print
+""",
+stall=0.1, # Make sure the messages in the other thread have time to print
+)
 
 print("""
 When we change a password, just as all auth tokens are invalidated, all sockets are also disconnected.
@@ -319,6 +325,6 @@ When we change a password, just as all auth tokens are invalidated, all sockets 
 
 code_block("""
 c1.change_password("ihatesockets")
-""")
-
-time.sleep(.1) # make sure the messages in the other thread have time to print
+""",
+stall=0.1, # Make sure the messages in the other thread have time to print
+)
