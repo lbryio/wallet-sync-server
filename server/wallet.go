@@ -55,7 +55,7 @@ func (s *Server) handleWallet(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *Server) getWallet(w http.ResponseWriter, req *http.Request) {
-	metrics.RequestsCount.With(prometheus.Labels{"method": "GET wallet"}).Inc()
+	metrics.RequestsCount.With(prometheus.Labels{"method": "GET", "endpoint": "wallet"}).Inc()
 
 	if !getGetData(w, req) {
 		return
@@ -109,7 +109,7 @@ func (s *Server) getWallet(w http.ResponseWriter, req *http.Request) {
 //     current wallet's sequence
 //   500: Update unsuccessful for unanticipated reasons
 func (s *Server) postWallet(w http.ResponseWriter, req *http.Request) {
-	metrics.RequestsCount.With(prometheus.Labels{"method": "POST wallet"}).Inc()
+	metrics.RequestsCount.With(prometheus.Labels{"method": "POST", "endpoint": "wallet"}).Inc()
 
 	var walletRequest WalletRequest
 	if !getPostData(w, req, &walletRequest) {
@@ -155,7 +155,7 @@ func (s *Server) postWallet(w http.ResponseWriter, req *http.Request) {
 	select {
 	case s.walletUpdates <- walletUpdateMsg{authToken.UserId, walletRequest.Sequence}:
 	case <-timeout.C:
-		metrics.ErrorsCount.With(prometheus.Labels{"details": "client notify chan buffer full"}).Inc()
+		metrics.ErrorsCount.With(prometheus.Labels{"error_type": "ws-client-notify"}).Inc()
 	}
 	timeout.Stop()
 }

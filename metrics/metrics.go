@@ -13,14 +13,14 @@ var (
 			// Prometheus?
 			Help: "Total number of requests to various endpoints",
 		},
-		[]string{"method"},
+		[]string{"method", "endpoint"},
 	)
 	ErrorsCount = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "wallet_sync_error_count",
 			Help: "Total number of various kinds of errors",
 		},
-		[]string{"details"},
+		[]string{"error_type"},
 	)
 )
 

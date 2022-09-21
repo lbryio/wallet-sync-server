@@ -144,7 +144,7 @@ func (s *Server) changePassword(w http.ResponseWriter, req *http.Request) {
 	select {
 	case s.userRemove <- wsClientForUser{userId, nil}:
 	case <-timeout.C:
-		metrics.ErrorsCount.With(prometheus.Labels{"details": "websocket user remove chan buffer full"}).Inc()
+		metrics.ErrorsCount.With(prometheus.Labels{"error_type": "ws-user-remove"}).Inc()
 		return
 	}
 	timeout.Stop()
